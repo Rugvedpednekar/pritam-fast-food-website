@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pritam Fast Food | Pure Veg in Goregaon</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Your CSS -->
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+
+  <!-- Floating Call Button (Mobile) -->
+  <a href="tel:+912226864545" class="floating-call md:hidden" aria-label="Call Pritam Fast Food">
+    <i class="fa-solid fa-phone"></i> Call Now
+  </a>
+
+  <!-- NAV -->
+  <nav class="fixed w-full z-50 nav-glass">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-20 items-center">
+        <a href="#home" class="flex items-center gap-3">
+          <div class="logo-badge">
+            <i class="fa-solid fa-utensils"></i>
+          </div>
+          <div class="leading-tight">
+            <div class="text-xl sm:text-2xl font-bold tracking-tight font-serif">
+              PRITAM <span class="text-emerald-700">FAST FOOD</span>
+            </div>
+            <div class="text-xs text-slate-500 font-semibold tracking-wide">Pure Veg • Goregaon East</div>
+          </div>
+        </a>
+
+        <div class="hidden md:flex items-center gap-8 text-sm font-semibold">
+          <a href="#about" class="navlink">About</a>
+          <a href="#services" class="navlink">Services</a>
+          <a href="./menu.html" class="navlink">Menu</a>
+          <a href="#contact" class="navlink">Contact</a>
+
+          <div class="flex items-center gap-2 text-emerald-700 font-bold border-l pl-6 ml-2">
+            <i class="fa-solid fa-phone"></i>
+            <a href="tel:+912226864545" class="hover:underline">022 2686 4545</a>
+          </div>
+        </div>
+
+        <!-- Mobile menu button -->
+        <div class="md:hidden">
+          <button id="mobile-menu-btn" class="p-3 rounded-xl hover:bg-white/60 transition" aria-label="Open menu">
+            <i class="fa-solid fa-bars text-xl"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="hidden md:hidden bg-white border-t">
+      <div class="max-w-7xl mx-auto px-4 py-4 grid gap-3 text-center">
+        <a href="#about" class="mobilelink">About</a>
+        <a href="#services" class="mobilelink">Services</a>
+        <a href="./menu.html" class="mobilelink">Menu</a>
+        <a href="#contact" class="mobilelink">Contact</a>
+        <a href="tel:+912226864545" class="btn-primary w-full justify-center">
+          <i class="fa-solid fa-phone"></i> Call: 022 2686 4545
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header id="home" class="hero">
+    <div class="hero-overlay"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-28 pb-20">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 pill mb-6">
+          <span class="dot"></span>
+          <span>Pure Veg • Hygiene Focused • Fast Service</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl font-serif font-bold leading-tight text-white">
+          Classic Mumbai Fast Food, <span class="text-amber-300">Done Right</span>
+        </h1>
+
+        <p class="mt-6 text-base sm:text-lg text-white/90 leading-relaxed">
+          Serving the Goregaon East community with comforting South Indian, North Indian, and fast-food favourites.
+        </p>
+
+        <div class="mt-8 flex flex-col sm:flex-row gap-3">
+          <a href="./menu.html" class="btn-primary">
+            <i class="fa-solid fa-book-open"></i> Explore Menu
+          </a>
+          <a href="https://maps.app.goo.gl/3NqYt4uD3E4E4E4E" target="_blank" rel="noreferrer" class="btn-secondary">
+            <i class="fa-solid fa-location-dot"></i> Get Directions
+          </a>
+        </div>
+
+        <div class="mt-10 grid sm:grid-cols-3 gap-3">
+          <div class="stat">
+            <div class="stat-top">20+ years</div>
+            <div class="stat-sub">Local favourite</div>
+          </div>
+          <div class="stat">
+            <div class="stat-top">Pure Veg</div>
+            <div class="stat-sub">Green mark</div>
+          </div>
+          <div class="stat">
+            <div class="stat-top">Open daily</div>
+            <div class="stat-sub">8 AM – 12 AM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ABOUT -->
+  <section id="about" class="section">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-2 gap-10 items-start">
+        <div class="card">
+          <h2 class="h2">About Pritam Fast Food</h2>
+          <p class="p">
+            Located on Aarey Road (Peru Baug, Jay Prakash Nagar), Pritam Fast Food is known for quick service,
+            consistent taste, and clean preparation—ideal for families, students, and commuters.
+          </p>
+          <div class="mt-6 grid sm:grid-cols-3 gap-4">
+            <div class="mini">
+              <div class="mini-top">Quick</div>
+              <div class="mini-sub">Fast service</div>
+            </div>
+            <div class="mini">
+              <div class="mini-top">Clean</div>
+              <div class="mini-sub">Hygiene-first</div>
+            </div>
+            <div class="mini">
+              <div class="mini-top">Comfort</div>
+              <div class="mini-sub">Homely flavours</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-soft">
+          <div class="flex items-start gap-4">
+            <div class="icon-tile">
+              <i class="fa-solid fa-seedling"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold">Pure Vegetarian</h3>
+              <p class="p mt-1">
+                Quality ingredients, fresh prep, and vegetarian options across categories.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-start gap-4">
+            <div class="icon-tile">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold">Fast Food + South Indian</h3>
+              <p class="p mt-1">
+                From pav bhaji & sandwiches to dosas & idli—great for a quick bite or a full meal.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-start gap-4">
+            <div class="icon-tile">
+              <i class="fa-solid fa-face-smile"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold">Loved by Locals</h3>
+              <p class="p mt-1">
+                A consistent spot for everyday cravings and family-friendly dining.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICES -->
+  <section id="services" class="section section-muted">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-10">
+        <h2 class="h2">Services</h2>
+        <p class="p max-w-2xl mx-auto">Choose how you want to enjoy your meal.</p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="card service">
+          <div class="service-ico"><i class="fa-solid fa-motorcycle"></i></div>
+          <div class="service-title">Home Delivery</div>
+          <div class="service-sub">Fresh food delivered to your doorstep.</div>
+        </div>
+
+        <div class="card service">
+          <div class="service-ico"><i class="fa-solid fa-chair"></i></div>
+          <div class="service-title">Dining</div>
+          <div class="service-sub">Sit, relax, and enjoy hygienic dining.</div>
+        </div>
+
+        <div class="card service">
+          <div class="service-ico"><i class="fa-solid fa-people-group"></i></div>
+          <div class="service-title">Catering</div>
+          <div class="service-sub">Perfect for small events & gatherings.</div>
+        </div>
+
+        <div class="card service">
+          <div class="service-ico"><i class="fa-solid fa-bag-shopping"></i></div>
+          <div class="service-title">Takeaway</div>
+          <div class="service-sub">Quick pickup for busy schedules.</div>
+        </div>
+      </div>
+
+      <div class="mt-8 text-center">
+        <a href="#contact" class="btn-secondary inline-flex">
+          <i class="fa-solid fa-phone"></i> Contact for Orders / Catering
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="section section-muted">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid lg:grid-cols-2 gap-10 items-start">
+        <div class="card">
+          <h2 class="h2">Contact & Location</h2>
+
+          <div class="mt-6 space-y-6">
+            <div class="info">
+              <div class="info-ico"><i class="fa-solid fa-location-dot"></i></div>
+              <div>
+                <div class="info-title">Address</div>
+                <div class="p">
+                  Shop No 1, Sant Nivrutti Building,<br>
+                  Aarey Road, Peru Baug, Jay Prakash Nagar,<br>
+                  Goregaon East, Mumbai, Maharashtra 400063
+                </div>
+                <a class="link mt-2 inline-block" href="https://maps.app.goo.gl/3NqYt4uD3E4E4E4E" target="_blank" rel="noreferrer">
+                  Open in Google Maps
+                </a>
+              </div>
+            </div>
+
+            <div class="info">
+              <div class="info-ico"><i class="fa-solid fa-phone"></i></div>
+              <div>
+                <div class="info-title">Phone</div>
+                <div class="p font-semibold"><a class="link" href="tel:+912226864545">022 2686 4545</a></div>
+                <div class="p"><a class="link" href="tel:+912226861957">022 2686 1957</a></div>
+              </div>
+            </div>
+
+            <div class="info">
+              <div class="info-ico"><i class="fa-solid fa-clock"></i></div>
+              <div>
+                <div class="info-title">Hours</div>
+                <div class="p">Everyday: 8:00 AM – 12:00 Midnight</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+              <a href="tel:+912226864545" class="btn-primary">
+                <i class="fa-solid fa-phone"></i> Call
+              </a>
+              <a href="./menu.html" class="btn-secondary">
+                <i class="fa-solid fa-book-open"></i> View Menu
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="mapcard">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3768.9959!2d72.8520!3d19.1661!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3be7b7ad29ff8ccb%3A0x86a4461d1c7c09cf!2sPritam+Fast+food!5e0!3m2!1sen!2sin!4v1700000000000"
+            width="100%"
+            height="100%"
+            style="border:0;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Pritam Fast Food Location Map"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-12">
+      <div class="text-xl font-serif font-bold text-amber-400 tracking-wider uppercase">Pritam Fast Food</div>
+      <div class="text-slate-400 mt-2">Pure Veg • Goregaon East • Mumbai</div>
+
+      <div class="footer-line"></div>
+      <div class="text-sm text-slate-500">&copy; <span id="year"></span> Pritam Fast Food. All rights reserved.</div>
+    </div>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>

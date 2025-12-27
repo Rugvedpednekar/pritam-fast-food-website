@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pritam Fast Food | Menu</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+
+  <!-- Simple top bar -->
+  <nav class="nav-glass sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="h-20 flex items-center justify-between">
+        <a href="./index.html" class="flex items-center gap-3">
+          <div class="logo-badge"><i class="fa-solid fa-utensils"></i></div>
+          <div class="leading-tight">
+            <div class="text-xl sm:text-2xl font-bold tracking-tight font-serif">
+              PRITAM <span class="text-emerald-700">FAST FOOD</span>
+            </div>
+            <div class="text-xs text-slate-500 font-semibold tracking-wide">Menu • Pure Veg</div>
+          </div>
+        </a>
+
+        <div class="flex items-center gap-3">
+          <a href="./index.html#contact" class="btn-secondary">
+            <i class="fa-solid fa-location-dot"></i> Location
+          </a>
+          <a href="tel:+912226864545" class="btn-primary">
+            <i class="fa-solid fa-phone"></i> Call
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Menu header -->
+  <header class="section" style="padding-top: 44px; padding-bottom: 30px;">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <h1 class="h2">Full Menu</h1>
+        <p class="p max-w-2xl mx-auto mt-2">
+          Search dishes instantly and sort by price. (Prices may change — please confirm at the restaurant.)
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Search + filters + sort -->
+  <section class="pb-14">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+      <div class="menu-toolbar">
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="searchInput" type="text" placeholder="Search… (e.g., dosa, paneer, pizza, lassi)" />
+        </div>
+
+        <div class="menu-toolbar-row">
+          <div class="filter-wrap">
+            <button class="chip active" data-filter="all">All</button>
+
+            <button class="chip" data-filter="dosa">Dosa</button>
+            <button class="chip" data-filter="uttappa">Uttappa</button>
+            <button class="chip" data-filter="special-dosa">Special Dosa</button>
+            <button class="chip" data-filter="dosa-extras">Dosa Extras</button>
+
+            <button class="chip" data-filter="pizza">Pizza</button>
+            <button class="chip" data-filter="burger">Burger</button>
+            <button class="chip" data-filter="papad">Papad</button>
+            <button class="chip" data-filter="salad-raita">Salad / Raita</button>
+            <button class="chip" data-filter="soup">Soup</button>
+            <button class="chip" data-filter="paneer">Paneer</button>
+            <button class="chip" data-filter="veg-subji">Veg Subji</button>
+
+            <button class="chip" data-filter="idli">Idli</button>
+            <button class="chip" data-filter="special-idli">Special Idli</button>
+            <button class="chip" data-filter="vada">Vada</button>
+            <button class="chip" data-filter="snacks">Other Snacks</button>
+
+            <button class="chip" data-filter="beverages">Beverages</button>
+            <button class="chip" data-filter="other-drinks">Other Drinks</button>
+            <button class="chip" data-filter="fruit-salad">Fruit Salad</button>
+          </div>
+
+          <div class="sort-wrap">
+            <i class="fa-solid fa-arrow-up-wide-short"></i>
+            <select id="sortSelect" aria-label="Sort by price">
+              <option value="none">Sort: Default</option>
+              <option value="low">Price: Low → High</option>
+              <option value="high">Price: High → Low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menu grid -->
+      <div class="mt-8 grid md:grid-cols-2 xl:grid-cols-3 gap-5" id="menuGrid"></div>
+
+      <div id="noResults" class="hidden mt-10 text-center">
+        <div class="card max-w-xl mx-auto">
+          <div class="text-xl font-bold">No results</div>
+          <p class="p mt-2">Try a different spelling or remove some filters.</p>
+        </div>
+      </div>
+
+      <div class="mt-10 text-center">
+        <a href="./index.html" class="btn-secondary inline-flex">
+          <i class="fa-solid fa-arrow-left"></i> Back to Home
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-10">
+      <div class="text-sm text-slate-400">© <span id="year"></span> Pritam Fast Food</div>
+    </div>
+  </footer>
+
+  <script src="./menu.js"></script>
+</body>
+</html>
