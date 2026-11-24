@@ -310,6 +310,7 @@ test("Old monthly payroll history includes ID, monthly salary and download actio
  expect(h).toContain('data-tp-action="pdf-history-cash"');
  expect(h).toContain('data-tp-action="pdf-history-cheque"');
  expect(h).toContain('data-tp-action="pdf-history-advance"');
+ expect(h).toContain('data-tp-action="pdf-increments"');
  expect(h).toContain('data-tp-action="pdf-history-attendance"');
  expect(h).toContain('data-tp-action="print-history-cash"');
  expect(h).toContain("Monthly ID");
