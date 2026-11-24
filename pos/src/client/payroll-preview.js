@@ -420,7 +420,7 @@ function tpAdvances(){
  return out;
 }
 function tpCommissionEditor(emp){
- var p=tpGetPeriod(),rec=tpCommissionRecord(p,emp)||{},mode=rec.mode==="total"?"total":"daily";
+ var p=tpGetPeriod(),rec=tpCommissionRecord(p,emp)||{},mode=rec.mode==="daily"?"daily":"total";
  var rate=rec.gstRate==null?(emp.commissionGstRate==null?5:emp.commissionGstRate):rec.gstRate;
  var calc=tpCommissionCalculate(emp,p),total=calc?calc.commissionTotal:0;
  var head='<section class="tp-panel tp-commission-editor" id="tp-commission-editor"><div class="tp-header-row"><div>'+
@@ -1156,7 +1156,7 @@ document.addEventListener("change",function(ev){
  if(name==="commissionMode"||name==="commissionGST"||name==="commissionDaily"||name==="commissionTotal"){
   if(!tpIsParcel(emp)){uxAlert("This field is only available for parcel boys.");return;}
   var previous=p.commissions[id],record=previous?JSON.parse(JSON.stringify(previous)):
-   {mode:"daily",daily:Array(30).fill(null),total:null,gstRate:emp.commissionGstRate==null?5:emp.commissionGstRate};
+   {mode:"total",daily:Array(30).fill(null),total:null,gstRate:emp.commissionGstRate==null?5:emp.commissionGstRate};
   if(!Array.isArray(record.daily))record.daily=Array(30).fill(null);
   if(name==="commissionMode"){
    if(field.value!=="daily"&&field.value!=="total")return;
@@ -1237,7 +1237,7 @@ document.addEventListener("change",function(ev){
 },true);
 // Enter saves days to the same monthly record and advances to the next employee in the visible tab.
 // Enter saves monthly data and advances to the next field.
-// Attendance: monthly ID → salary → days → next employee's days; Salary: days → next days.
+// Attendance: monthly ID -> next monthly ID, salary -> days, days -> next days. Salary: days -> next days.
 document.addEventListener("keydown",function(ev){
  if(tab!=="payroll"||(tpTab!=="attendance"&&tpTab!=="salary")||ev.key!=="Enter"||ev.isComposing)return;
  var field=ev.target;
@@ -1251,7 +1251,12 @@ document.addEventListener("keydown",function(ev){
   uxAlert("Monthly ID must be between 1 and 100.");field.focus();return;
  }
  var nextId=null,nextField="days";
- if(tpTab==="attendance"&&kind==="serial"){nextId=empId;nextField="monthlySalary";}
+ if(tpTab==="attendance"&&kind==="serial"){
+  var serialInputs=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="serial"]'));
+  var serialIndex=serialInputs.indexOf(field);
+  nextId=serialIndex>=0&&serialIndex+1<serialInputs.length?serialInputs[serialIndex+1].dataset.id:null;
+  nextField="serial";
+ }
  else if(tpTab==="attendance"&&kind==="monthlySalary"){nextId=empId;nextField="days";}
  else{
   var all=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="days"]'));
