@@ -83,7 +83,7 @@ tpEmployeeProfile=function(emp){
   extra='<div class="tp-note"><strong>LEFT · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
  }else if(emp.active!==false){
   extra='<div class="tp-actions">'+
-   tpButton("mark-left","Record Leaving","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
+   tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
    (!tpIsParcel(emp)?tpButton("go-increments","Salary Increase","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+'</div>';
  }
  html=html.replace(close,extra+close);
@@ -120,7 +120,7 @@ tpEmployeesPage=function(){
   '<div class="tp-person-extra"><strong>'+(tpIsParcel(emp)?"Commission only":tpMoney(emp.salary))+'</strong><small>Joined '+tpDate(emp.joined)+'</small>'+tpBadge(emp.method,emp.method==="CASH")+'</div>'+
   '<div class="tp-person-buttons">'+tpButton("view-employee","View","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
    tpButton("edit-employee","Edit","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
-   tpButton("mark-left","Record Leaving","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
+   tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
  }).join("")+'</div>'+(all.length?"":'<p class="tp-note">No active employees. Use Rejoin Employee from the Left Employees tab or add a new person.</p>')+'</section>';
  if(deleted.length){
   out+='<details class="tp-panel tp-deleted-people"><summary>Deleted Employees ('+deleted.length+') · Restore</summary>'+
@@ -367,12 +367,10 @@ arcCSS.textContent=".tp-archive-form{border-color:#d4c9a0}.tp-archive-form .tp-n
 document.head.appendChild(arcCSS);
 
 /* Departure types and final salary settlements (archived independently from active payroll). */
-TP_TITLES.left="Left & Resigned Employees";
-function tpDepartureType(emp){return emp&&emp.exitType==="resigned"?"resigned":"without-salary";}
+TP_TITLES.left="Resigned Employees";
 function tpDepartureStatus(emp){
- if(tpDepartureType(emp)!=="resigned")return "Left · No final salary settlement recorded";
- var s=emp.finalSettlement;
- return !s?"Resigned · Settlement not recorded":s.status==="PAID"?"Resigned · Salary paid":"Resigned · Salary due";
+ var s=emp&&emp.finalSettlement;
+ return !s?"Resigned · Final salary not yet recorded":s.status==="PAID"?"Resigned · Salary paid":"Resigned · Salary due";
 }
 function tpDepartureMaxDays(emp,date){
  var cap=Math.min(30,Number(String(date).slice(8)));
@@ -380,26 +378,27 @@ function tpDepartureMaxDays(emp,date){
  return Math.max(0,cap);
 }
 tpArcLeftForm=function(emp){
- var m=tpToday().slice(0,7),saved=tpGetPeriod(m).days[emp.id];
- return '<section class="tp-panel tp-archive-form"><h3>Record Leaving / Resignation — '+tpEscape(emp.name)+'</h3>'+
- '<p class="tp-note">Choose how the employee is leaving. Employees who resign can receive their final earned salary through their last working date. Both types stay archived and can rejoin later with a new employment period.</p>'+
+ var historic=emp.active===false&&tpArcLeft(emp)&&!emp.finalSettlement,
+ date=historic?(emp.leftAt||emp.lastWorkingDate||tpToday()):tpToday(),
+ p=tpGetPeriod(date.slice(0,7)),saved=p.days[emp.id],
+ maxDays=tpDepartureMaxDays(emp,date);
+ if(tpInputDays(saved)===null||Number(saved)>maxDays)saved="";
+ return '<section class="tp-panel tp-archive-form"><h3>'+(historic?"Complete Resignation Settlement":"Record Employee Resignation")+' — '+tpEscape(emp.name)+'</h3>'+
+ '<p class="tp-note">Record the last working day and the final salary earned. Mark the payment <strong>Paid</strong> if already settled, or <strong>Due</strong> to record payment later. Previous attendance, advances, and employment history remain available for rejoining.</p>'+
  '<form id="tp-departure-form" class="tp-form" data-id="'+tpEscape(emp.id)+'"><div class="tp-form-grid">'+
- '<div class="tp-field"><label for="tp-departure-date">Last working date *</label><input id="tp-departure-date" type="date" required min="'+tpEscape(emp.joined)+'" max="'+tpEscape(tpToday())+'" value="'+tpEscape(tpToday())+'"></div>'+
- '<div class="tp-field"><label for="tp-departure-type">Leaving type *</label><select id="tp-departure-type" required>'+
- '<option value="resigned">Resigned — calculate and settle final salary</option>'+
- '<option value="without-salary">Left — no final salary settlement recorded</option></select></div></div>'+
- '<div id="tp-departure-pay-fields"><div class="tp-form-grid">'+
- (tpIsParcel(emp)?'<div class="tp-note">Parcel Boy: enter the final monthly commission in Attendance first. Commission and GST will be used for settlement.</div>':
- '<div class="tp-field"><label for="tp-departure-days">Actual days worked until leaving *</label><input id="tp-departure-days" type="number" min="0" max="30" step="0.5" inputmode="decimal" value="'+tpEscape(saved===undefined?"":saved)+'" placeholder="e.g. 17.5">'+
- '<small>Only worked days up to the last working date. Salary uses the existing 30-day basis plus earned leave pay and deductions.</small></div>')+
- '<div class="tp-field"><label for="tp-departure-payment">Final salary payment status *</label>'+
- '<select id="tp-departure-payment"><option value="DUE">Due — salary not yet paid</option><option value="PAID">Paid — salary already received</option></select></div>'+
- '<div class="tp-field"><label for="tp-departure-paid-date">Date paid (if paid)</label><input id="tp-departure-paid-date" type="date" max="'+tpEscape(tpToday())+'" value="'+tpEscape(tpToday())+'"></div>'+
+ '<div class="tp-field"><label for="tp-departure-date">Last working date *</label><input id="tp-departure-date" type="date" required min="'+tpEscape(historic?date:emp.joined)+'" max="'+tpEscape(historic?date:tpToday())+'" value="'+tpEscape(date)+'"></div>'+
+ (tpIsParcel(emp)?'<div class="tp-note">Parcel Boy: enter the final monthly commission in Attendance before resigning. Commission and GST will be used for settlement.</div>':
+ '<div class="tp-field"><label for="tp-departure-days">Actual days worked until leaving *</label><input id="tp-departure-days" required type="number" min="0" max="30" step="0.5" inputmode="decimal" value="'+tpEscape(saved===undefined?"":saved)+'" placeholder="e.g. 17.5">'+
+ '<small>Enter actual worked days up to the last working day. Standard salary uses the existing 30-day basis, earned leave, and recorded deductions.</small></div>')+
+ '<div class="tp-field"><label for="tp-departure-payment">Final salary status *</label>'+
+ '<select id="tp-departure-payment"><option value="DUE">Due — salary not yet paid</option><option value="PAID">Paid — salary already settled</option></select></div>'+
+ '<div class="tp-field"><label for="tp-departure-paid-date">Date paid (if marked paid)</label><input id="tp-departure-paid-date" type="date" max="'+tpEscape(tpToday())+'" value="'+tpEscape(tpToday())+'"></div>'+
  '<div class="tp-field"><label for="tp-departure-method">Payment method *</label><select id="tp-departure-method"><option value="CASH" '+(emp.method==="CASH"?"selected":"")+'>CASH</option>'+
  '<option value="CHEQUE" '+(emp.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
- '<div class="tp-field"><label for="tp-departure-notes">Remarks</label><input id="tp-departure-notes" maxlength="180" placeholder="Optional resignation notes"></div>'+
- '</div><p class="tp-note">Final settlements remain separate from active payroll totals. The settlement record is preserved if the employee rejoins.</p></div>'+
- '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Confirm Leaving</button>'+tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
+ '<div class="tp-field"><label for="tp-departure-notes">Remarks</label><input id="tp-departure-notes" maxlength="180" placeholder="Optional resignation notes"></div></div>'+
+ '<p class="tp-note">Final settlements are tracked outside active salary totals. This keeps any remaining amount due visible without adding an extra active salary.</p>'+
+ '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(historic?"Save Final Settlement":"Confirm Resignation")+'</button>'+
+ tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
 };
 function tpDeparturePaymentForm(emp){
  var s=emp.finalSettlement;
@@ -413,40 +412,41 @@ function tpDeparturePaymentForm(emp){
  tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
 }
 tpArcLeftPage=function(){
- var archived=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&tpArcLeft(e);}).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
- var resigned=archived.filter(function(e){return tpDepartureType(e)==="resigned";});
- var left=archived.filter(function(e){return tpDepartureType(e)==="without-salary";});
- function employeeCards(emps){
-  return emps.length?'<div class="tp-employee-grid">'+emps.map(function(emp){
-   var s=emp.finalSettlement;
-   return '<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3>'+
-    '<p>'+tpEscape(emp.designation)+' · '+tpEscape(emp.restaurant)+'</p>'+
-    '<small>Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</small>'+
-    '<small>'+tpEscape(tpDepartureStatus(emp))+(s?' · Final salary '+tpMoney(s.net):'')+'</small></div>'+
-    '<div class="tp-person-buttons">'+tpButton("view-employee","View History","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
-    (s?tpButton("pdf-final-salary","Settlement PDF","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+
-    (s&&s.status==="DUE"?tpButton("record-final-paid","Record Paid","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+
-    tpButton("rejoin-employee","Rejoin Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
-  }).join("")+'</div>':'<p class="tp-note">No employees in this category.</p>';
- }
+ var resigned=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&tpArcLeft(e);})
+   .sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
  var paid=resigned.reduce(function(t,e){return t+(e.finalSettlement&&e.finalSettlement.status==="PAID"?e.finalSettlement.net:0);},0);
  var due=resigned.reduce(function(t,e){return t+(e.finalSettlement&&e.finalSettlement.status==="DUE"?e.finalSettlement.net:0);},0);
- var result='<div class="tp-stats tp-stats-three">'+tpCard("Resigned employees",resigned.length,"Final settlement tracked","♙")+
- tpCard("Final salary paid",tpMoney(paid),"Outside active payroll totals","₹")+
- tpCard("Final salary due",tpMoney(due),"Outstanding settlement only","▤")+'</div>'+
- '<section class="tp-panel">'+tpToolbar("Resigned Employees — With Final Salary",resigned.length+' resignation records · Payment tracked until final settlement.','')+
- '<div class="tp-note">Earned pay is calculated through the final working date. Once resigned, employees are removed from new active payroll sheets and monthly ID assignments.</div>'+employeeCards(resigned)+'</section>'+
- '<section class="tp-panel">'+tpToolbar("Left Employees (Without Salary)",left.length+' records without final salary settlement.','')+
- '<div class="tp-note">This is a record of no final salary settlement being entered, not a waiver of wages. All previous payroll history remains available.</div>'+employeeCards(left)+'</section>';
- if(tpArcForm&&tpArcForm.type==="rejoin"){var e=tpEmp(tpArcForm.id);if(e&&tpArcLeft(e))result=tpArcRejoinForm(e)+result;}
- else if(tpArcForm&&tpArcForm.type==="payment"){var payee=tpEmp(tpArcForm.id);if(payee&&tpArcLeft(payee)&&payee.finalSettlement&&payee.finalSettlement.status==="DUE")result=tpDeparturePaymentForm(payee)+result;}
- else if(tpViewing){var viewed=tpEmp(tpViewing);if(viewed&&tpArcLeft(viewed))result=tpEmployeeProfile(viewed)+result;}
- return result;
+ var out='<div class="tp-stats tp-stats-three">'+tpCard("Resigned employees",resigned.length,"Archived employment records","♙")+
+   tpCard("Final salary paid",tpMoney(paid),"Settled resignation salaries","₹")+
+   tpCard("Final salary due",tpMoney(due),"Outstanding final salaries","▤")+'</div>'+
+ '<section class="tp-panel">'+tpToolbar("Resigned Employees",resigned.length+' archived records for '+tpEscape(tpPayrollSelectedRestaurant()||"the selected restaurant"),"")+
+ '<p class="tp-note">Resigned employees are excluded from ongoing Attendance and Payment Sheets. Use Paid / Due to track their final earned salary. Older records without a settlement can be completed here; past payroll history is retained.</p>'+
+ (resigned.length?'<div class="tp-employee-grid">'+resigned.map(function(emp){
+  var s=emp.finalSettlement;
+  return '<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3>'+
+   '<p>'+tpEscape(emp.designation)+' · '+tpEscape(emp.restaurant)+'</p>'+
+   '<small>Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</small>'+
+   '<small>'+tpEscape(tpDepartureStatus(emp))+(s?' · Final salary '+tpMoney(s.net):'')+'</small></div>'+
+   '<div class="tp-person-buttons">'+tpButton("view-employee","View History","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
+   (s?tpButton("pdf-final-salary","Settlement PDF","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+
+   (s&&s.status==="DUE"?tpButton("record-final-paid","Record Paid","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+
+   (!s?tpButton("complete-final-settlement","Record Final Salary","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+
+   tpButton("rejoin-employee","Rejoin Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
+ }).join("")+'</div>':'<p class="tp-note">No resigned employees have been recorded for this restaurant.</p>')+'</section>';
+ if(tpArcForm&&tpArcForm.type==="rejoin"){var e=tpEmp(tpArcForm.id);if(e&&tpArcLeft(e))out=tpArcRejoinForm(e)+out;}
+ else if(tpArcForm&&tpArcForm.type==="settlement"){var old=tpEmp(tpArcForm.id);if(old&&tpArcLeft(old)&&!old.finalSettlement)out=tpArcLeftForm(old)+out;}
+ else if(tpArcForm&&tpArcForm.type==="payment"){var payee=tpEmp(tpArcForm.id);if(payee&&tpArcLeft(payee)&&payee.finalSettlement&&payee.finalSettlement.status==="DUE")out=tpDeparturePaymentForm(payee)+out;}
+ else if(tpViewing){var viewed=tpEmp(tpViewing);if(viewed&&tpArcLeft(viewed))out=tpEmployeeProfile(viewed)+out;}
+ return out;
 };
 var tpDepartureOriginalAction=tpHandleAction;
 tpHandleAction=function(button){
  var act=button.dataset.tpAction,emp=tpEmp(button.dataset.id);
  if(emp&&!tpPayrollMatchesRestaurant(emp))return uxAlert("Select the employee\u2019s restaurant to manage this record.");
+ if(act==="complete-final-settlement"){
+  if(!emp||!tpArcLeft(emp)||emp.finalSettlement)return;
+  tpArcForm={type:"settlement",id:emp.id};tpEditing=null;tpViewing=null;tpTab="left";draw();return;
+ }
  if(act==="record-final-paid"){
   if(!emp||!tpArcLeft(emp)||!emp.finalSettlement||emp.finalSettlement.status!=="DUE")return;
   tpArcForm={type:"payment",id:emp.id};tpEditing=null;tpViewing=null;tpTab="left";draw();return;
@@ -481,53 +481,53 @@ tpArcHistory=function(emp){
    '<p class="tp-note">No final resignation settlements recorded.</p>');
  return at>=0?output.slice(0,at)+addition+output.slice(at):output+addition;
 };
-document.addEventListener("change",function(ev){
- if(!ev.target||ev.target.id!=="tp-departure-type")return;
- var holder=document.getElementById("tp-departure-pay-fields");
- if(holder)holder.hidden=ev.target.value!=="resigned";
-},true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-departure-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
- var form=ev.target,emp=tpEmp(form.dataset.id),date=form.querySelector("#tp-departure-date").value,
-     type=form.querySelector("#tp-departure-type").value;
- if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left)return uxAlert("This employee is not active in the selected restaurant.");
- if(!tpArcDate(date)||date<emp.joined||date>tpToday())return uxAlert("Enter a valid last working date.");
- if(!["resigned","without-salary"].includes(type))return uxAlert("Choose a valid leaving type.");
- var month=date.slice(0,7),period=tpGetPeriod(month),days=null,calc=null,status=null,paidAt=null,method=null,notes="";
- if(type==="resigned"){
-  if(period.finalized===true||period.locked===true)return uxAlert("This payroll month is finalized or locked.");
-  if(tpIsParcel(emp)){
-   calc=tpCommissionCalculate(emp,period);
-   if(!calc)return uxAlert("Enter final commission in Monthly Attendance before recording a parcel boy's resignation.");
-  }else{
-   var field=form.querySelector("#tp-departure-days"),cap=tpDepartureMaxDays(emp,date);
-   days=tpInputDays(field&&field.value);
-   if(days===null||days>cap)return uxAlert("Actual worked days must be between 0 and "+cap+" for this employment period.");
-   calc=tpCompute(emp,period,days,month);
-   if(!calc)return uxAlert("Could not calculate the final salary.");
-  }
-  status=form.querySelector("#tp-departure-payment").value;
-  method=form.querySelector("#tp-departure-method").value;
-  paidAt=form.querySelector("#tp-departure-paid-date").value;
-  notes=tpTrim(form.querySelector("#tp-departure-notes").value,180);
-  if(!["DUE","PAID"].includes(status)||!["CASH","CHEQUE"].includes(method))return uxAlert("Choose a payment status and method.");
-  if(status==="PAID"&&(!tpArcDate(paidAt)||paidAt>tpToday()))return uxAlert("Enter a valid date when final salary was paid.");
+ var form=ev.target,emp=tpEmp(form.dataset.id),
+     date=form.querySelector("#tp-departure-date").value,
+     oldEntry=emp&&tpArcLeft(emp)&&!emp.finalSettlement;
+ if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.finalSettlement||(!oldEntry&&emp.active===false))
+  return uxAlert("Employee resignation is not eligible in this restaurant.");
+ if(!tpArcDate(date)||date<emp.joined||date>tpToday()||
+  (oldEntry&&date!==(emp.leftAt||emp.lastWorkingDate)))
+  return uxAlert("Enter a valid last working date for this employment period.");
+ var month=date.slice(0,7),period=tpGetPeriod(month),days=null,calc=null;
+ if(period.finalized===true||period.locked===true)
+  return uxAlert("This payroll month is finalized or locked and cannot be changed.");
+ if(tpIsParcel(emp)){
+  calc=tpCommissionCalculate(emp,period);
+  if(!calc)return uxAlert("Enter final commission in Attendance before recording a parcel boy's resignation.");
+ }else{
+  var field=form.querySelector("#tp-departure-days"),cap=tpDepartureMaxDays(emp,date);
+  days=tpInputDays(field&&field.value);
+  if(days===null||days>cap)return uxAlert("Actual worked days must be between 0 and "+cap+" for this employment period.");
+  calc=tpCompute(emp,period,days,month);
+  if(!calc)return uxAlert("Could not calculate the final salary.");
  }
- if(!confirm(type==="resigned"?"Resign "+emp.name+" with final earned salary "+tpMoney(calc.net)+" ("+(status==="PAID"?"already paid":"due")+")?":"Move "+emp.name+" to LEFT without a final salary settlement record?"))return;
+ var status=form.querySelector("#tp-departure-payment").value,
+     method=form.querySelector("#tp-departure-method").value,
+     paidAt=form.querySelector("#tp-departure-paid-date").value,
+     notes=tpTrim(form.querySelector("#tp-departure-notes").value,180);
+ if(!["DUE","PAID"].includes(status)||!["CASH","CHEQUE"].includes(method))return uxAlert("Choose Paid or Due and a payment method.");
+ if(status==="PAID"&&(!tpArcDate(paidAt)||paidAt>tpToday()))return uxAlert("Enter a valid date when final salary was paid.");
+ if(!confirm("Record "+emp.name+"'s final earned salary "+tpMoney(calc.net)+
+  " as "+(status==="PAID"?"PAID":"DUE")+"? Employment history will be preserved."))return;
  var before=JSON.stringify(tpData);
- emp.active=false;emp.left=true;emp.leftAt=date;emp.lastWorkingDate=date;emp.closedAt=tpStamp();emp.exitType=type;
- if(type==="resigned"){
-  if(days!==null){period.days[emp.id]=String(days);period.snapshots[emp.id]=tpSnapshot(emp,calc,days);}
-  emp.finalSettlement={month:month,net:calc.net,gross:calc.gross,earned:calc.earned,leavePay:calc.leavePay||0,
+ emp.active=false;emp.left=true;emp.leftAt=date;emp.lastWorkingDate=date;emp.closedAt=emp.closedAt||tpStamp();
+ emp.exitType="resigned";
+ if(days!==null&&!oldEntry){
+  period.days[emp.id]=String(days);
+  period.snapshots[emp.id]=tpSnapshot(emp,calc,days);
+ }
+ emp.finalSettlement={month:month,net:calc.net,gross:calc.gross,earned:calc.earned,leavePay:calc.leavePay||0,
    deductions:calc.withheld||0,advance:calc.paidAdvance||0,workedDays:days,
    commission:calc.commissionTotal||0,gst:calc.gst||0,
    method:method,status:status,paidAt:status==="PAID"?paidAt:null,notes:notes,recordedAt:tpStamp()};
-  period.updatedAt=tpStamp();
- }else delete emp.finalSettlement;
+ period.updatedAt=tpStamp();
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpArcForm=null;tpViewing=null;tpTab="left";draw();
- showToast(emp.name+(type==="resigned"?" resigned · final salary "+(status==="PAID"?"paid":"due"):" marked LEFT without settlement")+".");
+ showToast(emp.name+" resigned · final salary "+(status==="PAID"?"paid":"due")+".");
 },true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-settle-payment-form")return;
