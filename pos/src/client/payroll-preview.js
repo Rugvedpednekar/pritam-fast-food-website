@@ -368,11 +368,10 @@ function tpDesignationsPage(){
  var editing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
  var out='<section class="tp-panel" id="tp-designation-settings">'+tpToolbar("Designation Shortcuts",
   'Add, edit, or delete your own codes for employee designations.',tpButton("go-employees","Open Employees","tp-light"))+
- '<div class="tp-note">Create any shortcut you prefer: for example <strong>ek ch</strong> → <strong>Chinese Helper</strong>. Type the code when adding or editing an employee, or choose it from the designation dropdown. Changes here never rewrite existing employees.</div>'+
  '<form id="tp-designation-form" class="tp-designation-form">'+
  '<div class="tp-field"><label for="tp-designation-code">Shortcut code *</label>'+
  '<input id="tp-designation-code" name="shortcut" maxlength="20" required autocomplete="off" placeholder="e.g. ek ch" value="'+tpEscape(editing?editing.code:"")+'">'+
- '<small>Letters, numbers, spaces or hyphens (up to 20 characters).</small></div>'+
+ '</div>'+
  '<div class="tp-field"><label for="tp-designation-title">Full designation *</label>'+
  '<input id="tp-designation-title" name="title" maxlength="90" required autocomplete="off" placeholder="e.g. Chinese Helper" value="'+tpEscape(editing?editing.title:"")+'"></div>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(editing?"Save Changes":"+ Add Designation")+'</button>'+
