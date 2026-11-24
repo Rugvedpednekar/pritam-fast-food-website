@@ -468,16 +468,16 @@ function tpAttendance(){
  tpCard("Salaried IDs assigned",assigned+' / '+rows.length,"Monthly IDs 1–100","▤")+
  tpCard("Total worked days",String(worked),"Excludes leave and parcel commissions","✓")+'</div>';
  out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("pdf-attendance","Download Attendance PDF","tp-light")+tpButton("go-salary","Open Salary Calculator","tp-primary"))+
- '<div class="tp-note">Assign each salaried employee a monthly ID (1–100), update monthly salary and enter actual days worked. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
+ '<div class="tp-note">Assign each salaried employee a monthly ID (1–100) and enter actual days worked. Update salaries in Payroll Settings → Salary Increases. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
  '<div class="tp-field tp-att-filter"><label for="tp-id-filter">Filter monthly ID</label><select id="tp-id-filter">'+
  [['all','All IDs — ascending 1 to 100'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['unassigned','Unassigned IDs']].map(function(opt){
   return'<option value="'+opt[0]+'" '+(filter===opt[0]?'selected':'')+'>'+opt[1]+'</option>';
  }).join("")+'</select></div>'+
- tpTable(["Monthly ID (1–100)","Employee / designation","Monthly salary (₹)","Days worked"],visible.map(function(r,i){
+ tpTable(["Monthly ID (1–100)","Employee / designation","Days worked"],visible.map(function(r,i){
   var id=tpEscape(r.emp.id);
   return'<tr data-tp-attendance-row="'+id+'"><td><input aria-label="Monthly ID for '+tpEscape(r.emp.name)+'" class="tp-serial-input" type="number" inputmode="numeric" min="1" max="100" step="1" placeholder="1–100" data-tp-field="serial" data-id="'+id+'" enterkeyhint="next" value="'+(r.serial===null?"":r.serial)+'"></td>'+
   '<td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
-  '<td><input aria-label="Monthly salary for '+tpEscape(r.emp.name)+'" class="tp-cell-input tp-month-salary" type="text" inputmode="decimal" data-tp-field="monthlySalary" data-id="'+id+'" enterkeyhint="next" value="'+(r.salary/100).toFixed(2)+'"></td>'+
+  
   '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===visible.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
  }))+
  '<div class="tp-note">Press Enter to save and move to the next salaried employee. Monthly IDs and rates are saved for history.</div></section>';
@@ -1235,7 +1235,7 @@ document.addEventListener("change",function(ev){
 },true);
 // Enter saves days to the same monthly record and advances to the next employee in the visible tab.
 // Enter saves monthly data and advances to the next field.
-// Attendance: monthly ID -> next monthly ID, salary -> days, days -> next days. Salary: days -> next days.
+// Attendance: monthly ID -> next monthly ID, days -> next days. Salary: days -> next days.
 document.addEventListener("keydown",function(ev){
  if(tab!=="payroll"||(tpTab!=="attendance"&&tpTab!=="salary")||ev.key!=="Enter"||ev.isComposing)return;
  var field=ev.target;
