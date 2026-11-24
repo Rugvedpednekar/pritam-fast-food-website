@@ -2,7 +2,7 @@
    Runs inside payroll-preview.js closure. Historical payroll keys are never reused. */
 (function(){
 "use strict";
-TP_SECTIONS.splice(2,0,"left");
+TP_SECTIONS.splice(TP_SECTIONS.indexOf("sheets")+1,0,"left");
 TP_TITLES.left="Left Employees (Without Salary)";
 var tpArcForm=null,tpArcIncrementEmployee="",tpArcOriginalEmployees=tpEmployees;
 /* The POS restaurant selector is scoped to the outer application; payroll uses the same selection. */
