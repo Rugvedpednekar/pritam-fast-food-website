@@ -585,9 +585,13 @@ function tpSheets(){
   var matches=rows.filter(function(r){return r.emp.method===method;}),sum=matches.reduce(function(n,r){return n+(r.calc?r.calc.net:0);},0);
   out+='<section class="tp-panel"><div class="tp-sheet-title"><div><span class="tp-eyebrow">'+method+' PAYROLL</span><h2>'+method+' SHEET</h2><p>'+tpMonthLabel(tpPeriod)+'</p></div><span class="tp-sheet-symbol">'+(method==="CASH"?"₹":"▤")+'</span></div>'+
   '<div class="tp-actions tp-sheet-actions">'+tpButton("print-"+method.toLowerCase(),"Print "+method+" Sheet","tp-primary")+tpButton("pdf-"+method.toLowerCase(),"Download PDF","tp-light")+'</div>'+
-  tpTable(["Monthly ID","Employee","Designation","Net payable"],matches.map(function(r){
+  tpTable(["Monthly ID","Employee","Designation","Net payable","Calculation"],matches.map(function(r){
+   var id=tpEscape(r.emp.id),opened=tpCalculationOpenId===r.emp.id;
    return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
-   '<td>'+tpEscape(r.emp.designation)+(tpIsParcel(r.emp)?'<small class="tp-parcel-sheet-desc">Parcel Boy · GST '+(r.calc?r.calc.gstRate:(r.emp.commissionGstRate??5))+'%</small>':'')+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):(tpIsParcel(r.emp)?"Enter commission":"Enter days"))+'</strong></td></tr>';
+    '<td>'+tpEscape(r.emp.designation)+(tpIsParcel(r.emp)?'<small class="tp-parcel-sheet-desc">Parcel Boy · GST '+(r.calc?r.calc.gstRate:(r.emp.commissionGstRate??5))+'%</small>':'')+'</td>'+
+    '<td><strong>'+(r.calc?tpMoney(r.calc.net):(tpIsParcel(r.emp)?"Enter commission":"Enter days"))+'</strong></td>'+
+    '<td>'+tpButton("view-calculation",opened?"Hide Calculation":"View Calculation","tp-light",'data-id="'+id+'" aria-expanded="'+opened+'" aria-controls="tp-sheet-calculation-'+id+'"')+'</td></tr>'+
+    tpSheetDetailRow(r,5);
   }))+'<div class="tp-sheet-total"><span>Total '+method.toLowerCase()+' payable</span><strong>'+tpMoney(sum)+'</strong></div>'+
   '<p class="tp-note">Sorted in ascending monthly ID order, separately for CASH and CHEQUE. No payment-status tracking.</p></section>';
  });
@@ -988,6 +992,14 @@ function tpNewEmployee(){
 function tpHandleAction(button){
  var act=button.dataset.tpAction,id=button.dataset.id;
  if(act==="go-salary")return tpSetTab("sheets");
+ if(act==="view-calculation"){
+  if(!tpRows().some(function(row){return row.emp.id===id;}))return;
+  tpCalculationOpenId=tpCalculationOpenId===id?null:id;
+  tpTab="sheets";draw();
+  var expanded=document.getElementById("tp-sheet-calculation-"+id);
+  if(expanded)expanded.scrollIntoView({block:"nearest",behavior:"smooth"});
+  return;
+ }
  if(act==="go-attendance")return tpSetTab("attendance");
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
