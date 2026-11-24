@@ -50,13 +50,24 @@ Test the cutoff logic locally from `pos/` using `bun test`.
 
 
 
-## Testable Payroll Preview
+## Restaurant Payroll Management Demo
 
-Payroll is enabled as a **preview**, not a finalized payroll ledger. Open **Payroll**, select a month, verify or enter monthly salary in rupees, leave taken and paid-leave allowance. Recalculate, save a draft or export a CSV. Drafts are stored in the restaurant snapshot under `payrollDrafts` (no payments are issued). The calculation is:
+The **Payroll** navigation item now opens a **complete, browser-local demo** rather than the old payroll preview. It does not use the Railway/PostgreSQL payroll state or finalize real salary payments. Sample data and edits are stored in browser localStorage under `tablewise-payroll-demo-v3`. Each device/browser has its own demo data, so changes do **not** sync across devices.
 
-`Estimated net = monthly salary – round(monthly salary × max(0, leave taken – paid leave allowance) ÷ number of calendar days)`.
+Within Payroll, navigate using the internal sections:
 
-The calculation intentionally excludes statutory deductions, advances, half-days, PF/ESIC, income tax and finalized payslips because the original approved payroll rulebook is not present. **Do not use preview totals to pay real staff without validating policy and compliance.**
+- **Dashboard:** total active employees, contractual monthly salary expense, all advances, estimated cash payroll, estimated cheque payroll
+- **Employees:** add/view/edit staff with designation, joining date, restaurant, salary, CASH/CHEQUE method and locally saved resized photo
+- **Advances (5th):** planned amounts, paid status, printable advance distribution sheet, fines and other deduction inputs
+- **Salary Calculator (15th):** **only days worked** are entered, with half-days supported; earned salary and deductions are calculated automatically
+- **Payment Sheets:** separate Cash and Cheque sheets, print and downloadable CSV, grand total and locally recorded salary-paid status
+- **Payroll History:** prior months, paid advances, saved calculated salaries and payment status (previous months are seeded for demonstration)
+
+**Demo payroll calculation (30-day basis):** `Gross = round(monthly salary in paise × days worked ÷ 30)`; `Net = max(0, Gross − advances actually marked paid − fines − other deductions)`. The 5th and 15th are display reminders, not enforced scheduling. All calculations round to the nearest paise. An unrecovered deduction is indicated when withholding exceeds gross pay.
+
+This is an interactive demo, **not tax-compliant payroll**: statutory tax, PF, ESIC, overtime, year-end adjustments, reimbursements, and actual bank/cheque disbursements are not calculated or performed. Paid-status checkboxes record a local demonstration entry, not real transfers. Old `payrollDrafts` in cloud state are preserved but are not used by this demo.
+
+Use `bun test` from `pos/` to run payroll calculation and existing business-day regression tests.
 
 ## Multiple restaurants
 
