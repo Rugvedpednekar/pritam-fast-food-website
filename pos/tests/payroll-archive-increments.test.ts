@@ -104,3 +104,69 @@ test("legacy Delete/Restore remains separate from LEFT",()=>{
  app.handle({dataset:{tpAction:"restore-employee",id:emp.id}});
  expect(emp.active).toBe(true);
 });
+
+
+test("resigning pays salary earned until the last day and keeps settlement out of active totals",()=>{
+ const {app,submit}=boot(),emp=app.data().employees.find(e=>e.id==="demo1"),month="2026-11";
+ const p=app.period(month),oldSerial=p.serials[emp.id],oldRows=app.rows(month).length;
+ const expected=app.compute(emp,p,18,month);
+ app.handle({dataset:{tpAction:"mark-left",id:emp.id}});
+ app.setPage("employees");
+ app.handle({dataset:{tpAction:"mark-left",id:emp.id}});
+ expect(app.render()).toContain('id="tp-departure-form"');
+ submit("tp-departure-form",emp.id,{
+  "#tp-departure-date":"2026-11-20","#tp-departure-type":"resigned",
+  "#tp-departure-days":"18","#tp-departure-payment":"DUE",
+  "#tp-departure-paid-date":"","#tp-departure-method":"CASH",
+  "#tp-departure-notes":"Resigned"
+ });
+ expect(emp.exitType).toBe("resigned");
+ expect(emp.finalSettlement).toMatchObject({month,status:"DUE",net:expected.net,workedDays:18,method:"CASH"});
+ expect(p.days[emp.id]).toBe("18");
+ expect(p.serials[emp.id]).toBe(oldSerial);
+ expect(app.rows(month).length).toBe(oldRows-1);
+ app.setPage("left");
+ expect(app.render()).toContain("Resigned Employees — With Final Salary");
+ expect(app.render()).toContain("Record Paid");
+ expect(app.render()).toContain("Final salary due");
+ expect(app.profile(emp)).toContain("Final salary settlement history");
+ expect(app.profile(emp)).toContain("Payment due");
+});
+
+test("owner can record final salary payment and rejoining preserves its receipt",()=>{
+ const {app,submit}=boot(),emp=app.data().employees.find(e=>e.id==="demo1");
+ app.handle({dataset:{tpAction:"mark-left",id:emp.id}});
+ submit("tp-departure-form",emp.id,{
+  "#tp-departure-date":"2026-11-20","#tp-departure-type":"resigned",
+  "#tp-departure-days":"18","#tp-departure-payment":"DUE",
+  "#tp-departure-paid-date":"","#tp-departure-method":"CASH",
+  "#tp-departure-notes":"Family"
+ });
+ app.handle({dataset:{tpAction:"record-final-paid",id:emp.id}});
+ submit("tp-settle-payment-form",emp.id,{"#tp-settle-date":"2026-11-25","#tp-settle-method":"CHEQUE"});
+ expect(emp.finalSettlement).toMatchObject({status:"PAID",paidAt:"2026-11-25",method:"CHEQUE"});
+ expect(app.profile(emp)).toContain("Paid on");
+ app.handle({dataset:{tpAction:"rejoin-employee",id:emp.id}});
+ submit("tp-rejoin-form",emp.id,{
+  "#tp-rejoin-date":"2026-11-22","#tp-rejoin-designation":"Supervisor",
+  "#tp-rejoin-restaurant":"Restaurant 02","#tp-rejoin-salary":"35000.00"
+ });
+ const rejoined=app.active().find(e=>e.personId===emp.id);
+ expect(rejoined).toBeDefined();
+ expect(rejoined.finalSettlement).toBeUndefined();
+ expect(emp.finalSettlement.status).toBe("PAID");
+ expect(app.profile(rejoined)).toContain("Final salary settlement history");
+});
+
+test("leaving without salary settlement preserves payroll but creates no final payment",()=>{
+ const {app,submit}=boot(),emp=app.data().employees.find(e=>e.id==="demo1");
+ const oldAmount=app.period("2026-11").advances[emp.id].amount;
+ app.handle({dataset:{tpAction:"mark-left",id:emp.id}});
+ submit("tp-departure-form",emp.id,{"#tp-departure-date":"2026-11-20","#tp-departure-type":"without-salary"});
+ expect(emp.exitType).toBe("without-salary");
+ expect(emp.finalSettlement).toBeUndefined();
+ expect(app.period("2026-11").advances[emp.id].amount).toBe(oldAmount);
+ app.setPage("left");
+ expect(app.render()).toContain("Left Employees (Without Salary)");
+ expect(app.render()).toContain("Aarav Patil");
+});
