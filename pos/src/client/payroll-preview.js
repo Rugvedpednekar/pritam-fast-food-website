@@ -6,7 +6,7 @@
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
 var TP_SECTIONS=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all";
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
 function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.\d{1,2})?$/.test(v))return null;var p=v.split(".");return Number(p[0])*100+Number((p[1]||"").padEnd(2,"0"));}
@@ -21,7 +21,7 @@ function tpStamp(){return new Date().toISOString();}
 function tpId(){return "emp-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7);}
 function tpTrim(v,n){return String(v==null?"":v).trim().slice(0,n);}
 function tpRound(p){return Math.round(p);}
-function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},salaries:{},payments:{},snapshots:{},updatedAt:null};}
+function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},salaries:{},commissions:{},payments:{},snapshots:{},updatedAt:null};}
 function tpSample(){
  var first=(data.restaurants&&data.restaurants[0]&&data.restaurants[0].name)||"Pritam Fast Food";
  if(/^Restaurant\s*0*1$/i.test(first))first="Pritam Fast Food";
@@ -32,20 +32,29 @@ function tpSample(){
  {id:"demo3",name:"Ishaan Shetty",designation:"Cook",joined:"2024-01-18",restaurant:first,salary:2250000,method:"CASH",photo:"",leaveAllowance:4,active:true},
  {id:"demo4",name:"Ananya Naik",designation:"Cashier",joined:"2024-06-15",restaurant:first,salary:1950000,method:"CHEQUE",photo:"",leaveAllowance:2,active:true},
  {id:"demo5",name:"Kabir Khan",designation:"Delivery Coordinator",joined:"2023-11-10",restaurant:second,salary:2150000,method:"CASH",photo:"",leaveAllowance:4,active:true},
- {id:"demo6",name:"Riya Kulkarni",designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true}
+ {id:"demo6",name:"Riya Kulkarni",designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true},
+ {id:"demo7",name:"Mukesh",designation:"Parcel Delivery Boy",joined:"2025-03-01",restaurant:first,salary:0,method:"CASH",photo:"",leaveAllowance:0,employeeType:"parcel",commissionGstRate:5,active:true}
  ];
  var s={version:3,employees:emps,periods:{},salaryChanges:[],settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
  var months=[tpMonth(0),tpMonth(-1),tpMonth(-2)];
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
-  emps.forEach(function(emp,i){p.serials[emp.id]=i+1;p.salaries[emp.id]=emp.salary;
+  emps.forEach(function(emp,i){
+   p.serials[emp.id]=i+1;
+   if(tpIsParcel(emp)){
+    if(idx===0)p.commissions[emp.id]={mode:"daily",
+     daily:[1000,1500,1300,1200,1202].concat(Array(25).fill(1000)).map(function(x){return x*100;}),
+     total:null,gstRate:5};
+    return;
+   }
+   p.salaries[emp.id]=emp.salary;
    var adv=(i%3===0?500000:i%3===1?400000:300000);
    p.advances[emp.id]={amount:adv,enteredAt:m+"-05T10:30:00+05:30"};
    p.deductions[emp.id]={fine:i===2?15000:0,other:i===4?20000:0};
    var days=[26,25.5,27,24,26,25][i]-(idx===2?0.5:0);
    p.days[emp.id]=String(days);
    var calc=tpCompute(emp,p);
-   p.snapshots[emp.id]=tpSnapshot(emp,calc,days);
+   if(calc)p.snapshots[emp.id]=tpSnapshot(emp,calc,days);
     });
   p.updatedAt=idx===0?tpStamp():m+"-15T16:25:00+05:30";
  });
@@ -62,13 +71,15 @@ function tpRead(){
    if(!Array.isArray(x.salaryChanges))x.salaryChanges=[];
    x.employees.forEach(function(emp){
     if(!Number.isSafeInteger(emp.leaveAllowance)||emp.leaveAllowance<0||emp.leaveAllowance>31)emp.leaveAllowance=2;
-    if(!Number.isSafeInteger(emp.initialSalary)||emp.initialSalary<=0)emp.initialSalary=emp.salary;
+    if(!tpIsParcel(emp)&&(!Number.isSafeInteger(emp.initialSalary)||emp.initialSalary<=0))emp.initialSalary=emp.salary;
+    if(tpIsParcel(emp)&&(!Number.isFinite(emp.commissionGstRate)||emp.commissionGstRate<0||emp.commissionGstRate>100))emp.commissionGstRate=5;
    });
    Object.keys(x.periods).forEach(function(month){
     var p=x.periods[month];
     if(!p||typeof p!=="object")return;
     if(!p.serials||typeof p.serials!=="object")p.serials={};
     if(!p.salaries||typeof p.salaries!=="object")p.salaries={};
+    if(!p.commissions||typeof p.commissions!=="object")p.commissions={};
     // Preserve historic salary rates from snapshots created before monthly salary tracking existed.
     x.employees.forEach(function(emp){
      var old=p.snapshots&&p.snapshots[emp.id];
@@ -92,6 +103,7 @@ function tpGetPeriod(month){
  var p=tpData.periods[m];
  if(!p.serials)p.serials={};
  if(!p.salaries)p.salaries={};
+ if(!p.commissions)p.commissions={};
  return p;
 }
 function tpSerialValue(raw){
@@ -146,6 +158,31 @@ function tpAvatar(emp,size){
  var cls="tp-avatar"+(size?" tp-avatar-"+size:"");
  return emp.photo?'<span class="'+cls+'"><img alt="" src="'+tpEscape(emp.photo)+'"></span>':'<span class="'+cls+'">'+tpEscape(String(emp.name||"Employee").split(/\s+/).slice(0,2).map(function(a){return a.charAt(0);}).join("").toUpperCase())+'</span>';
 }
+function tpIsParcel(emp){return !!emp&&emp.employeeType==="parcel";}
+function tpCommissionRecord(period,employee){
+ if(!period.commissions)period.commissions={};
+ return period.commissions[employee.id]||null;
+}
+function tpCommissionMoney(value){
+ var n=Number(value);return Number.isSafeInteger(n)&&n>=0?n:0;
+}
+function tpCommissionCalculate(emp,period){
+ var record=tpCommissionRecord(period,emp);
+ if(!record)return null;
+ var mode=record.mode==="total"?"total":"daily";
+ var raw=mode==="total"?record.total:null;
+ var valid=mode==="total"?Number.isSafeInteger(raw)&&raw>=0:
+  Array.isArray(record.daily)&&record.daily.some(function(v){return v!==null&&v!==undefined&&v!=="";});
+ if(!valid)return null;
+ var sum=mode==="total"?tpCommissionMoney(raw):
+  record.daily.slice(0,30).reduce(function(a,v){return a+tpCommissionMoney(v);},0);
+ var rate=Number(record.gstRate);
+ if(!Number.isFinite(rate)||rate<0||rate>100){rate=Number(emp.commissionGstRate);if(!Number.isFinite(rate)||rate<0||rate>100)rate=5;}
+ var gst=Math.round(sum*rate/100);
+ return {days:null,monthly:0,gross:sum,commissionTotal:sum,gst:gst,gstRate:rate,commissionMode:mode,
+  leaveEarned:0,leavePay:0,earned:sum,paidAdvance:0,fine:0,other:0,withheld:gst,
+  net:Math.max(0,sum-gst),shortfall:0,method:emp.method};
+}
 function tpInputDays(value){
  var s=String(value==null?"":value).trim();
  if(!/^\d{1,2}(?:\.5)?$/.test(s))return null;
@@ -158,6 +195,7 @@ function tpLeaveEarned(days,allowance,interval){
  return Math.min(cap,Math.floor(days/rate));
 }
 function tpCompute(emp,period,override,month){
+ if(tpIsParcel(emp))return tpCommissionCalculate(emp,period);
  var raw=override===undefined?period.days[emp.id]:override;
  var days=tpInputDays(raw);
  if(days===null)return null;
@@ -184,8 +222,9 @@ function tpRows(month,includeHistory){
  var m=month||tpPeriod,p=tpGetPeriod(m);
  var emps=includeHistory?tpHistoricEmployees(m):tpEmployees(false);
  return emps.map(function(emp){
-  return {emp:emp,serial:tpSerialValue(p.serials[emp.id]),salary:tpMonthSalary(emp,m),
-   advance:p.advances[emp.id]||{},deductions:p.deductions[emp.id]||{},
+  var parcel=tpIsParcel(emp);
+  return {emp:emp,serial:tpSerialValue(p.serials[emp.id]),salary:parcel?0:tpMonthSalary(emp,m),
+   advance:parcel?{}:p.advances[emp.id]||{},deductions:parcel?{}:p.deductions[emp.id]||{},
    worked:p.days[emp.id],calc:tpCompute(emp,p,undefined,m),payment:null};
  }).sort(tpSerialSort);
 }
@@ -234,36 +273,50 @@ function tpDashboard(){
 function tpEmployeeProfile(emp){
  var changes=(tpData.salaryChanges||[]).filter(function(c){return c.employeeId===emp.id;}).slice().reverse();
  return'<section class="tp-panel tp-profile"><div class="tp-profile-head">'+tpAvatar(emp,"large")+'<div><span class="tp-eyebrow">EMPLOYEE PROFILE</span><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p></div><button type="button" class="tp-x" data-tp-action="close-profile" aria-label="Close employee profile">×</button></div>'+
- '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Monthly salary for '+tpEscape(tpPeriod)+'</small><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>Maximum paid leave days</small><strong>'+tpEscape(emp.leaveAllowance)+' days</strong></div></div>'+
- '<div class="tp-note">Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days for this employee.</div>'+
+ '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Employee type</small><strong>'+(tpIsParcel(emp)?'Parcel Boy (commission)':'Salaried')+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>'+(tpIsParcel(emp)?'GST on commission':'Monthly salary for '+tpEscape(tpPeriod))+'</small><strong>'+(tpIsParcel(emp)?tpEscape(emp.commissionGstRate??5)+'%':tpMoney(tpMonthSalary(emp,tpPeriod)))+'</strong></div></div>'+
+ '<div class="tp-note">'+(tpIsParcel(emp)?'Commission-only employee: enter daily or monthly total in Attendance. GST is the only deduction.':'Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days.')+'</div>'+
  '<div class="tp-actions">'+(emp.active===false?
  tpButton("restore-employee","Restore employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"'):
  tpButton("edit-employee","Edit profile","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+
  tpButton("delete-employee","Delete Employee","tp-danger",'data-id="'+tpEscape(emp.id)+'"'))+
  tpButton("close-profile","Close","tp-light")+'</div>'+
- '<div class="tp-salary-log"><h3>Salary Change History</h3>'+
+ (tpIsParcel(emp)?'':'<div class="tp-salary-log"><h3>Salary Change History</h3>'+
  (changes.length?tpTable(["Effective month","Previous salary","New salary","Change","Entered from"],changes.map(function(c){
   var diff=Number(c.newSalary)-Number(c.previousSalary);
   return'<tr><td>'+tpEscape(tpMonthLabel(c.effectiveMonth))+'</td><td>'+tpMoney(c.previousSalary)+'</td>'+
   '<td>'+tpMoney(c.newSalary)+'</td><td>'+tpEscape(diff>=0?"+":"−")+tpMoney(Math.abs(diff))+'</td><td>'+tpEscape(c.source||"Profile")+'</td></tr>';
- })):'<p class="tp-note">No recorded salary changes yet. Changes entered from Employee Management or Attendance appear here.</p>')+'</div></section>';
+ })):'<p class="tp-note">No recorded salary changes yet. Changes entered from Employee Management or Attendance appear here.</p>')+'</div>')+'</section>';
 }
 function tpEmployeeForm(emp){
- var values=emp||{id:"",name:"",designation:"",joined:tpToday(),restaurant:(data.restaurants.find(function(r){return r.active!==false;})||{}).name||"Pritam Fast Food",salary:1800000,leaveAllowance:2,method:"CASH",photo:""};
- var possible=(data.restaurants||[]).filter(function(r){return r.active!==false;}).map(function(r){return r.name;});
- if(values.restaurant&&!possible.includes(values.restaurant))possible.push(values.restaurant);
- if(!possible.length)possible=["Pritam Fast Food"];
+ var values=emp||{id:"",name:"",designation:"",joined:tpToday(),restaurant:(data.restaurants.find(function(r){return r.active!==false;})||{}).name||"Pritam Fast Food",salary:1800000,leaveAllowance:2,method:"CASH",photo:"",employeeType:"salaried",commissionGstRate:5};
+ var parcel=tpIsParcel(values);
+ var options=(data.restaurants||[]).filter(function(r){return r.active!==false;}).map(function(r){return r.name;});
+ if(values.restaurant&&!options.includes(values.restaurant))options.push(values.restaurant);
+ if(!options.length)options=["Pritam Fast Food"];
  var pic=tpPhoto!==null?tpPhoto:values.photo;
- var out='<section class="tp-panel tp-form-panel"><div class="tp-header-row"><div><h3>'+(emp?"Edit employee":"Add employee")+'</h3><p>These changes affect the payroll demo only.</p></div><button type="button" class="tp-x" data-tp-action="cancel-employee" aria-label="Close form">×</button></div>'+
- '<form id="tp-employee-form" class="tp-form"><div class="tp-photo-box">'+(pic?'<img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo">':'<div class="tp-photo-placeholder">Photo</div>')+'<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/jpeg,image/png,image/webp"><small>Stored only on this device. Images are resized automatically.</small></div></div>'+
- '<div class="tp-form-grid"><div class="tp-field"><label for="tp-name">Employee name *</label><input id="tp-name" name="name" required maxlength="90" value="'+tpEscape(values.name)+'" placeholder="Full name"></div>'+
- '<div class="tp-field"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" required maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Chef, cashier, server..."></div>'+
+ var out='<section class="tp-panel tp-form-panel"><div class="tp-header-row"><div><h3>'+(emp?"Edit employee":"Add employee")+'</h3>'+
+ '<p>Salaried employees use attendance and salary. Parcel boys use monthly commission instead.</p></div>'+
+ '<button type="button" class="tp-x" data-tp-action="cancel-employee" aria-label="Close form">×</button></div>'+
+ '<form id="tp-employee-form" class="tp-form" data-employee-type="'+(parcel?"parcel":"salaried")+'">'+
+ '<div class="tp-photo-box">'+(pic?'<img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo">':'<div class="tp-photo-placeholder">Photo</div>')+
+ '<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/jpeg,image/png,image/webp"><small>Stored only on this device.</small></div></div>'+
+ '<div class="tp-form-grid">'+
+ '<div class="tp-field"><label for="tp-name">Employee name *</label><input id="tp-name" name="name" required maxlength="90" value="'+tpEscape(values.name)+'" placeholder="Full name"></div>'+
+ '<div class="tp-field"><label for="tp-employee-type">Employee type *</label><select id="tp-employee-type" name="employeeType" '+(emp?'disabled title="Employee type is fixed after creation to keep past payroll consistent"':'')+'>'+
+ '<option value="salaried" '+(!parcel?'selected':'')+'>Salaried employee</option>'+
+ '<option value="parcel" '+(parcel?'selected':'')+'>Parcel Boy (commission)</option></select>'+
+ (emp?'<small>Type is fixed after creation to protect older monthly payroll records.</small>':'<small>Defaults to Salaried employee.</small>')+'</div>'+
+ '<div class="tp-field"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" required maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Chef, cashier, delivery boy..."></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
- '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+possible.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?"selected":"")+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
- '<div class="tp-field"><label for="tp-salary">Monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" required value="'+(emp?tpMonthSalary(emp,tpPeriod)/100:values.salary/100).toFixed(2)+'"></div><div class="tp-field"><label for="tp-effective-month">Salary effective from month</label><input id="tp-effective-month" name="salaryEffectiveMonth" type="month" required value="'+tpEscape(tpPeriod)+'"><small>Salary changes are recorded with their effective month. Older months retain their previous salary amounts.</small></div>'+
+ '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
- '<div class="tp-field"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" required value="'+tpEscape(values.leaveAllowance)+'"><small>For example: 4 days for one employee, 2 for another. Enter 0 for no leave money.</small></div></div>'+
- '<div class="tp-note">Leave money: salary ÷ 30 × min(employee maximum, floor(days worked ÷ '+tpData.settings.leaveEarnEveryDays+')). Change the earning interval in Payroll Settings.</div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-salary">Monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0.00":(emp?tpMonthSalary(emp,tpPeriod)/100:values.salary/100).toFixed(2))+'"></div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-effective-month">Salary effective from month</label><input id="tp-effective-month" name="salaryEffectiveMonth" type="month" '+(!parcel?'required':'disabled')+' value="'+tpEscape(tpPeriod)+'"></div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" '+(!parcel?'required':'disabled')+' value="'+tpEscape(values.leaveAllowance||0)+'"></div>'+
+ '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
+ '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
+ '<div class="tp-note tp-salaried-only">Salaried: salary ÷ 30 × days worked, plus earned leave money, minus advances and deductions.</div>'+
+ '<div class="tp-note tp-parcel-only">Parcel Boy: no standard salary, leave money or advance deductions. Enter 30 daily commission amounts or one total in Attendance. Only GST is deducted.</div>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(emp?"Save employee":"Add employee")+'</button>'+tpButton("cancel-employee","Cancel","tp-light")+'</div></form></section>';
  return out;
 }
@@ -271,7 +324,7 @@ function tpEmployeesPage(){
  var emps=tpEmployees(false),deleted=tpData.employees.filter(function(emp){return emp.active===false;});
  var out='<section class="tp-panel">'+tpToolbar("Employee Management",emps.length+" active employees · "+deleted.length+" deleted employees",tpButton("new-employee","+ Add Employee","tp-primary"))+
  '<div class="tp-employee-grid">'+emps.map(function(emp){
- return'<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p><small>'+tpEscape(emp.restaurant)+'</small></div><div class="tp-person-extra"><strong>'+tpMoney(emp.salary)+'</strong><small>'+tpEscape(emp.leaveAllowance)+' max paid leave days</small>'+tpBadge(emp.method,emp.method==="CASH")+'</div><div class="tp-person-buttons">'+tpButton("view-employee","View","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
+ return'<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p><small>'+tpEscape(emp.restaurant)+'</small></div><div class="tp-person-extra"><strong>'+(tpIsParcel(emp)?'Parcel Boy · Commission':tpMoney(emp.salary))+'</strong><small>'+(tpIsParcel(emp)?'GST '+tpEscape(emp.commissionGstRate??5)+'%':tpEscape(emp.leaveAllowance)+' max paid leave days')+'</small>'+tpBadge(emp.method,emp.method==="CASH")+'</div><div class="tp-person-buttons">'+tpButton("view-employee","View","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
  tpButton("edit-employee","Edit","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
  tpButton("delete-employee","Delete","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
  }).join("")+'</div>'+(emps.length===0?'<div class="tp-note">No active employees. Add an employee or restore one from Deleted Employees.</div>':"")+'</section>';
@@ -286,7 +339,7 @@ function tpEmployeesPage(){
 }
 function totalsFineOther(rows){return rows.reduce(function(sum,r){return sum+(Number(r.deductions.fine)||0)+(Number(r.deductions.other)||0);},0);}
 function tpAdvances(){
- var rows=tpRows(),total=tpTotals(rows);
+ var rows=tpRows().filter(function(r){return !tpIsParcel(r.emp);}),total=tpTotals(rows);
  var out='<div class="tp-stats tp-stats-three">'+tpCard("Total advances",tpMoney(total.adv),"Entered advance amounts","₹")+
  tpCard("Advances deducted",tpMoney(total.advPaid),"Automatically subtracted from salaries","↘")+
  tpCard("Other deductions",tpMoney(totalsFineOther(rows)),"Fines and other deductions","▤")+'</div>';
@@ -301,11 +354,45 @@ function tpAdvances(){
  }))+'<div class="tp-note">✓ Changes save automatically on this device. This is a demonstration; it does not transfer money.</div></section>';
  return out;
 }
+function tpCommissionEditor(emp){
+ var p=tpGetPeriod(),rec=tpCommissionRecord(p,emp)||{},mode=rec.mode==="total"?"total":"daily";
+ var rate=rec.gstRate==null?(emp.commissionGstRate==null?5:emp.commissionGstRate):rec.gstRate;
+ var calc=tpCommissionCalculate(emp,p),total=calc?calc.commissionTotal:0;
+ var head='<section class="tp-panel tp-commission-editor" id="tp-commission-editor"><div class="tp-header-row"><div>'+
+ '<h2>Parcel Boy Commission — '+tpEscape(emp.name)+'</h2><p>'+tpMonthLabel(tpPeriod)+' · 30 commission entries or one total</p></div>'+
+ tpButton("close-commission","Close","tp-light")+'</div>'+
+ '<div class="tp-note">Enter the commission amounts earned from bills, not total bill sales. As in your sheet, the default GST deduction is 5%. No salary, paid leave, advances or fines are deducted from parcel boy commissions.</div>'+
+ '<div class="tp-form-grid">'+
+ '<div class="tp-field"><label for="tp-commission-mode">Entry method</label><select id="tp-commission-mode" data-tp-field="commissionMode" data-id="'+tpEscape(emp.id)+'">'+
+ '<option value="daily" '+(mode==="daily"?"selected":"")+'>30 daily entries</option>'+
+ '<option value="total" '+(mode==="total"?"selected":"")+'>Enter monthly commission total</option></select></div>'+
+ '<div class="tp-field"><label for="tp-commission-gst">GST deduction (%)</label><input class="tp-cell-input" id="tp-commission-gst" type="number" step="0.01" min="0" max="100" inputmode="decimal" data-tp-field="commissionGST" data-id="'+tpEscape(emp.id)+'" value="'+tpEscape(rate)+'"></div></div>';
+ var daily=Array.isArray(rec.daily)?rec.daily:[];
+ if(mode==="daily"){
+  head+='<div class="tp-commission-days"><div class="tp-commission-cols"><strong>Date</strong><strong>Commission (₹)</strong></div>'+
+  Array.from({length:30},function(_,i){
+   var v=daily[i],val=v===null||v===undefined?"":(v/100).toFixed(2);
+   return'<div class="tp-commission-day"><label for="tp-commission-day-'+(i+1)+'">Day '+(i+1)+'</label>'+
+    '<input id="tp-commission-day-'+(i+1)+'" aria-label="Day '+(i+1)+' commission" class="tp-cell-input" data-tp-field="commissionDaily" data-id="'+tpEscape(emp.id)+'" data-day="'+(i+1)+'" type="text" inputmode="decimal" enterkeyhint="'+(i===29?"done":"next")+'" placeholder="0.00" value="'+tpEscape(val)+'"></div>';
+  }).join("")+'</div>';
+ }else{
+  head+='<div class="tp-field tp-commission-total-field"><label for="tp-commission-total">Total commission earned (₹)</label>'+
+  '<input id="tp-commission-total" class="tp-cell-input" inputmode="decimal" type="text" placeholder="e.g. 31202" data-tp-field="commissionTotal" data-id="'+tpEscape(emp.id)+'" value="'+(rec.total===null||rec.total===undefined?"":(rec.total/100).toFixed(2))+'">'+
+  '<small>Enter the monthly total directly. Only GST will be deducted.</small></div>';
+ }
+ head+='<div class="tp-commission-summary"><div><span>Total commission</span><strong>'+tpMoney(total)+'</strong></div>'+
+ '<div><span>GST ('+tpEscape(rate)+'%)</span><strong>− '+tpMoney(calc?calc.gst:0)+'</strong></div>'+
+ '<div class="tp-commission-pay"><span>Payable amount</span><strong>'+tpMoney(calc?calc.net:0)+'</strong></div></div>'+
+ '<div class="tp-note">Only the selected entry method is used in calculations. Switching methods keeps previously entered daily and total values separately, so you can switch back without losing them.</div>'+
+ '<div class="tp-actions">'+tpButton("csv-parcel","Download this month’s commission sheet","tp-light")+'</div></section>';
+ return head;
+}
 function tpAttendance(){
- var rows=tpRows(),entered=rows.filter(function(r){return tpInputDays(r.worked)!==null;});
+ var all=tpRows(),rows=all.filter(function(r){return !tpIsParcel(r.emp);}),
+ parcelRows=all.filter(function(r){return tpIsParcel(r.emp);}),
+ entered=rows.filter(function(r){return tpInputDays(r.worked)!==null;});
  var worked=entered.reduce(function(sum,r){return sum+Number(r.worked||0);},0);
- var assigned=rows.filter(function(r){return r.serial!==null;}).length;
- var filter=tpIdRange;
+ var assigned=rows.filter(function(r){return r.serial!==null;}).length,filter=tpIdRange;
  var visible=rows.filter(function(r){
   if(filter==="unassigned")return r.serial===null;
   if(filter==="all")return true;
@@ -313,11 +400,11 @@ function tpAttendance(){
   return r.serial!==null&&r.serial>=bounds[0]&&r.serial<=bounds[1];
  });
  var out='<div class="tp-stats tp-stats-three">'+
- tpCard("Employees",String(rows.length),"Current active employees","♙")+
- tpCard("Monthly IDs assigned",assigned+' / '+rows.length,"Unique numbers from 1 to 100","▤")+
- tpCard("Total working days",String(worked),"Actual days worked only; paid leave excluded","✓")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Assign monthly serial numbers and salary rates; record days worked.',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
- '<div class="tp-note">Enter a unique employee ID / serial number (1–100) for this month. IDs can change every month. Employees are sorted by ID from 1 upwards; unassigned employees are last. Monthly salary here is saved for that month and salary changes are recorded. Enter actual worked days only; extra paid leave is excluded. These worked days appear immediately in Salary Calculator.</div>'+
+ tpCard("Salaried employees",String(rows.length),"Standard monthly attendance","♙")+
+ tpCard("Salaried IDs assigned",assigned+' / '+rows.length,"Monthly IDs 1–100","▤")+
+ tpCard("Total worked days",String(worked),"Excludes leave and parcel commissions","✓")+'</div>';
+ out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
+ '<div class="tp-note">Assign each salaried employee a monthly ID (1–100), update monthly salary and enter actual days worked. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
  '<div class="tp-field tp-att-filter"><label for="tp-id-filter">Filter monthly ID</label><select id="tp-id-filter">'+
  [['all','All IDs — ascending 1 to 100'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['unassigned','Unassigned IDs']].map(function(opt){
   return'<option value="'+opt[0]+'" '+(filter===opt[0]?'selected':'')+'>'+opt[1]+'</option>';
@@ -329,15 +416,28 @@ function tpAttendance(){
   '<td><input aria-label="Monthly salary for '+tpEscape(r.emp.name)+'" class="tp-cell-input tp-month-salary" type="text" inputmode="decimal" data-tp-field="monthlySalary" data-id="'+id+'" enterkeyhint="next" value="'+(r.salary/100).toFixed(2)+'"></td>'+
   '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===visible.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
  }))+
- '<div class="tp-note">Press Enter to move from ID → salary → days, or from days to the next employee’s days box. Values are saved immediately in this browser. Monthly serial IDs and salary changes remain available for inspection in Payroll History.</div></section>';
+ '<div class="tp-note">Press Enter to save and move to the next salaried employee. Monthly IDs and rates are saved for history.</div></section>';
+ if(parcelRows.length){
+  out+='<section class="tp-panel"><div class="tp-header-row"><div><h2>Parcel Boys · Commission</h2>'+
+  '<p>Open only the parcel boy you want to enter. The 30-day commission form stays closed otherwise.</p></div></div>'+
+  tpTable(["Monthly ID","Parcel boy","Entry mode","Commission / GST / Net","Action"],parcelRows.map(function(r){
+   var rec=tpCommissionRecord(tpGetPeriod(),r.emp),c=r.calc;
+   return'<tr><td><input class="tp-serial-input" type="number" inputmode="numeric" min="1" max="100" step="1" data-tp-field="parcelSerial" data-id="'+tpEscape(r.emp.id)+'" value="'+(r.serial===null?"":r.serial)+'" placeholder="1–100"></td><td><strong>'+tpEscape(r.emp.name)+'</strong><div class="sub">'+tpEscape(r.emp.designation)+'</div></td>'+
+   '<td>'+tpEscape(rec?(rec.mode==="total"?"Monthly total":"30 daily rows"):"Not entered")+'</td>'+
+   '<td>'+(c?tpMoney(c.commissionTotal)+' / '+tpMoney(c.gst)+' / <strong>'+tpMoney(c.net)+'</strong>':'No commission entered')+'</td>'+
+   '<td>'+tpButton("open-commission","Enter Commission","tp-primary",'data-id="'+tpEscape(r.emp.id)+'"')+'</td></tr>';
+  }))+'</section>';
+  var open=parcelRows.find(function(r){return r.emp.id===tpCommissionOpen;});
+  if(open)out+=tpCommissionEditor(open.emp);
+ }
  return out;
 }
 function tpSalary(){
- var rows=tpRows(),total=tpTotals(rows);
- var out='<div class="tp-stats tp-stats-three">'+tpCard("Net salary calculated",tpMoney(total.grand),total.ready+" of "+rows.length+" employees completed","₹")+
+ var all=tpRows(),rows=all.filter(function(r){return !tpIsParcel(r.emp);}),parcelRows=all.filter(function(r){return tpIsParcel(r.emp);}),total=tpTotals(all);
+ var out='<div class="tp-stats tp-stats-three">'+tpCard("Net salary calculated",tpMoney(total.grand),total.ready+" of "+all.length+" employees completed","₹")+
  tpCard("Leave money added",tpMoney(total.leavePay),"Earned paid leave credits","+")+
  tpCard("Advances deducted",tpMoney(total.advPaid),"Entered advance amounts","↘")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Salary Calculator","Days worked are shared with Attendance. Employee monthly ID and salary are taken from that month's records.",tpButton("go-attendance","Open Attendance","tp-light")+tpButton("go-sheets","View Payment Sheets","tp-primary"))+
+ out+='<section class="tp-panel">'+tpToolbar("Salary Calculator","Enter only salaried employee days; parcel boys have their own commission calculations.",tpButton("go-attendance","Open Attendance","tp-light")+tpButton("go-sheets","View Payment Sheets","tp-primary"))+
  '<div class="tp-note"><strong>Fixed 30-day calculation for every month, including January and February:</strong> working salary = monthly salary ÷ 30 × days worked. Leave pay = monthly salary ÷ 30 × earned leave days. Net = working pay + leave pay − advance − fines − other deductions.</div>'+
  tpTable(["Monthly ID","Employee / designation","Monthly salary","Days worked","Working salary","Leave money","Advance","Fine + other","Net salary"],rows.map(function(r,i){
  var id=tpEscape(r.emp.id),c=r.calc,advance=Number(r.advance.amount)||0;
@@ -350,7 +450,16 @@ function tpSalary(){
  '<td data-tp-salary-value="leave">'+(c?c.leaveEarned+' d · '+tpMoney(c.leavePay):"—")+'</td>'+
  '<td>'+tpMoney(advance)+'</td><td>'+tpMoney(ded)+'</td>'+
  '<td><strong data-tp-salary-value="net">'+(c?tpMoney(c.net):"—")+'</strong>'+(c&&c.shortfall?'<small class="tp-warning">Excess deductions '+tpMoney(c.shortfall)+'</small>':"")+'</td></tr>';
- }))+'<div class="tp-note">Rows are sorted by monthly ID (1–100) and Cash/Cheque payment sheets follow the same order within each payment method. Unassigned IDs appear after assigned IDs.</div></section>';
+ }))+'<div class="tp-note">Enter moves only between salaried employees. Parcel boys are handled in a separate commission entry screen, never in the days-worked Enter sequence.</div></section>';
+ if(parcelRows.length){
+  out+='<section class="tp-panel">'+tpToolbar("Parcel Boy Commissions",tpMonthLabel(tpPeriod)+" · GST is the only deduction",tpButton("go-attendance","Open Commission Entry","tp-primary"))+
+   tpTable(["Monthly ID","Parcel Boy","Commission","GST","Net payable"],parcelRows.map(function(r){
+    var c=r.calc;
+    return'<tr><td>'+(r.serial===null?"—":r.serial)+'</td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
+      '<td>'+(c?tpMoney(c.commissionTotal):"Not entered")+'</td><td>'+(c?tpMoney(c.gst):"—")+'</td>'+
+      '<td><strong>'+(c?tpMoney(c.net):"—")+'</strong></td></tr>';
+   }))+"</section>";
+ }
  return out;
 }
 function tpSheets(){
@@ -363,9 +472,9 @@ function tpSheets(){
   var matches=rows.filter(function(r){return r.emp.method===method;}),sum=matches.reduce(function(n,r){return n+(r.calc?r.calc.net:0);},0);
   out+='<section class="tp-panel"><div class="tp-sheet-title"><div><span class="tp-eyebrow">'+method+' PAYROLL</span><h2>'+method+' SHEET</h2><p>'+tpMonthLabel(tpPeriod)+'</p></div><span class="tp-sheet-symbol">'+(method==="CASH"?"₹":"▤")+'</span></div>'+
   '<div class="tp-actions tp-sheet-actions">'+tpButton("print-"+method.toLowerCase(),"Print "+method+" Sheet","tp-primary")+tpButton("csv-"+method.toLowerCase(),"Download CSV","tp-light")+'</div>'+
-  tpTable(["Monthly ID","Employee","Designation","Net salary"],matches.map(function(r){
+  tpTable(["Monthly ID","Employee","Designation","Net payable"],matches.map(function(r){
    return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
-   '<td>'+tpEscape(r.emp.designation)+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):"Enter days")+'</strong></td></tr>';
+   '<td>'+tpEscape(r.emp.designation)+(tpIsParcel(r.emp)?'<small class="tp-parcel-sheet-desc">Parcel Boy · GST '+(r.calc?r.calc.gstRate:(r.emp.commissionGstRate??5))+'%</small>':'')+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):(tpIsParcel(r.emp)?"Enter commission":"Enter days"))+'</strong></td></tr>';
   }))+'<div class="tp-sheet-total"><span>Total '+method.toLowerCase()+' payable</span><strong>'+tpMoney(sum)+'</strong></div>'+
   '<p class="tp-note">Sorted in ascending monthly ID order, separately for CASH and CHEQUE. No payment-status tracking.</p></section>';
  });
@@ -383,8 +492,8 @@ function tpHistory(){
    if(c)completed++;
    return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td>'+
     '<td>'+tpEscape(r.emp.name)+'</td><td>'+tpEscape(r.emp.designation)+'</td>'+
-    '<td>'+tpMoney(r.salary)+'</td><td>'+tpEscape(r.worked==null?"—":r.worked)+'</td>'+
-    '<td>'+(c?c.leaveEarned+" d / "+tpMoney(c.leavePay):"—")+'</td>'+
+    '<td>'+(tpIsParcel(r.emp)?'Parcel Boy':tpMoney(r.salary))+'</td><td>'+(tpIsParcel(r.emp)?'Commission only':tpEscape(r.worked==null?"—":r.worked))+'</td>'+
+    '<td>'+(tpIsParcel(r.emp)?(c?'Commission '+tpMoney(c.commissionTotal)+' · GST '+tpMoney(c.gst):'Not entered'):(c?c.leaveEarned+" d / "+tpMoney(c.leavePay):"—"))+'</td>'+
     '<td>'+tpMoney(Number(r.advance.amount)||0)+'</td><td>'+(c?tpMoney(amt):"Not calculated")+'</td></tr>';
   });
   var changes=(tpData.salaryChanges||[]).filter(function(c){return c.effectiveMonth===month;});
@@ -393,8 +502,10 @@ function tpHistory(){
     tpButton("csv-history-cheque","Download CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("csv-history-advance","Download Advances","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("csv-history-attendance","Download Attendance","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("csv-history-parcel","Download Parcel Commissions","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("print-history-cash","Print CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("print-history-cheque","Print CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+'</div>';
+    tpButton("print-history-cheque","Print CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("print-history-parcel","Print Parcel Commissions","tp-light",'data-month="'+tpEscape(month)+'"')+'</div>';
   var changeLog=changes.length?'<div class="tp-note"><strong>Salary changes effective this month</strong>'+
     changes.map(function(c){return'<div>'+tpEscape(c.employeeName||tpEmp(c.employeeId)?.name||"Employee")+
       ': '+tpMoney(c.previousSalary)+' → '+tpMoney(c.newSalary)+' ('+tpEscape(c.source)+')</div>';}).join("")+'</div>':"";
@@ -402,7 +513,7 @@ function tpHistory(){
    '<small>'+completed+' of '+rows.length+' salaries calculated · monthly IDs retained</small></div>'+
    '<div><strong>'+tpMoney(net)+'</strong><small>Leave '+tpMoney(leaveTotal)+' · Advances '+tpMoney(advance)+'</small></div>'+
    '<span class="tp-chevron">⌄</span></summary><div class="tp-history-body">'+actions+changeLog+
-   tpTable(["Monthly ID","Employee","Designation","Monthly salary","Days worked","Leave money","Advance","Net salary"],table)+
+   tpTable(["Monthly ID","Employee","Designation","Monthly salary / type","Worked days","Leave / commission & GST","Advance","Net payable"],table)+
    '</div></details>';
  }).join("")+'</div></section>';
  if(!months.length)out+='<div class="tp-note">No history yet. Enter attendance or advances to create the first monthly record.</div>';
@@ -442,7 +553,7 @@ function tpTouch(period){
 }
 function tpSetTab(sec){
  if(!TP_SECTIONS.includes(sec))return;
- tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;draw();
+ tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
 function tpCsv(name,rows){
@@ -461,11 +572,20 @@ function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
 }
 function tpDoPrint(kind,month){
  var m=month||tpPeriod,rows=tpRows(m,!!month),title,sub,heads,records,total=0;
- if(kind==="advance"){
+ if(kind==="parcel"){
+  title="Parcel Boy Commission Sheet";
+  sub=tpMonthLabel(m);
+  heads=["Monthly ID","Parcel Boy","Commission (₹)","GST (₹)","Net payable (₹)"];
+  records=rows.filter(function(r){return tpIsParcel(r.emp);}).map(function(r){
+   var c=r.calc;if(c)total+=c.net;
+   return [r.serial===null?"—":r.serial,r.emp.name,c?(c.commissionTotal/100).toFixed(2):"Not entered",
+    c?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""];
+  });
+ }else if(kind==="advance"){
   title="Advance Distribution Sheet";
   sub=tpMonthLabel(m);
   heads=["Monthly ID","Employee","Designation","Advance (₹)","Signature"];
-  records=rows.map(function(r){
+  records=rows.filter(function(r){return !tpIsParcel(r.emp);}).map(function(r){
    var amount=Number(r.advance.amount)||0;total+=amount;
    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,(amount/100).toFixed(2),""];
   });
@@ -473,10 +593,10 @@ function tpDoPrint(kind,month){
   var method=kind.toUpperCase();
   title=method+" Salary Sheet";
   sub=tpMonthLabel(m);
-  heads=["Monthly ID","Employee","Designation","Net salary (₹)","Signature"];
+  heads=["Monthly ID","Employee","Designation","Type","Net payable (₹)","Signature"];
   records=rows.filter(function(r){return r.emp.method===method;}).map(function(r){
     var n=r.calc?r.calc.net:0;total+=n;
-    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,r.calc?(n/100).toFixed(2):"Not calculated",""];
+    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",r.calc?(n/100).toFixed(2):"Not calculated",""];
   });
  }
  if(!records.length)return uxAlert("No employee rows to print.");
@@ -489,12 +609,31 @@ function tpDoPrint(kind,month){
 window.addEventListener("afterprint",function(){document.body.classList.remove("tp-payroll-printing");});
 function tpDoCSV(kind,month){
  var m=month||tpPeriod,rows=tpRows(m,!!month),out,total=0;
- if(kind==="attendance"){
-  out=[["Month","Monthly ID","Employee","Designation","Monthly salary INR","Days worked","Paid leave earned","Working salary INR","Leave pay INR","Net salary INR"]];
+ if(kind==="parcel"){
+  out=[["Month","Monthly ID","Employee","Designation","Entry mode","Date 1-30 / TOTAL","Commission INR","GST rate percent","GST deduction INR","Net payable INR"]];
+  rows.filter(function(r){return tpIsParcel(r.emp);}).forEach(function(r){
+   var rec=tpCommissionRecord(tpGetPeriod(m),r.emp),c=r.calc;
+   if(!rec){
+    out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Not entered","","","","",""]);return;
+   }
+   var rate=rec.gstRate==null?(r.emp.commissionGstRate??5):rec.gstRate;
+   if(rec.mode==="total"){
+    out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Monthly total","TOTAL",
+      rec.total==null?"":(rec.total/100).toFixed(2),rate,c?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
+   }else{
+    for(var day=1;day<=30;day++){
+      var amount=Array.isArray(rec.daily)?rec.daily[day-1]:null;
+      out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Daily",day,
+        amount==null?"":(amount/100).toFixed(2),day===30?rate:"",day===30&&c?(c.gst/100).toFixed(2):"",day===30&&c?(c.net/100).toFixed(2):""]);
+    }
+   }
+  });
+ }else if(kind==="attendance"){
+  out=[["Month","Monthly ID","Employee","Designation","Employee type","Monthly salary INR","Days worked","Paid leave earned","Working salary / commission INR","Leave pay INR","GST deduction INR","Net salary INR"]];
   rows.forEach(function(r){
-   var c=r.calc;out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,
-    (r.salary/100).toFixed(2),r.worked==null?"":r.worked,c?c.leaveEarned:"",
-    c?(c.gross/100).toFixed(2):"",c?(c.leavePay/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
+   var c=r.calc;out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",
+    tpIsParcel(r.emp)?"":(r.salary/100).toFixed(2),tpIsParcel(r.emp)?"":(r.worked==null?"":r.worked),c?c.leaveEarned:"",
+    c?(c.gross/100).toFixed(2):"",c?(c.leavePay/100).toFixed(2):"",c&&c.gst?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
   });
  }else if(kind==="advance"){
   out=[["Month","Monthly ID","Employee","Designation","Advance INR","Fine INR","Other deduction INR"]];
@@ -506,13 +645,16 @@ function tpDoCSV(kind,month){
   out.push(["","","TOTAL","",(total/100).toFixed(2),"",""]);
  }else{
   var method=kind.toUpperCase();
-  out=[["Month","Monthly ID","Employee","Designation","Monthly salary INR","Days worked","Net salary INR"]];
+  out=[["Month","Monthly ID","Employee","Designation","Employee type","Monthly salary INR","Days worked","Commission INR","GST INR","Net salary INR"]];
   rows.filter(function(r){return r.emp.method===method;}).forEach(function(r){
    if(r.calc)total+=r.calc.net;
-   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,(r.salary/100).toFixed(2),
-     r.worked==null?"":r.worked,r.calc?(r.calc.net/100).toFixed(2):"Not calculated"]);
+   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",
+     tpIsParcel(r.emp)?"":(r.salary/100).toFixed(2),tpIsParcel(r.emp)?"":(r.worked==null?"":r.worked),
+     r.calc&&tpIsParcel(r.emp)?(r.calc.commissionTotal/100).toFixed(2):"",
+     r.calc&&tpIsParcel(r.emp)?(r.calc.gst/100).toFixed(2):"",
+     r.calc?(r.calc.net/100).toFixed(2):"Not calculated"]);
   });
-  out.push(["","","GRAND TOTAL","","","",(total/100).toFixed(2)]);
+  out.push(["","","GRAND TOTAL","","","","","","",(total/100).toFixed(2)]);
  }
  tpCsv("restaurant-"+kind+"-sheet-"+m+".csv",out);
 }
@@ -526,6 +668,16 @@ function tpHandleAction(button){
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
  if(act==="go-employees")return tpSetTab("employees");
+ if(act==="open-commission"){
+  var employee=tpEmp(id);
+  if(!tpIsParcel(employee)||employee.active===false)return;
+  tpCommissionOpen=id;tpTab="attendance";draw();
+  var target=document.getElementById("tp-commission-editor");
+  if(target)target.scrollIntoView({behavior:"smooth",block:"start"});
+  return;
+ }
+ if(act==="close-commission"){tpCommissionOpen=null;draw();return;}
+
  if(act==="save-leave-settings"){
   var field=document.getElementById("tp-leave-interval"),value=Number(field&&field.value);
   if(!Number.isSafeInteger(value)||value<1||value>30)return uxAlert("Enter a whole number of days from 1 to 30.");
@@ -555,9 +707,11 @@ function tpHandleAction(button){
  if(act==="print-advance")return tpDoPrint("advance");
  if(act==="print-cash")return tpDoPrint("cash");
  if(act==="print-cheque")return tpDoPrint("cheque");
+ if(act==="print-parcel")return tpDoPrint("parcel");
  if(act==="csv-advance")return tpDoCSV("advance");
  if(act==="csv-cash")return tpDoCSV("cash");
  if(act==="csv-cheque")return tpDoCSV("cheque");
+ if(act==="csv-parcel")return tpDoCSV("parcel");
  if(act.startsWith("csv-history-")||act.startsWith("print-history-")){
   var m=button.dataset.month,kind=act.replace(/^(csv|print)-history-/,"");
   if(!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(m)||!tpData.periods[m])return uxAlert("Previous payroll month not found.");
@@ -572,30 +726,48 @@ document.addEventListener("click",function(ev){
  var button=ev.target.closest&&ev.target.closest("button[data-tp-action]");
  if(button){ev.preventDefault();ev.stopImmediatePropagation();return tpHandleAction(button);}
 },true);
+document.addEventListener("change",function(ev){
+ if(ev.target.id!=="tp-employee-type")return;
+ var form=ev.target.closest("form");
+ if(!form)return;
+ var parcel=ev.target.value==="parcel";
+ form.dataset.employeeType=parcel?"parcel":"salaried";
+ form.querySelectorAll(".tp-salaried-only input").forEach(function(input){input.disabled=parcel;input.required=!parcel;});
+ form.querySelectorAll(".tp-parcel-only input").forEach(function(input){input.disabled=!parcel;input.required=parcel;});
+},true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-employee-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target;
  var name=tpTrim(form.elements.name.value,90),designation=tpTrim(form.elements.designation.value,90),joined=form.elements.joined.value;
- var restaurant=tpTrim(form.elements.restaurant.value,90),salary=parsePaise(form.elements.salary.value),method=form.elements.method.value,
-     leaveAllowance=Number(form.elements.leaveAllowance.value),salaryEffectiveMonth=form.elements.salaryEffectiveMonth.value;
- if(!name||!designation||!restaurant||!/^\d{4}-\d{2}-\d{2}$/.test(joined)||salary===null||salary<=0||!["CASH","CHEQUE"].includes(method)||!Number.isSafeInteger(leaveAllowance)||leaveAllowance<0||leaveAllowance>31||!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(salaryEffectiveMonth)){
+ var restaurant=tpTrim(form.elements.restaurant.value,90),method=form.elements.method.value,
+ employeeType=form.elements.employeeType.value==="parcel"?"parcel":"salaried",parcel=employeeType==="parcel",
+ salary=parcel?0:parsePaise(form.elements.salary.value),
+ leaveAllowance=parcel?0:Number(form.elements.leaveAllowance.value),
+ salaryEffectiveMonth=parcel?tpPeriod:form.elements.salaryEffectiveMonth.value,
+ gstRate=Number(form.elements.commissionGstRate.value);
+ if(parcel&&(!Number.isFinite(gstRate)||gstRate<0||gstRate>100||Math.round(gstRate*100)!==gstRate*100)){
+  uxAlert("Enter a GST rate between 0% and 100%, with at most two decimal places.");return;
+ }
+ if(!name||!designation||!restaurant||!/^\d{4}-\d{2}-\d{2}$/.test(joined)||(!parcel&&(salary===null||salary<=0))||!["CASH","CHEQUE"].includes(method)||!Number.isSafeInteger(leaveAllowance)||leaveAllowance<0||leaveAllowance>31||!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(salaryEffectiveMonth)){
   uxAlert("Enter a name, designation, joining date, restaurant, salary, CASH/CHEQUE method and whole-number leave allowance (0–31).");return;
  }
- if(salary>1000000000)return uxAlert("For this demo, monthly salary must be at most ₹1,00,00,000.");
+ if(!parcel&&salary>1000000000)return uxAlert("For this demo, monthly salary must be at most ₹1,00,00,000.");
  var existing=tpEditing&&tpEditing!=="new"?tpEmp(tpEditing):null;
  if(tpEditing!=="new"&&!existing)return uxAlert("Employee no longer exists. Refresh Payroll.");
  var before=JSON.stringify(tpData);
  if(existing){
-  // Salary changes are effective from the selected month, not retroactive to older months.
-  var changed=tpSetMonthSalary(existing,salaryEffectiveMonth,salary,"Employee profile");
+  if(tpIsParcel(existing)!==parcel){uxAlert("Employee type is fixed to preserve past payroll. Create a new employee record instead.");return;}
+  if(!parcel)tpSetMonthSalary(existing,salaryEffectiveMonth,salary,"Employee profile");
   Object.assign(existing,{name:name,designation:designation,joined:joined,restaurant:restaurant,
-    method:method,leaveAllowance:leaveAllowance,photo:tpPhoto===null?existing.photo:tpPhoto});
+    method:method,leaveAllowance:leaveAllowance,commissionGstRate:parcel?gstRate:undefined,
+    photo:tpPhoto===null?existing.photo:tpPhoto});
  }else{
   var added={id:tpId(),name:name,designation:designation,joined:joined,restaurant:restaurant,
-    salary:salary,initialSalary:salary,method:method,leaveAllowance:leaveAllowance,photo:tpPhoto||"",active:true};
+    salary:salary,initialSalary:salary,employeeType:employeeType,commissionGstRate:parcel?gstRate:undefined,
+    method:method,leaveAllowance:leaveAllowance,photo:tpPhoto||"",active:true};
   tpData.employees.push(added);
-  tpGetPeriod(salaryEffectiveMonth).salaries[added.id]=salary;
+  if(!parcel)tpGetPeriod(salaryEffectiveMonth).salaries[added.id]=salary;
  }
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved to Payroll Demo on this device.");
@@ -610,7 +782,7 @@ document.addEventListener("change",function(ev){
  }
  if(field.id==="tp-month"){
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(field.value)){uxAlert("Please select a valid payroll month.");return;}
-  tpPeriod=field.value;tpIdRange="all";draw();return;
+  tpPeriod=field.value;tpIdRange="all";tpCommissionOpen=null;draw();return;
  }
  if(field.id==="tp-photo"){
   var file=field.files&&field.files[0];if(!file)return;
@@ -638,7 +810,44 @@ document.addEventListener("change",function(ev){
  var emp=tpEmp(id),p=tpGetPeriod();
  if(!emp)return;
  var old=JSON.stringify(tpData);
- if(name==="serial"){
+ if(name==="commissionMode"||name==="commissionGST"||name==="commissionDaily"||name==="commissionTotal"){
+  if(!tpIsParcel(emp)){uxAlert("This field is only available for parcel boys.");return;}
+  var previous=p.commissions[id],record=previous?JSON.parse(JSON.stringify(previous)):
+   {mode:"daily",daily:Array(30).fill(null),total:null,gstRate:emp.commissionGstRate==null?5:emp.commissionGstRate};
+  if(!Array.isArray(record.daily))record.daily=Array(30).fill(null);
+  if(name==="commissionMode"){
+   if(field.value!=="daily"&&field.value!=="total")return;
+   record.mode=field.value;
+  }else if(name==="commissionGST"){
+   var gst=Number(field.value);
+   if(field.value.trim()===""||!Number.isFinite(gst)||gst<0||gst>100||Math.round(gst*100)!==gst*100){
+    uxAlert("GST must be between 0 and 100%, with up to two decimals.");draw();return;
+   }
+   record.gstRate=gst;
+  }else{
+   var entered=field.value.trim()===""?null:parsePaise(field.value);
+   if(field.value.trim()!==""&&(entered===null||entered>100000000000)){
+    uxAlert("Enter a valid positive commission amount (up to ₹100 crore).");draw();return;
+   }
+   if(name==="commissionTotal")record.total=entered;
+   else{
+    var day=Number(field.dataset.day);
+    if(!Number.isInteger(day)||day<1||day>30)return;
+    record.daily[day-1]=entered;
+   }
+  }
+  p.commissions[id]=record;
+ }else if(name==="parcelSerial"){
+  if(!tpIsParcel(emp))return;
+  if(field.value.trim()==="")delete p.serials[id];
+  else{
+   var num=tpSerialValue(field.value);
+   if(num===null||Object.keys(p.serials).some(function(other){return other!==id&&tpSerialValue(p.serials[other])===num;})){
+    uxAlert("Choose a unique monthly ID from 1 to 100.");draw();return;
+   }
+   p.serials[id]=num;
+  }
+ }else if(name==="serial"){
   if(field.value.trim()===""){delete p.serials[id];}
   else{
    var serial=tpSerialValue(field.value);
@@ -714,6 +923,20 @@ document.addEventListener("keydown",function(ev){
    if(typeof next.select==="function")next.select();
    next.scrollIntoView({block:"nearest",inline:"nearest"});
   }
+ }
+},true);
+// Daily parcel commission entries have a separate Enter sequence, never joined to salaried days.
+document.addEventListener("keydown",function(ev){
+ if(tab!=="payroll"||tpTab!=="attendance"||ev.key!=="Enter"||ev.isComposing)return;
+ var field=ev.target;
+ if(!field||!field.matches||!field.matches('input[data-tp-field="commissionDaily"]'))return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var all=Array.from(document.querySelectorAll('#tp-commission-editor input[data-tp-field="commissionDaily"]'));
+ var index=all.indexOf(field),nextDay=index>=0&&index+1<all.length?all[index+1].dataset.day:null;
+ field.dispatchEvent(new Event("change",{bubbles:true}));
+ if(nextDay){
+  var next=document.querySelector('#tp-commission-editor input[data-tp-field="commissionDaily"][data-day="'+nextDay+'"]');
+  if(next){next.focus({preventScroll:true});if(next.select)next.select();next.scrollIntoView({block:"nearest"});}
  }
 },true);
 document.addEventListener("input",function(ev){
@@ -814,7 +1037,25 @@ css.textContent=String.raw`
 .tp-deleted-row strong{font-size:13px}.tp-deleted-row small{font-size:11px;color:#8a9da7}
 .tp-days-input:focus{scroll-margin-block:90px}
 
-.tp-form-panel{border-color:#b2dfca}.tp-form{display:grid;gap:17px}.tp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.tp-form-panel{border-color:#b2dfca}.tp-form[data-employee-type="parcel"] .tp-salaried-only{display:none!important}
+.tp-form[data-employee-type="salaried"] .tp-parcel-only{display:none!important}
+
+.tp-commission-editor{border:1px solid #abdfc8;scroll-margin-top:22px}
+.tp-parcel-sheet-desc{display:block;margin-top:4px;font-size:10px;color:#6d8892}
+.tp-commission-days{max-width:440px;border:1px solid #dfe8ea;border-radius:12px;overflow:hidden;margin:17px 0}
+.tp-commission-cols{display:grid;grid-template-columns:100px 1fr;background:#eaf3f1;padding:11px 13px;font-size:12px;gap:12px}
+.tp-commission-day{display:grid;grid-template-columns:100px 1fr;gap:12px;align-items:center;padding:7px 13px;border-top:1px solid #e8eff0}
+.tp-commission-day:nth-child(even){background:#fbfdfd}
+.tp-commission-day label{font-weight:750;color:#526b77;font-size:12px}
+.tp-commission-day .tp-cell-input{max-width:200px;width:100%;height:39px}
+.tp-commission-total-field{max-width:450px;margin:17px 0}.tp-commission-total-field .tp-cell-input{width:100%;max-width:250px}
+.tp-commission-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.tp-commission-summary>div{background:#f5f9f8;border:1px solid #dfe9e6;border-radius:11px;padding:13px;display:grid;gap:6px;min-width:0}
+.tp-commission-summary span{font-size:11px;color:#6e8390}.tp-commission-summary strong{font-size:clamp(15px,2vw,20px);overflow-wrap:anywhere}
+.tp-commission-summary .tp-commission-pay{background:#e6f5ed;border-color:#b9e1cd;color:#116a4b}
+@media(max-width:600px){.tp-commission-summary{grid-template-columns:1fr;gap:7px}.tp-commission-summary>div{display:flex;justify-content:space-between;align-items:center;padding:11px}
+.tp-commission-editor .tp-form-grid{grid-template-columns:1fr}.tp-commission-days{width:100%;max-width:none}}
+.tp-form{display:grid;gap:17px}.tp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
 .tp-field{display:grid;gap:6px;min-width:0}.tp-field label,.tp-photo-box label{font-size:11px;color:#607889;font-weight:800}
 .tp-field input,.tp-field select{width:100%;min-width:0;min-height:43px;border:1px solid #d5e2e8;padding:10px 11px;border-radius:9px;background:white;color:#1e3f4f;font-size:13px}
 .tp-field input:focus,.tp-field select:focus,.tp-cell-input:focus,.tp-days-input:focus{outline:2px solid #41ae85;outline-offset:0;border-color:#12a477}

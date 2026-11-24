@@ -20,7 +20,7 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
@@ -46,7 +46,7 @@ test("All eight payroll sections render without Paid checkboxes or scheduled 5th
 test("Employee create/edit form includes paid leave allowance per month",()=>{
  const {app}=boot();
  const employees=app.data().employees;
- expect(employees).toHaveLength(6);
+ expect(employees).toHaveLength(7);
  expect(employees[0].leaveAllowance).toBe(4);
  expect(employees[1].leaveAllowance).toBe(2);
  const form=app.employeeForm(null),edit=app.employeeForm(employees[0]);
@@ -88,7 +88,7 @@ test("An entered advance is deducted without requiring a Paid checkbox",()=>{
 
 test("Cash plus cheque amounts equal grand total with leave pay included",()=>{
  const {app}=boot(),rows=app.rows(),totals=app.totals(rows);
- expect(totals.ready).toBe(6);
+ expect(totals.ready).toBe(7);
  expect(totals.leavePay).toBeGreaterThan(0);
  expect(totals.cash+totals.cheque).toBe(totals.grand);
  expect(totals.advPaid).toBe(totals.adv);
@@ -174,7 +174,7 @@ test("Delete employee removes from active salary and attendance but keeps monthl
 
 test("Enter on salary/attendance saves monthly days and focuses the next employee",()=>{
  const {app,handlers,setInputs}=boot();
- expect(handlers.keydown).toHaveLength(1);
+ expect(handlers.keydown).toHaveLength(2);
  expect(handlers.change?.length).toBeGreaterThan(0);
  let focusId=null,selectedId=null,scrollId=null;
  const ids=["demo1","demo2","demo3"];
@@ -182,7 +182,7 @@ test("Enter on salary/attendance saves monthly days and focuses the next employe
   value:id==="demo1"?"22.5":"25",
   dataset:{tpField:"days",id},
   matches:selector=>selector.includes("data-tp-field"),
-  dispatchEvent:function(){handlers.change[0]({target:this});return true;},
+  dispatchEvent:function(){handlers.change[handlers.change.length-1]({target:this});return true;},
   focus:()=>{focusId=id;},select:()=>{selectedId=id;},
   scrollIntoView:()=>{scrollId=id;}
  }));
@@ -223,7 +223,7 @@ test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance a
  const previous=app.data().periods["2026-11"].serials.demo1;
  // Existing UI change handler uses the standard payroll route.
  const originalAlert=console.warn;
- handlers.change[0]({target:fake});
+ handlers.change[handlers.change.length-1]({target:fake});
  expect(p.serials.demo1).toBe(previous);
  // ID 99 in November is not a permanent employee ID or October's serial.
  expect(app.period("2026-10").serials.demo1).toBe(1);
@@ -280,7 +280,7 @@ test("Cash and cheque lists remain separated and sorted by monthly ID",()=>{
  const rows=app.rows();
  const cash=rows.filter(r=>r.emp.method==="CASH");
  const cheque=rows.filter(r=>r.emp.method==="CHEQUE");
- expect(cash.map(r=>r.serial)).toEqual([1,5,6,98]);
+ expect(cash.map(r=>r.serial)).toEqual([1,5,6,7,98]);
  expect(cheque.map(r=>r.serial)).toEqual([2,4]);
  app.setPage("sheets");
  const html=app.page();
@@ -298,4 +298,107 @@ test("Old demo data migrates salary snapshots without inventing employee monthly
  expect(app.rows("2026-10")[0].salary).toBe(1800000);
  expect(app.rows("2026-10")[0].serial).toBe(null);
  expect(app.data().salaryChanges).toEqual([]);
+});
+
+
+test("Parcel boy sample reproduces Mukesh commission sheet, GST and net payout",()=>{
+ const {app}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh"),p=app.period("2026-11");
+ expect(emp.employeeType).toBe("parcel");
+ expect(emp.commissionGstRate).toBe(5);
+ const c=app.commission(emp,p);
+ expect(p.commissions[emp.id].daily).toHaveLength(30);
+ expect(c).toMatchObject({commissionTotal:3120200,gst:156010,gstRate:5,net:2964190,leavePay:0,paidAdvance:0,fine:0});
+ expect(app.rows().find(r=>r.emp.id===emp.id).calc.net).toBe(2964190);
+});
+test("Adding employees defaults to Salaried, with a Parcel Boy and editable GST option",()=>{
+ const {app}=boot(),form=app.employeeForm(null),parcel=app.employeeForm(app.data().employees.find(e=>e.name==="Mukesh"));
+ expect(form).toContain('<option value="salaried" selected');
+ expect(form).toContain('<option value="parcel"');
+ expect(form).toContain('name="employeeType"');
+ expect(form).toContain('name="commissionGstRate"');
+ expect(parcel).toContain('data-employee-type="parcel"');
+ expect(parcel).toContain('value="5"');
+});
+test("Salaried attendance and salary Enter sequence excludes parcel boys until explicitly opened",()=>{
+ const {app}=boot();
+ app.setPage("attendance");const attendance=app.page();
+ expect(attendance).toContain("Parcel Boys · Commission");
+ expect(attendance).toContain('data-tp-action="open-commission"');
+ expect((attendance.match(/data-tp-field="days"/g)||[])).toHaveLength(6);
+ expect(attendance).not.toContain('data-tp-field="commissionDaily"');
+ const mukesh=app.data().employees.find(e=>e.name==="Mukesh");
+ app.openCommission(mukesh.id);
+ const expanded=app.page();
+ expect((expanded.match(/data-tp-field="commissionDaily"/g)||[])).toHaveLength(30);
+ expect(expanded).toContain("Total commission");
+ expect(expanded).toContain("Payable amount");
+ expect(expanded).toContain('id="tp-commission-mode"');
+ expect(expanded).not.toContain('data-tp-field="commissionTotal"');
+ app.setPage("salary");
+ expect((app.page().match(/data-tp-field="days"/g)||[])).toHaveLength(6);
+ expect(app.page()).toContain("Parcel Boy Commissions");
+});
+test("Switching between daily and one-total commission changes only the calculation method",()=>{
+ const {app}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh"),p=app.period("2026-11");
+ const original=p.commissions[emp.id].daily.slice();
+ p.commissions[emp.id].mode="total";p.commissions[emp.id].total=3120200;
+ expect(app.commission(emp,p)).toMatchObject({commissionMode:"total",commissionTotal:3120200,gst:156010,net:2964190});
+ p.commissions[emp.id].gstRate=0;
+ expect(app.commission(emp,p)).toMatchObject({gst:0,net:3120200});
+ p.commissions[emp.id].gstRate=5;
+ p.commissions[emp.id].mode="daily";
+ expect(p.commissions[emp.id].daily).toEqual(original);
+ expect(app.commission(emp,p).commissionTotal).toBe(3120200);
+});
+test("Parcel commissions ignore advances, fines, worked days and leave money",()=>{
+ const {app}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh"),p=app.period("2026-11");
+ p.days[emp.id]="30";
+ p.advances[emp.id]={amount:500000,paid:true};
+ p.deductions[emp.id]={fine:80000,other:90000};
+ const c=app.compute(emp,p);
+ expect(c).toMatchObject({days:null,commissionTotal:3120200,gst:156010,paidAdvance:0,fine:0,other:0,leavePay:0,net:2964190});
+ const r=app.rows().find(r=>r.emp.id===emp.id);
+ expect(r.advance).toEqual({});
+ expect(r.deductions).toEqual({});
+});
+test("Cash/cheque sheets include parcel boy net pay while historic month offers commission download",()=>{
+ const {app}=boot();
+ app.setPage("sheets");
+ const sheet=app.page();
+ expect(sheet).toContain("Parcel Boy");
+ expect(sheet).toContain("GST");
+ expect(sheet).toContain("Mukesh");
+ app.setPage("history");
+ const h=app.page();
+ expect(h).toContain('data-tp-action="csv-history-parcel"');
+ expect(h).toContain('data-tp-action="print-history-parcel"');
+ expect(source).toContain('["Month","Monthly ID","Employee","Designation","Entry mode","Date 1-30 / TOTAL"');
+});
+test("Existing local payroll data loads with no parcel changes or new fields required",()=>{
+ const old={version:3,employees:[{id:"old",name:"Old cook",salary:2500000,method:"CASH",designation:"Cook",active:true}],
+ periods:{"2026-10":{days:{old:"22.5"},advances:{},deductions:{},serials:{old:3},salaries:{old:2500000},snapshots:{}}}};
+ const {app}=boot(old);
+ expect(app.data().employees[0].employeeType).toBeUndefined();
+ expect(app.isParcel(app.data().employees[0])).toBe(false);
+ expect(app.period("2026-10").commissions).toEqual({});
+ expect(app.compute(app.data().employees[0],app.period("2026-10"),undefined,"2026-10").gross).toBe(1875000);
+});
+
+
+test("Daily commission, GST and monthly-total fields save through change events in the selected month",()=>{
+ const {app,handlers,storage}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh");
+ const change=handlers.change[handlers.change.length-1];
+ app.setPage("attendance");
+ change({target:{id:"",dataset:{tpField:"commissionDaily",id:emp.id,day:"1"},value:"2000.00"}});
+ expect(app.period("2026-11").commissions[emp.id].daily[0]).toBe(200000);
+ expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
+ expect(app.commission(emp,app.period("2026-11")).commissionTotal).toBe(3220200);
+ change({target:{id:"",dataset:{tpField:"commissionMode",id:emp.id},value:"total"}});
+ change({target:{id:"",dataset:{tpField:"commissionTotal",id:emp.id},value:"31202"}});
+ expect(app.commission(emp,app.period("2026-11")).net).toBe(2964190);
+ change({target:{id:"",dataset:{tpField:"commissionGST",id:emp.id},value:"10"}});
+ expect(app.commission(emp,app.period("2026-11")).gst).toBe(312020);
+ expect(app.commission(emp,app.period("2026-11")).net).toBe(2808180);
+ app.setMonth("2026-10");
+ expect(app.commission(emp,app.period("2026-10"))).toBe(null);
 });

@@ -71,6 +71,23 @@ Payroll is a **browser-local demonstration** (no shared database or production p
 - The main Payment Sheets page also uses these numeric monthly IDs and the same ascending ordering for CASH and CHEQUE separately.
 - Deleting an employee hides them from active Payroll/Attendance without erasing earlier monthly data; Restore is available under Deleted Employees.
 
+### Salaried employees and Parcel Boys (commission)
+
+Under **Payroll → Employees → Add Employee**, choose **Salaried employee** (default) or **Parcel Boy (commission)**. Salaried employees keep the existing 30-day working salary, earned leave, advance, and fines calculation. Parcel Boys have no fixed salary or leave pay: the only amount subtracted from their commission is the GST percentage shown in their profile (default **5%**, editable when adding/editing the employee or in that month's commission editor). Employee type is locked after creation to protect prior monthly records.
+
+In **Payroll → Attendance**, only salaried employees appear in the main days-worked table and its Enter-key sequence. Parcel Boys appear below in a separate compact section with monthly IDs and an **Enter Commission** button. The **30 daily rows do not open automatically**. Click a parcel boy to open the editor, then choose:
+
+- **30 daily entries** — Day 1 through Day 30 and a commission amount per day, as in the supplied example. Each day is an amount of commission earned from bills, not total restaurant bill sales. You can leave some days blank.
+- **Monthly total** — enter one total commission amount instead of 30 rows. Switching between modes preserves each set of inputs separately and calculates from the selected mode only.
+
+`GST deducted = round_to_paise(commission total × GST rate ÷ 100)`.
+
+`Parcel Boy net payable = commission total − GST deducted`.
+
+**Example:** Mukesh's sample has Day 1 ₹1,000, Day 2 ₹1,500, Day 3 ₹1,300, Day 4 ₹1,200, Day 5 ₹1,202 and Day 6–30 ₹1,000 each. That gives **₹31,202 commission − ₹1,560.10 GST (5%) = ₹29,641.90 payable**. This example is included for a fresh payroll-demo browser; already saved users must add their own parcel boys.
+
+The parcel boy net amount feeds the ordinary Cash or Cheque payment sheet, sorted by monthly ID, and is also recorded in Payroll History. Download past months' **Parcel Commissions** as a CSV of the saved daily entries or the monthly total. Print parcel commission sheets from History. This is only a demonstration of an arithmetic deduction, not a determination of actual tax liability or GST treatment.
+
 ### Demo salary formula
 
 For monthly salary **M**, monthly worked days **W**, employee paid leave cap **L**, and configured workdays-per-leave interval **R**:
