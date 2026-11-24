@@ -5,27 +5,31 @@ const source=readFileSync(new URL("../src/client/payroll-preview.js",import.meta
 const html=readFileSync(new URL("../src/client/index.html",import.meta.url),"utf8");
 
 function boot(savedData){
- const storage=new Map();
+ const handlers={},storage=new Map();
+ let inputs=[];
+ const setInputs=next=>{inputs=next;};
  if(savedData)storage.set("tablewise-payroll-demo-v3",JSON.stringify(savedData));
  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,v)=>storage.set(key,v)};
  const document={
    createElement:()=>({textContent:"",id:"",style:{},appendChild:()=>{}}),
    head:{appendChild:()=>{}},
-   addEventListener:()=>{}
+   addEventListener:(type,fn)=>{(handlers[type]??=[]).push(fn);},
+   querySelectorAll:selector=>selector.includes("data-tp-field")?inputs:[],
+   getElementById:()=>null
  };
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},data:function(){return tpData;},compute:tpCompute,leaveEarned:tpLeaveEarned,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},data:function(){return tpData;},compute:tpCompute,leaveEarned:tpLeaveEarned,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
- const app=new Function("document","window","localStorage","data","dateIN","payroll","settings",
- "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>");
- return {app,storage};
+ const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert",
+ "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{});
+ return {app,storage,handlers,setInputs};
 }
 
-test("All seven payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
+test("All eight payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
  const {app}=boot();
- const tabs=["dashboard","employees","advances","salary","sheets","history","settings"];
+ const tabs=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
  for(const tab of tabs){
   app.setPage(tab);
   const page=app.page();
@@ -125,4 +129,76 @@ test("Advance and cash/cheque print and CSV export remain available",()=>{
  expect(source).toContain('localStorage.setItem(TP_KEY');
  expect(source).toContain('canvas.toDataURL("image/jpeg"');
  expect(source).toContain('tpHistory');
+});
+
+
+test("Attendance uses the exact salary days for the selected month, not extra leave money",()=>{
+ const {app}=boot();
+ app.setPage("attendance");
+ const attendance=app.page();
+ expect(attendance).toContain('Monthly Attendance');
+ expect(attendance).toContain('Worked days only');
+ expect(attendance).toContain('data-tp-field="days"');
+ expect(attendance).toContain('enterkeyhint="next"');
+ expect(attendance).not.toContain('Salary ÷ 30 × earned leave days');
+ const period=app.data().periods["2026-11"];
+ expect(period.days.demo1).toBe("26");
+ period.days.demo1="27.5";
+ app.setPage("salary");
+ expect(app.page()).toContain('value="27.5"');
+ expect(app.rows()[0].calc.days).toBe(27.5);
+ app.setPage("attendance");
+ expect(app.page()).toContain('value="27.5"');
+});
+
+test("Delete employee removes from active salary and attendance but keeps monthly history; Restore works",()=>{
+ const {app,storage}=boot();
+ const previousRows=app.rows().length;
+ const historyBefore=app.history();
+ expect(historyBefore).toContain("Aarav Patil");
+ app.handle({dataset:{tpAction:"delete-employee",id:"demo1"}});
+ expect(app.data().employees[0].active).toBe(false);
+ expect(app.rows()).toHaveLength(previousRows-1);
+ app.setPage("attendance");
+ expect(app.page()).not.toContain('data-id="demo1"');
+ app.setPage("employees");
+ const page=app.page();
+ expect(page).toContain("Deleted Employees (1)");
+ expect(page).toContain('data-tp-action="restore-employee"');
+ expect(app.history()).toContain("Aarav Patil");
+ expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
+ app.handle({dataset:{tpAction:"restore-employee",id:"demo1"}});
+ expect(app.rows()).toHaveLength(previousRows);
+ expect(app.data().employees[0].active).toBe(true);
+});
+
+test("Enter on salary/attendance saves monthly days and focuses the next employee",()=>{
+ const {app,handlers,setInputs}=boot();
+ expect(handlers.keydown).toHaveLength(1);
+ expect(handlers.change?.length).toBeGreaterThan(0);
+ let focusId=null,selectedId=null,scrollId=null;
+ const ids=["demo1","demo2","demo3"];
+ const fields=ids.map(id=>({
+  value:id==="demo1"?"22.5":"25",
+  dataset:{tpField:"days",id},
+  matches:selector=>selector.includes("data-tp-field"),
+  dispatchEvent:function(){handlers.change[0]({target:this});return true;},
+  focus:()=>{focusId=id;},select:()=>{selectedId=id;},
+  scrollIntoView:()=>{scrollId=id;}
+ }));
+ setInputs(fields);
+ for(const section of ["attendance","salary"]){
+  app.setPage(section);focusId=null;selectedId=null;scrollId=null;
+  let prevented=false;
+  handlers.keydown[0]({
+   target:fields[0],key:"Enter",isComposing:false,
+   preventDefault:()=>{prevented=true;},stopImmediatePropagation:()=>{}
+  });
+  expect(prevented).toBe(true);
+  expect(app.data().periods["2026-11"].days.demo1).toBe("22.5");
+  expect(focusId).toBe("demo2");
+  expect(selectedId).toBe("demo2");
+  expect(scrollId).toBe("demo2");
+  expect(app.rows()[0].calc.days).toBe(22.5);
+ }
 });

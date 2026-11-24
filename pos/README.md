@@ -57,9 +57,10 @@ The **Payroll** navigation item opens a browser-local, interactive demonstration
 ### Features and workflow
 
 - **Dashboard** — active employees, contractual monthly salary expense, advances entered, calculated Cash and Cheque salary totals.
-- **Employees** — add, view, and edit staff with name, photo, designation, joining date, restaurant, monthly salary, CASH/CHEQUE method, and **maximum paid leave days per month**. For example, set a four-day allowance for one employee and two for another; zero disables leave pay for an employee.
+- **Employees** — add, view, edit, and **delete** staff from the active roster with confirmation. Deleted employees disappear from active salary and attendance calculations and can be restored under **Deleted Employees**. Past monthly records remain intact. Employee details include name, photo, designation, joining date, restaurant, monthly salary, CASH/CHEQUE method, and **maximum paid leave days per month**. For example, set a four-day allowance for one employee and two for another; zero disables leave pay for an employee.
+- **Attendance** — a **monthly** days-worked view, not a daily timesheet. Select a month using the Payroll month picker; enter 0–30 working days, including half-days. Attendance and Salary Calculator read/write **exactly the same** month-and-employee days field, so edits in either place appear in the other. **Earned paid leave days are not counted as attendance**.
 - **Advances** — enter employee advance amounts, fines, and other deductions. **There is no Paid checkbox**: each entered advance is treated as distributed and deducted from salary. Set the amount to zero if no advance was given. Print or download an advance distribution sheet.
-- **Salary Calculator** — enter **only days worked**, including half days (e.g., 22.5 or 27). Working salary, earned leave days, leave money, advances, and other deductions are calculated and displayed automatically.
+- **Salary Calculator** — enter **only days worked**, including half days (e.g., 22.5 or 27). **Press Enter to save the current employee’s days and focus/select the next employee’s days input** on desktop or phone; the last employee’s Enter saves without moving to another employee. Working salary, earned leave days, leave money, advances, and other deductions are calculated and displayed automatically.
 - **Payment Sheets** — printable/downloadable Cash and Cheque sheets and a combined grand total. **There are no salary Paid checkboxes** or payment-status tracking.
 - **History** — monthly salary, earned leave money, and advance figures, with example months available initially.
 - **Settings** — configure how many working days earn one paid leave day (default: **1 leave day per 7 days worked**, valid intervals 1–30). The same settings are accessible from the main restaurant Settings page via a shortcut to Payroll Settings.
@@ -82,7 +83,7 @@ Existing local demo records are migrated in place: employees without an allowanc
 
 **Important:** This is a demonstration, not a compliant payroll engine. No PF, ESIC, income tax, overtime, banking transactions, statutory leave entitlement, or final payroll authorization is implemented. Verify policy and calculations before using any figures for actual payments.
 
-Run `bun test` from `pos/` to check payroll arithmetic, UI rendering, and the existing business-day and restaurant validation.
+Run `bun test` from `pos/` to check payroll arithmetic, shared attendance data, delete/restore behavior, Enter navigation, UI rendering, and the existing business-day and restaurant validation.
 
 ## Multiple restaurants
 
