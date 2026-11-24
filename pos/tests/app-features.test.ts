@@ -22,8 +22,8 @@ function boot(savedData){
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
   'return {page:payroll,setPage:function(v){tpTab=v;},data:function(){return tpData;},compute:tpCompute,leaveEarned:tpLeaveEarned,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
- const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert",
- "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{});
+ const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
+ "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
  return {app,storage,handlers,setInputs};
 }
 
