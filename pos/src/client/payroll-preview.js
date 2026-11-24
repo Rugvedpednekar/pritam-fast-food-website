@@ -323,7 +323,7 @@ function tpEmployeeProfile(emp){
  })):'<p class="tp-note">No recorded salary changes yet. Changes entered from Employee Management or Attendance appear here.</p>')+'</div>')+'</section>';
 }
 function tpEmployeeForm(emp){
- var values=emp||{id:"",name:"",designation:"",joined:tpToday(),restaurant:(data.restaurants.find(function(r){return r.active!==false;})||{}).name||"Pritam Fast Food",salary:1800000,leaveAllowance:2,method:"CASH",photo:"",employeeType:"salaried",commissionGstRate:5};
+ var values=emp||{id:"",name:"",designation:"",joined:tpToday(),restaurant:(typeof selected!=="undefined"?(data.restaurants.find(function(r){return r.id===selected&&r.active!==false;})||{}).name:null)||(data.restaurants.find(function(r){return r.active!==false;})||{}).name||"Pritam Fast Food",salary:1800000,leaveAllowance:2,method:"CASH",photo:"",employeeType:"salaried",commissionGstRate:5};
  var parcel=tpIsParcel(values);
  var options=(data.restaurants||[]).filter(function(r){return r.active!==false;}).map(function(r){return r.name;});
  if(values.restaurant&&!options.includes(values.restaurant))options.push(values.restaurant);
