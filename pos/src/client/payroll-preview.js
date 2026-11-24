@@ -343,7 +343,7 @@ function tpDashboard(){
 function tpEmployeeProfile(emp){
  var changes=(tpData.salaryChanges||[]).filter(function(c){return c.employeeId===emp.id;}).slice().reverse();
  return'<section class="tp-panel tp-profile"><div class="tp-profile-head">'+tpAvatar(emp,"large")+'<div><span class="tp-eyebrow">EMPLOYEE PROFILE</span><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p></div><button type="button" class="tp-x" data-tp-action="close-profile" aria-label="Close employee profile">×</button></div>'+
- '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Employee type</small><strong>'+(tpIsParcel(emp)?'Parcel Boy (commission)':'Salaried')+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>'+(tpIsParcel(emp)?'GST on commission':'Monthly salary for '+tpEscape(tpPeriod))+'</small><strong>'+(tpIsParcel(emp)?tpEscape(emp.commissionGstRate??5)+'%':tpMoney(tpMonthSalary(emp,tpPeriod)))+'</strong></div></div>'+
+ '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Employee type</small><strong>'+(tpIsParcel(emp)?'Parcel Boy (commission)':'Salaried')+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>'+(tpIsParcel(emp)?'GST on commission':'Monthly salary for '+tpEscape(tpPeriod))+'</small><strong>'+(tpIsParcel(emp)?tpEscape(emp.commissionGstRate??5)+'%':tpMoney(tpMonthSalary(emp,tpPeriod)))+'</strong></div><div><small>Aadhaar (masked)</small><strong>'+(emp.aadhaarLast4?'XXXX XXXX '+tpEscape(emp.aadhaarLast4):'Not provided')+'</strong></div></div>'+
  '<div class="tp-note">'+(tpIsParcel(emp)?'Commission-only employee: enter daily or monthly total in Attendance. GST is the only deduction.':'Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days.')+'</div>'+
  '<div class="tp-actions">'+(emp.active===false?
  tpButton("restore-employee","Restore employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"'):
@@ -388,8 +388,9 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
- '<div class="tp-field tp-salaried-only"><label for="tp-salary">Monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0.00":(emp?tpMonthSalary(emp,tpPeriod)/100:values.salary/100).toFixed(2))+'"></div>'+
- '<div class="tp-field tp-salaried-only"><label for="tp-effective-month">Salary effective from month</label><input id="tp-effective-month" name="salaryEffectiveMonth" type="month" '+(!parcel?'required':'disabled')+' value="'+tpEscape(tpPeriod)+'"></div>'+
+ '<div class="tp-field"><label for="tp-aadhaar">Aadhaar number (optional)</label><input id="tp-aadhaar" name="aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" pattern="([0-9]{4}|[0-9]{12})" value="'+tpEscape(values.aadhaarLast4||"")+'" placeholder="4 or 12 digits"><small>For privacy, only the last 4 digits are saved on this device. The full Aadhaar number is never stored in this demo.</small></div>'+
+ (emp?'<div class="tp-field tp-salaried-only"><label>Current monthly salary</label><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong><small>To change it, open the employee profile and enter the new salary there.</small></div>':
+ '<div class="tp-field tp-salaried-only"><label for="tp-salary">Starting monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0.00":(values.salary/100).toFixed(2))+'"></div>')+
  '<div class="tp-field tp-salaried-only"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" '+(!parcel?'required':'disabled')+' value="'+tpEscape(values.leaveAllowance||0)+'"></div>'+
  '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
  '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
@@ -1157,10 +1158,13 @@ document.addEventListener("submit",function(ev){
  var name=tpTrim(form.elements.name.value,90),designation=tpTrim(tpDesignationExpand(form.elements.designation.value),90),joined=form.elements.joined.value;
  var restaurant=tpTrim(form.elements.restaurant.value,90),method=form.elements.method.value,
  employeeType=form.elements.employeeType.value==="parcel"?"parcel":"salaried",parcel=employeeType==="parcel",
- salary=parcel?0:parsePaise(form.elements.salary.value),
+ salary=parcel?0:(tpEditing&&tpEditing!=="new"&&tpEmp(tpEditing)?tpMonthSalary(tpEmp(tpEditing),tpPeriod):parsePaise(form.elements.salary.value)),
  leaveAllowance=parcel?0:Number(form.elements.leaveAllowance.value),
- salaryEffectiveMonth=parcel?tpPeriod:form.elements.salaryEffectiveMonth.value,
+ salaryEffectiveMonth=tpPeriod,
+ aadhaarRaw=String(form.elements.aadhaar&&form.elements.aadhaar.value||"").replace(/\s+/g,""),
+ aadhaarLast4=aadhaarRaw?aadhaarRaw.slice(-4):"",
  gstRate=Number(form.elements.commissionGstRate.value);
+ if(aadhaarRaw&&!/^(?:[0-9]{4}|[0-9]{12})$/.test(aadhaarRaw))return uxAlert("Enter 4 or 12 Aadhaar digits. Only the last four will be saved.");
  if(parcel)designation=tpTrim(tpEditing&&tpEditing!=="new"&&tpEmp(tpEditing)?.designation||"Parcel Boy",90);
  if(parcel&&(!Number.isFinite(gstRate)||gstRate<0||gstRate>100||Math.round(gstRate*100)!==gstRate*100)){
   uxAlert("Enter a GST rate between 0% and 100%, with at most two decimal places.");return;
@@ -1174,12 +1178,13 @@ document.addEventListener("submit",function(ev){
  var before=JSON.stringify(tpData);
  if(existing){
   if(tpIsParcel(existing)!==parcel){uxAlert("Employee type is fixed to preserve past payroll. Create a new employee record instead.");return;}
-  if(!parcel)tpSetMonthSalary(existing,salaryEffectiveMonth,salary,"Employee profile");
   Object.assign(existing,{name:name,designation:designation,joined:joined,restaurant:restaurant,
+    restaurantId:tpResolveRestaurantId(restaurant,existing),aadhaarLast4:aadhaarLast4,
     method:method,leaveAllowance:leaveAllowance,commissionGstRate:parcel?gstRate:undefined,
     photo:tpPhoto===null?existing.photo:tpPhoto});
  }else{
   var added={id:tpId(),name:name,designation:designation,joined:joined,restaurant:restaurant,
+    restaurantId:tpResolveRestaurantId(restaurant,null),aadhaarLast4:aadhaarLast4,
     salary:salary,initialSalary:salary,employeeType:employeeType,commissionGstRate:parcel?gstRate:undefined,
     method:method,leaveAllowance:leaveAllowance,photo:tpPhoto||"",active:true};
   tpData.employees.push(added);
