@@ -5,7 +5,7 @@ const payrollSource=readFileSync(new URL("../src/client/payroll-preview.js",impo
 const archiveSource=readFileSync(new URL("../src/client/payroll-archive-increments.js",import.meta.url),"utf8");
 const combined=payrollSource.replace(/\}\)\(\);\s*$/,archiveSource+"\n})();");
 
-function boot(){
+function boot(initialRestaurant){
  const handlers={},storage=new Map(),alerts=[],toasts=[];
  const document={
   createElement:()=>({textContent:"",id:"",style:{},appendChild:()=>{}}),
@@ -16,11 +16,11 @@ function boot(){
  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=combined.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {render:tpRender,setPage:function(v){tpTab=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,monthSalary:tpMonthSalary,rows:tpRows,active:tpEmployees,profile:tpEmployeeProfile,handle:tpHandleAction};\n})();');
+  'return {render:tpRender,setPage:function(v){tpTab=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,monthSalary:tpMonthSalary,rows:tpRows,active:tpEmployees,profile:tpEmployeeProfile,handle:tpHandleAction,selectRestaurant:function(v){selected=v;},selectedRestaurant:tpPayrollSelectedRestaurant,employeeForm:tpEmployeeForm};\n})();');
  if(!instrumented.includes("return {render:tpRender"))throw Error("Archive module insertion failed");
- const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab","return "+instrumented)(
+ const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab","selected","return "+instrumented)(
   document,{addEventListener:()=>{}},localStorage,restaurants,()=>"2026-11-25",
-  ()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},x=>toasts.push(x),x=>alerts.push(x),"payroll");
+  ()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},x=>toasts.push(x),x=>alerts.push(x),"payroll",initialRestaurant);
  const submit=(id,employeeId,fields)=>{
   const ev={target:{id,dataset:{id:employeeId},querySelector:s=>({value:fields[s]})},
    preventDefault:()=>{},stopImmediatePropagation:()=>{}};
@@ -169,4 +169,93 @@ test("leaving without salary settlement preserves payroll but creates no final p
  app.setPage("left");
  expect(app.render()).toContain("Left Employees (Without Salary)");
  expect(app.render()).toContain("Aarav Patil");
+});
+
+
+test("Payroll employee roster, attendance, advances, and salary totals follow the selected restaurant",()=>{
+ const {app}=boot("r1");
+ expect(app.selectedRestaurant()).toBe("Pritam Fast Food");
+ expect(app.active().map(e=>e.id)).toEqual(["demo1","demo2","demo3","demo4","demo7"]);
+ expect(app.rows().map(r=>r.emp.id).sort()).toEqual(["demo1","demo2","demo3","demo4","demo7"]);
+ app.setPage("employees");
+ expect(app.render()).toContain("Aarav Patil");
+ expect(app.render()).not.toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Riya Kulkarni");
+ app.setPage("attendance");
+ expect(app.render()).not.toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Riya Kulkarni");
+ app.setPage("advances");
+ expect(app.render()).not.toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Riya Kulkarni");
+ const r1Total=app.rows().reduce((sum,row)=>sum+(row.calc?row.calc.net:0),0);
+ app.selectRestaurant("r2");
+ expect(app.selectedRestaurant()).toBe("Restaurant 02");
+ expect(app.active().map(e=>e.id)).toEqual(["demo5","demo6"]);
+ expect(app.rows().map(r=>r.emp.id)).toEqual(["demo5","demo6"]);
+ app.setPage("employees");
+ const roster=app.render();
+ expect(roster).toContain("Kabir Khan");
+ expect(roster).toContain("Riya Kulkarni");
+ expect(roster).not.toContain("Aarav Patil");
+ app.setPage("advances");
+ expect(app.render()).toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Aarav Patil");
+ app.setPage("salary");
+ expect(app.render()).toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Aarav Patil");
+ const r2Total=app.rows().reduce((sum,row)=>sum+(row.calc?row.calc.net:0),0);
+ expect(r1Total).toBeGreaterThan(r2Total);
+ app.setPage("history");
+ expect(app.render()).toContain("Kabir Khan");
+ expect(app.render()).not.toContain("Aarav Patil");
+ app.selectRestaurant("r1");
+ app.setPage("history");
+ expect(app.render()).toContain("Aarav Patil");
+ expect(app.render()).not.toContain("Kabir Khan");
+});
+
+test("Adding an employee defaults to the currently selected restaurant",()=>{
+ const {app}=boot("r2");
+ const form=app.employeeForm(null);
+ expect(form).toContain('value="Restaurant 02" selected');
+ app.selectRestaurant("r1");
+ expect(app.employeeForm(null)).toContain('value="Pritam Fast Food" selected');
+});
+
+test("Archived, resigned, and deleted employees stay inside their restaurant lists",()=>{
+ const {app,submit}=boot("r1");
+ app.handle({dataset:{tpAction:"mark-left",id:"demo1"}});
+ submit("tp-departure-form","demo1",{
+  "#tp-departure-date":"2026-11-20","#tp-departure-type":"resigned",
+  "#tp-departure-days":"18","#tp-departure-payment":"DUE",
+  "#tp-departure-paid-date":"","#tp-departure-method":"CASH","#tp-departure-notes":"Test"
+ });
+ app.setPage("left");
+ expect(app.render()).toContain("Aarav Patil");
+ app.selectRestaurant("r2");
+ app.setPage("left");
+ expect(app.render()).not.toContain("Aarav Patil");
+ app.selectRestaurant("r1");
+ app.setPage("left");
+ expect(app.render()).toContain("Aarav Patil");
+ // Directly verify that no records were erased while switching.
+ expect(app.data().employees.find(e=>e.id==="demo1").finalSettlement.status).toBe("DUE");
+ app.selectRestaurant("r2");
+ app.handle({dataset:{tpAction:"delete-employee",id:"demo5"}});
+ app.setPage("employees");
+ expect(app.render()).toContain("Deleted Employees (1)");
+ app.selectRestaurant("r1");
+ app.setPage("employees");
+ expect(app.render()).not.toContain("Deleted Employees (1)");
+});
+
+test("Payroll editing/viewing state does not leak across restaurant switches",()=>{
+ const {app}=boot("r1");
+ app.setPage("employees");
+ app.handle({dataset:{tpAction:"view-employee",id:"demo1"}});
+ expect(app.render()).toContain("EMPLOYEE PROFILE");
+ app.selectRestaurant("r2");
+ app.setPage("employees");
+ expect(app.render()).not.toContain("EMPLOYEE PROFILE");
+ expect(app.render()).not.toContain("Aarav Patil");
 });
