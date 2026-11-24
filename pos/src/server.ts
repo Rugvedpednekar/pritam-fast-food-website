@@ -1,5 +1,5 @@
 import {closeDueBusinessDays} from "./day-end";
-const htmlTemplate = await Bun.file("new URL("./client/index.html", import.meta.url)).text();
+const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
 const employeeExtension=Bun.env.EMPLOYEE_EXTENSION_JS;
