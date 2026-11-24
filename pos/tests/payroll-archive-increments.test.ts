@@ -68,31 +68,42 @@ test("rejoining starts a distinct employment period but keeps one active profile
  expect(app.render()).not.toContain("Aarav Patil</h3>");
 });
 
-test("salary increments are recorded and mid-month changes prorate 30-day pay",()=>{
- const {app,submit,alerts}=boot(),emp=app.data().employees.find(e=>e.id==="demo1"),period=app.period("2026-11");
+test("new salary is entered only in employee profile and prorated from today's date",()=>{
+ const {app,submit,alerts}=boot("r1"),emp=app.data().employees.find(e=>e.id==="demo1"),period=app.period("2026-11");
  const original=app.compute(emp,period,27,"2026-11"),oldSalary=app.monthSalary(emp,"2026-11");
  app.setPage("settings");
- expect(app.render()).toContain("Salary Increases / Increments");
- submit("tp-increment-form","",{"#tp-inc-employee":emp.id,"#tp-inc-date":"2026-11-16","#tp-inc-mode":"fixed","#tp-inc-value":"1000.00","#tp-inc-reason":"Annual increment"});
+ expect(app.render()).not.toContain("Salary Increases / Increments");
+ expect(app.render()).not.toContain('id="tp-increment-form"');
+ app.setPage("employees");
+ app.handle({dataset:{tpAction:"view-employee",id:emp.id}});
+ const profile=app.render();
+ expect(profile).toContain('id="tp-profile-salary-form"');
+ expect(profile).toContain('id="tp-profile-new-salary"');
+ expect(profile).not.toContain("Increase method");
+ submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"33000.00"});
  const change=app.data().salaryChanges.find(c=>c.employeeId===emp.id);
- expect(change).toMatchObject({effectiveDate:"2026-11-16",previousSalary:oldSalary,newSalary:oldSalary+100000,
-  source:"Salary Increment",reason:"Annual increment"});
+ expect(change).toMatchObject({effectiveDate:"2026-11-25",previousSalary:oldSalary,newSalary:oldSalary+100000,
+  source:"Salary Revision",reason:"Updated from Employee Profile"});
  const after=app.compute(emp,period,27,"2026-11");
- expect(after.gross).toBe(Math.round((oldSalary+50000)*27/30));
+ expect(after.proratedMonthly).toBe(oldSalary+20000);
+ expect(after.gross).toBe(Math.round((oldSalary+20000)*27/30));
  expect(after.gross).toBeGreaterThan(original.gross);
- expect(after.gross).toBeLessThan(Math.round((oldSalary+100000)*27/30));
- expect(app.profile(emp)).toContain("Annual increment");
- submit("tp-increment-form","",{"#tp-inc-employee":emp.id,"#tp-inc-date":"2026-11-16","#tp-inc-mode":"fixed","#tp-inc-value":"500.00","#tp-inc-reason":""});
- expect(app.data().salaryChanges.filter(c=>c.employeeId===emp.id)).toHaveLength(1);
- expect(alerts.some(x=>x.includes("already exists"))).toBe(true);
+ expect(app.profile(emp)).toContain("Salary Change History");
+ expect(app.profile(emp)).toContain("Updated from Employee Profile");
+ expect(alerts).toHaveLength(0);
 });
 
-test("past months with payroll snapshots cannot be retroactively increased",()=>{
- const {app,submit,alerts}=boot();
- submit("tp-increment-form","",{"#tp-inc-employee":"demo1","#tp-inc-date":"2026-10-18",
-  "#tp-inc-mode":"new","#tp-inc-value":"34000.00","#tp-inc-reason":"Retrospective"});
- expect(app.data().salaryChanges).toHaveLength(0);
- expect(alerts.some(x=>x.includes("Historical payroll cannot be revised"))).toBe(true);
+test("salary revisions change current month but retain historical months",()=>{
+ const {app,submit,alerts}=boot("r1"),emp=app.data().employees.find(e=>e.id==="demo1");
+ const previous=app.monthSalary(emp,"2026-10");
+ const oldSnapshot=JSON.stringify(app.period("2026-10").snapshots[emp.id]);
+ app.handle({dataset:{tpAction:"view-employee",id:emp.id}});
+ submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"31000.00"});
+ expect(app.monthSalary(emp,"2026-10")).toBe(previous);
+ expect(JSON.stringify(app.period("2026-10").snapshots[emp.id])).toBe(oldSnapshot);
+ expect(app.monthSalary(emp,"2026-11")).toBe(3100000);
+ expect(app.data().salaryChanges).toHaveLength(1);
+ expect(alerts).toHaveLength(0);
 });
 
 test("legacy Delete/Restore remains separate from LEFT",()=>{
