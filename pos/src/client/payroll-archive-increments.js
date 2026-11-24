@@ -1,0 +1,349 @@
+/* Tablewise left-employees archive, rejoining and salary increments.
+   Runs inside payroll-preview.js closure. Historical payroll keys are never reused. */
+(function(){
+"use strict";
+TP_SECTIONS.splice(2,0,"left");
+TP_TITLES.left="Left Employees (Without Salary)";
+var tpArcForm=null,tpArcIncrementEmployee="",tpArcOriginalEmployees=tpEmployees;
+function tpArcPersonId(emp){return emp.personId||emp.id;}
+function tpArcCareer(emp){
+ var person=tpArcPersonId(emp);
+ return tpData.employees.filter(function(e){return tpArcPersonId(e)===person;})
+  .sort(function(a,b){return String(a.joined||"").localeCompare(String(b.joined||""));});
+}
+function tpArcLeft(emp){return emp.left===true&&emp.active===false&&!emp.rejoinedAs;}
+function tpArcDate(value){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value||""))return false;
+ var d=new Date(value+"T12:00:00Z");
+ return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===value;
+}
+function tpArcRestaurantOptions(selected){
+ var names=(data.restaurants||[]).filter(function(r){return r.active!==false;}).map(function(r){return r.name;});
+ if(selected&&!names.includes(selected))names.push(selected);
+ if(!names.length)names=["Pritam Fast Food"];
+ return names.map(function(n){return '<option value="'+tpEscape(n)+'" '+(n===selected?"selected":"")+'>'+tpEscape(n)+'</option>';}).join("");
+}
+tpEmployees=function(includeInactive){
+ return tpArcOriginalEmployees(includeInactive).filter(function(emp){return includeInactive||emp.left!==true;});
+};
+tpHistoricEmployees=function(month){
+ var p=tpGetPeriod(month);
+ return tpData.employees.filter(function(emp){
+  var saved=[p.days,p.serials,p.salaries,p.advances,p.snapshots,p.commissions].some(function(obj){
+   return obj&&Object.prototype.hasOwnProperty.call(obj,emp.id);
+  });
+  return saved||(emp.active!==false&&emp.left!==true&&month>=String(emp.joined||"").slice(0,7));
+ });
+};
+function tpArcHistory(emp){
+ var career=tpArcCareer(emp),personIds=career.map(function(e){return e.id;});
+ var periods=career.map(function(e){
+  return '<tr><td>'+tpDate(e.joined)+'</td><td>'+tpDate(e.leftAt||e.lastWorkingDate)+'</td>'+
+    '<td>'+tpEscape(e.designation)+'</td><td>'+tpEscape(e.restaurant)+'</td>'+
+    '<td>'+(tpIsParcel(e)?"Commission only":tpMoney(e.initialSalary||e.salary))+'</td>'+
+    '<td>'+(e.active!==false?"Active":e.rejoinedAs?"Rejoined":"LEFT")+'</td></tr>';
+ });
+ var ids=[],advances=[];
+ Object.keys(tpData.periods).sort().forEach(function(month){
+  var p=tpGetPeriod(month);
+  career.forEach(function(e){
+   var serial=tpSerialValue(p.serials[e.id]),advance=p.advances[e.id];
+   if(serial!==null)ids.push('<tr><td>'+tpEscape(month)+'</td><td>'+tpEscape(e.designation)+'</td><td>'+serial+'</td></tr>');
+   if(advance&&Number.isSafeInteger(advance.amount))advances.push('<tr><td>'+tpEscape(month)+'</td><td>'+tpEscape(e.designation)+'</td><td>'+tpMoney(advance.amount)+'</td></tr>');
+  });
+ });
+ var raises=(tpData.salaryChanges||[]).filter(function(c){return personIds.includes(c.employeeId);})
+  .sort(function(a,b){return String(a.effectiveDate||a.effectiveMonth).localeCompare(String(b.effectiveDate||b.effectiveMonth));});
+ return '<div class="tp-salary-log"><h3>Employment periods</h3>'+
+  tpTable(["Joined","Last working date","Designation","Restaurant","Starting salary","Status"],periods)+
+  '<h3>Previous monthly IDs</h3>'+(ids.length?tpTable(["Payroll month","Designation","Monthly ID"],ids):'<p class="tp-note">No monthly IDs have been assigned.</p>')+
+  '<h3>Advance history</h3>'+(advances.length?tpTable(["Payroll month","Designation","Advance"],advances):'<p class="tp-note">No advances have been recorded.</p>')+
+  '<h3>Complete salary history</h3>'+(raises.length?tpTable(["Effective date","Previous salary","Revised salary","Change","Reason"],raises.map(function(c){
+   var delta=c.newSalary-c.previousSalary;
+   return '<tr><td>'+tpEscape(c.effectiveDate||c.effectiveMonth)+'</td><td>'+tpMoney(c.previousSalary)+'</td>'+
+    '<td>'+tpMoney(c.newSalary)+'</td><td>'+tpMoney(delta)+'</td><td>'+tpEscape(c.reason||c.source||"Profile")+'</td></tr>';
+  })):'<p class="tp-note">No recorded salary changes.</p>')+'</div>';
+}
+var tpArcBaseProfile=tpEmployeeProfile;
+tpEmployeeProfile=function(emp){
+ var html=tpArcBaseProfile(emp),close=tpButton("close-profile","Close","tp-light"),extra="";
+ if(tpArcLeft(emp)){
+  html=html.replace('data-tp-action="restore-employee"','data-tp-action="rejoin-employee"')
+   .replace("Restore employee","Rejoin Employee");
+  extra='<div class="tp-note"><strong>LEFT · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
+ }else if(emp.active!==false){
+  extra='<div class="tp-actions">'+
+   tpButton("mark-left","Mark as LEFT","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
+   (!tpIsParcel(emp)?tpButton("go-increments","Salary Increase","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+'</div>';
+ }
+ html=html.replace(close,extra+close);
+ var pos=html.lastIndexOf("</section>");
+ return pos>=0?html.slice(0,pos)+tpArcHistory(emp)+html.slice(pos):html+tpArcHistory(emp);
+};
+function tpArcLeftForm(emp){
+ return '<section class="tp-panel tp-archive-form"><h3>Mark '+tpEscape(emp.name)+' as LEFT</h3>'+
+ '<p class="tp-note">Enter the last actual working date. Earlier attendance, salary sheets, monthly IDs and advances remain available in Payroll History. This employee will no longer appear in active salary totals.</p>'+
+ '<form id="tp-left-form" class="tp-form" data-id="'+tpEscape(emp.id)+'"><div class="tp-form-grid">'+
+ '<div class="tp-field"><label for="tp-left-date">Last working date *</label><input id="tp-left-date" type="date" required value="'+tpEscape(tpToday())+'" min="'+tpEscape(emp.joined)+'" max="'+tpEscape(tpToday())+'"></div></div>'+
+ '<div class="tp-actions"><button type="submit" class="tp-button tp-danger">Confirm Mark as LEFT</button>'+tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
+}
+function tpArcRejoinForm(emp){
+ var now=tpToday(),oldSalary=tpIsParcel(emp)?0:tpMonthSalary(emp,String(emp.leftAt||now).slice(0,7));
+ return '<section class="tp-panel tp-archive-form"><h3>Rejoin Employee — '+tpEscape(emp.name)+'</h3>'+
+ '<p class="tp-note">Creates a new employment period with a new payroll record ID. All old employment periods, advances, payment sheets and monthly IDs will remain unchanged.</p>'+
+ '<form id="tp-rejoin-form" class="tp-form" data-id="'+tpEscape(emp.id)+'"><div class="tp-form-grid">'+
+ '<div class="tp-field"><label for="tp-rejoin-date">New joining date *</label><input id="tp-rejoin-date" required type="date" min="'+tpEscape(emp.leftAt||emp.joined)+'" max="'+tpEscape(now)+'" value="'+tpEscape(now)+'"></div>'+
+ '<div class="tp-field"><label for="tp-rejoin-designation">Designation *</label><input id="tp-rejoin-designation" required maxlength="90" list="tp-role-suggestions" value="'+tpEscape(emp.designation)+'"></div>'+
+ '<div class="tp-field"><label for="tp-rejoin-restaurant">Restaurant *</label><select id="tp-rejoin-restaurant">'+tpArcRestaurantOptions(emp.restaurant)+'</select></div>'+
+ (tpIsParcel(emp)?'<div class="tp-field"><label>Salary</label><p class="tp-note">Commission-only employee — no fixed salary.</p></div>':
+ '<div class="tp-field"><label for="tp-rejoin-salary">New starting monthly salary (₹) *</label><input id="tp-rejoin-salary" required inputmode="decimal" value="'+(oldSalary/100).toFixed(2)+'"></div>')+
+ '</div><datalist id="tp-role-suggestions">'+tpDesignationList().map(function(item){return '<option value="'+tpEscape(item.code)+'" label="'+tpEscape(item.title)+'"></option>';}).join("")+'</datalist>'+
+ '<div class="tp-actions"><button type="submit" class="tp-button tp-primary">Confirm Rejoining</button>'+tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
+}
+var tpArcBaseEmployeesPage=tpEmployeesPage;
+tpEmployeesPage=function(){
+ var html=tpArcBaseEmployeesPage(),all=tpEmployees(),deleted=tpData.employees.filter(function(e){return e.active===false&&e.left!==true;});
+ // Rebuild the roster so the inactive LEFT group is not mixed into Deleted Employees.
+ var out='<section class="tp-panel">'+tpToolbar("Active Employees",all.length+" currently employed · Left Employees have their own separate archive.",tpButton("new-employee","+ Add Employee","tp-primary"))+
+ '<div class="tp-employee-grid">'+all.map(function(emp){
+  return '<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p><small>'+tpEscape(emp.restaurant)+'</small></div>'+
+  '<div class="tp-person-extra"><strong>'+(tpIsParcel(emp)?"Commission only":tpMoney(emp.salary))+'</strong><small>Joined '+tpDate(emp.joined)+'</small>'+tpBadge(emp.method,emp.method==="CASH")+'</div>'+
+  '<div class="tp-person-buttons">'+tpButton("view-employee","View","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
+   tpButton("edit-employee","Edit","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
+   tpButton("mark-left","Mark LEFT","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
+ }).join("")+'</div>'+(all.length?"":'<p class="tp-note">No active employees. Use Rejoin Employee from the Left Employees tab or add a new person.</p>')+'</section>';
+ if(deleted.length){
+  out+='<details class="tp-panel tp-deleted-people"><summary>Deleted Employees ('+deleted.length+') · Restore</summary>'+
+   '<p class="tp-note">Deleted is distinct from LEFT. Deleted profiles stay outside active payroll.</p><div class="tp-deleted-list">'+
+    deleted.map(function(emp){return '<div class="tp-deleted-row">'+tpAvatar(emp,"small")+
+    '<div><strong>'+tpEscape(emp.name)+'</strong><small>'+tpEscape(emp.designation)+'</small></div>'+
+    tpButton("restore-employee","Restore","tp-light",'data-id="'+tpEscape(emp.id)+'"')+'</div>';}).join("")+'</div></details>';
+ }
+ if(tpArcForm&&tpArcForm.type==="left"){var e=tpEmp(tpArcForm.id);if(e)out=tpArcLeftForm(e)+out;}
+ else if(tpEditing!==null)out=tpEmployeeForm(tpEditing==="new"?null:tpEmp(tpEditing))+out;
+ else if(tpViewing){var current=tpEmp(tpViewing);if(current)out=tpEmployeeProfile(current)+out;}
+ return out;
+};
+function tpArcLeftPage(){
+ var list=tpData.employees.filter(tpArcLeft).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
+ var out='<section class="tp-panel">'+tpToolbar("Left Employees (Without Salary)",list.length+" archived profiles · Excluded from active attendance, salary calculations and CASH/CHEQUE totals.","")+
+ '<div class="tp-note">These profiles are retained only for reference. Rejoining creates a new employment period; it does not overwrite historic payroll or monthly employee IDs.</div>'+
+ '<div class="tp-employee-grid">'+list.map(function(emp){
+ return '<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+' · '+tpEscape(emp.restaurant)+'</p>'+
+ '<small>Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</small></div>'+
+ '<div class="tp-person-buttons">'+tpButton("view-employee","View history","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
+ tpButton("rejoin-employee","Rejoin Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
+ }).join("")+'</div>'+(list.length?"":'<p class="tp-note">No employees are currently marked LEFT.</p>')+'</section>';
+ if(tpArcForm&&tpArcForm.type==="rejoin"){var e=tpEmp(tpArcForm.id);if(e&&tpArcLeft(e))out=tpArcRejoinForm(e)+out;}
+ else if(tpViewing){var e2=tpEmp(tpViewing);if(e2)out=tpEmployeeProfile(e2)+out;}
+ return out;
+}
+var tpArcBaseRender=tpRender;
+tpRender=function(){
+ if(tpTab==="left"){
+  return tpTop()+tpArcLeftPage()+'<footer class="tp-footer">Archived employees are outside active payroll · Browser-local demonstration</footer></div>';
+ }
+ return tpArcBaseRender();
+};
+payroll=tpRender;
+var tpArcBaseAction=tpHandleAction;
+tpHandleAction=function(button){
+ var action=button.dataset.tpAction,id=button.dataset.id,emp=tpEmp(id);
+ if(action==="mark-left"){
+  if(!emp||emp.active===false||emp.left===true)return;
+  tpArcForm={type:"left",id:id};tpEditing=null;tpViewing=null;tpTab="employees";draw();return;
+ }
+ if(action==="rejoin-employee"){
+  if(!emp||!tpArcLeft(emp))return;
+  tpArcForm={type:"rejoin",id:id};tpEditing=null;tpViewing=null;tpTab="left";draw();return;
+ }
+ if(action==="cancel-archive"){tpArcForm=null;draw();return;}
+ if(action==="go-increments"){
+  tpArcIncrementEmployee=id||"";tpArcForm=null;tpSetTab("settings");
+  var target=document.getElementById("tp-increment-settings");if(target)target.scrollIntoView({block:"start",behavior:"smooth"});
+  return;
+ }
+ if(action==="pdf-increments")return tpArcDownloadIncrements();
+ if(action==="edit-employee"&&emp&&emp.active===false){uxAlert("This employment period is closed. Use Rejoin Employee to start a new period.");return;}
+ if(action==="restore-employee"&&emp&&emp.left===true){uxAlert("Use Rejoin Employee for archived LEFT employees.");return;}
+ return tpArcBaseAction(button);
+};
+var tpArcBaseTab=tpSetTab;
+tpSetTab=function(tabName){tpArcForm=null;return tpArcBaseTab(tabName);};
+document.addEventListener("submit",function(ev){
+ if(!ev.target||ev.target.id!=="tp-left-form")return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target,emp=tpEmp(form.dataset.id),date=form.querySelector("#tp-left-date").value;
+ if(!emp||emp.active===false||emp.left)return uxAlert("Employee is no longer active.");
+ if(!tpArcDate(date)||date<emp.joined||date>tpToday())return uxAlert("Choose a valid last working date between the joining date and today.");
+ if(!confirm('Mark '+emp.name+' as LEFT, effective '+date+'? They will disappear from active salary sheets. Historical payroll will be preserved.'))return;
+ var before=JSON.stringify(tpData);
+ emp.left=true;emp.active=false;emp.leftAt=date;emp.lastWorkingDate=date;emp.closedAt=tpStamp();
+ if(!tpSave()){tpData=JSON.parse(before);return;}
+ tpArcForm=null;tpViewing=null;tpTab="left";draw();showToast(emp.name+" moved to Left Employees."); 
+},true);
+document.addEventListener("submit",function(ev){
+ if(!ev.target||ev.target.id!=="tp-rejoin-form")return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target,old=tpEmp(form.dataset.id);
+ if(!old||!tpArcLeft(old))return uxAlert("This archive entry is no longer eligible to rejoin.");
+ var joined=form.querySelector("#tp-rejoin-date").value;
+ var designation=tpTrim(tpDesignationExpand(form.querySelector("#tp-rejoin-designation").value),90);
+ var restaurant=tpTrim(form.querySelector("#tp-rejoin-restaurant").value,90);
+ var salary=tpIsParcel(old)?0:parsePaise(form.querySelector("#tp-rejoin-salary").value);
+ if(!tpArcDate(joined)||joined<(old.leftAt||old.joined)||joined>tpToday()||!designation||!restaurant||
+ (!tpIsParcel(old)&&(salary===null||salary<=0||salary>1000000000))){
+  uxAlert("Enter a valid new joining date, designation, restaurant and starting salary.");return;
+ }
+ if(!confirm("Rejoin "+old.name+" on "+joined+"? A new employment period and monthly ID will be created without changing any historical records."))return;
+ var before=JSON.stringify(tpData),newId=tpId(),person=tpArcPersonId(old);
+ var next=Object.assign({},old,{id:newId,personId:person,previousEmploymentId:old.id,joined:joined,
+  designation:designation,restaurant:restaurant,salary:salary,initialSalary:salary,
+  active:true,left:false,createdAt:tpStamp(),employmentPeriodStartedAt:tpStamp()});
+ delete next.leftAt;delete next.lastWorkingDate;delete next.closedAt;delete next.rejoinedAs;delete next.deletedAt;
+ old.rejoinedAs=newId;old.rejoinedAt=tpStamp();
+ tpData.employees.push(next);
+ var month=joined.slice(0,7),period=tpGetPeriod(month),taken=new Set(Object.keys(period.serials).map(function(id){return tpSerialValue(period.serials[id]);}));
+ var serial=Array.from({length:100},function(_,i){return i+1;}).find(function(n){return !taken.has(n);});
+ if(serial!==undefined)period.serials[newId]=serial;
+ if(!tpIsParcel(next))period.salaries[newId]=salary;
+ period.updatedAt=tpStamp();
+ if(!tpSave()){tpData=JSON.parse(before);return;}
+ tpArcForm=null;tpViewing=newId;tpTab="employees";draw();
+ showToast(old.name+" rejoined"+(serial!==undefined?" · new monthly ID "+serial:" · assign a monthly ID in Attendance")+".");
+},true);
+function tpArcRaiseRecords(){
+ return (tpData.salaryChanges||[]).filter(function(c){return c.source==="Salary Increment";})
+  .sort(function(a,b){return String(b.effectiveDate||b.effectiveMonth).localeCompare(String(a.effectiveDate||a.effectiveMonth));});
+}
+function tpArcIncrementPage(){
+ var employees=tpEmployees().filter(function(e){return !tpIsParcel(e);}),records=tpArcRaiseRecords();
+ var selection=tpArcIncrementEmployee&&employees.some(function(e){return e.id===tpArcIncrementEmployee;})?tpArcIncrementEmployee:(employees[0]&&employees[0].id||"");
+ var options=employees.map(function(e){return '<option value="'+tpEscape(e.id)+'" '+(selection===e.id?"selected":"")+'>'+tpEscape(e.name)+' — '+tpEscape(e.restaurant)+'</option>';}).join("");
+ var html='<section class="tp-panel" id="tp-increment-settings">'+tpToolbar("Salary Increases / Increments",
+  "Update salaries by revised amount, fixed increment or percentage. Effective dates and complete histories are retained.",
+  tpButton("pdf-increments","Download Increment Report PDF","tp-light"))+
+ '<p class="tp-note">Only active salaried employees are eligible. Revisions are attached to the current employment period. An effective date within a month prorates pay on the existing 30-day salary basis.</p>'+
+ '<form id="tp-increment-form" class="tp-form"><div class="tp-form-grid">'+
+ '<div class="tp-field"><label for="tp-inc-employee">Employee *</label><select id="tp-inc-employee" required>'+options+'</select></div>'+
+ '<div class="tp-field"><label for="tp-inc-date">Effective date *</label><input id="tp-inc-date" required type="date" value="'+tpEscape(tpToday())+'"></div>'+
+ '<div class="tp-field"><label for="tp-inc-mode">Increase method *</label><select id="tp-inc-mode"><option value="new">New monthly salary (₹)</option><option value="fixed">Fixed increase (₹)</option><option value="percent">Percentage increase (%)</option></select></div>'+
+ '<div class="tp-field"><label for="tp-inc-value">Amount or percentage *</label><input id="tp-inc-value" required type="number" min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter amount"></div>'+
+ '<div class="tp-field"><label for="tp-inc-reason">Reason / remarks</label><input id="tp-inc-reason" maxlength="180" placeholder="Annual increment, promotion…"></div></div>'+
+ '<div class="tp-actions"><button class="tp-button tp-primary" type="submit" '+(!employees.length?"disabled":"")+'>Save Salary Increment</button></div></form>'+
+ '<h3 style="margin-top:25px">Salary Increment History</h3>'+
+ (records.length?tpTable(["Effective date","Employee","Restaurant","Previous","New","Increase","Reason"],records.map(function(c){
+  var e=tpEmp(c.employeeId),delta=c.newSalary-c.previousSalary;
+  return '<tr><td>'+tpEscape(c.effectiveDate||c.effectiveMonth)+'</td><td>'+tpEscape(c.employeeName||e&&e.name||"Employee")+'</td>'+
+   '<td>'+tpEscape(e&&e.restaurant||"—")+'</td><td>'+tpMoney(c.previousSalary)+'</td><td>'+tpMoney(c.newSalary)+'</td>'+
+   '<td>'+tpMoney(delta)+' ('+(c.previousSalary?((delta/c.previousSalary)*100).toFixed(1):"0")+'%)</td>'+
+   '<td>'+tpEscape(c.reason||"—")+'</td></tr>';
+ })):'<p class="tp-note">No salary increments have been recorded.</p>')+
+ '<div class="tp-form-grid tp-arc-pdf-filters">'+
+ '<div class="tp-field"><label for="tp-inc-filter-restaurant">PDF report · Restaurant</label><select id="tp-inc-filter-restaurant"><option value="">All restaurants</option>'+
+ Array.from(new Set(tpData.employees.map(function(e){return e.restaurant;}))).filter(Boolean).map(function(n){return '<option value="'+tpEscape(n)+'">'+tpEscape(n)+'</option>';}).join("")+
+ '</select></div><div class="tp-field"><label for="tp-inc-filter-employee">Employee</label><select id="tp-inc-filter-employee"><option value="">All employees</option>'+
+ tpData.employees.map(function(e){return '<option value="'+tpEscape(e.id)+'">'+tpEscape(e.name)+' ('+tpEscape(e.joined)+')</option>';}).join("")+
+ '</select></div><div class="tp-field"><label for="tp-inc-filter-from">From date</label><input id="tp-inc-filter-from" type="date"></div>'+
+ '<div class="tp-field"><label for="tp-inc-filter-to">Through date</label><input id="tp-inc-filter-to" type="date"></div></div></section>';
+ return html;
+}
+var tpArcSettings=tpSettings;
+tpSettings=function(){return tpArcSettings()+tpArcIncrementPage();};
+document.addEventListener("submit",function(ev){
+ if(!ev.target||ev.target.id!=="tp-increment-form")return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target,emp=tpEmp(form.querySelector("#tp-inc-employee").value),date=form.querySelector("#tp-inc-date").value;
+ var mode=form.querySelector("#tp-inc-mode").value,value=Number(form.querySelector("#tp-inc-value").value);
+ var reason=tpTrim(form.querySelector("#tp-inc-reason").value,180);
+ if(!emp||emp.active===false||emp.left||tpIsParcel(emp))return uxAlert("Choose an active salaried employee.");
+ if(!tpArcDate(date)||date<emp.joined)return uxAlert("Effective date must be on or after this employment period's joining date.");
+ var month=date.slice(0,7),old=tpMonthSalary(emp,month),newSalary;
+ if(!Number.isFinite(value)||value<=0||!["new","fixed","percent"].includes(mode))return uxAlert("Enter a positive salary amount or percentage.");
+ if(mode==="new")newSalary=parsePaise(form.querySelector("#tp-inc-value").value);
+ else if(mode==="fixed"){var increment=parsePaise(form.querySelector("#tp-inc-value").value);newSalary=increment===null?null:old+increment;}
+ else newSalary=Math.round(old*(1+value/100));
+ if(!Number.isSafeInteger(newSalary)||newSalary<=old||newSalary>1000000000)return uxAlert("The revised salary must be higher than the current salary and at most ₹1,00,00,000.");
+ if(tpArcRaiseRecords().some(function(c){return c.employeeId===emp.id&&c.effectiveDate===date;}))
+  return uxAlert("A salary increment already exists for this employee and effective date. Please choose another date.");
+ var targetPeriod=tpGetPeriod(month);
+ if(targetPeriod.finalized===true||targetPeriod.locked===true)return uxAlert("This payroll month is finalized or locked and cannot be changed.");
+ if(month<tpMonth(0)&&Object.prototype.hasOwnProperty.call(targetPeriod.snapshots,emp.id))
+  return uxAlert("This past payroll month already has recorded pay. Historical payroll cannot be revised here.");
+ if(!confirm("Increase "+emp.name+"'s monthly salary from "+tpMoney(old)+" to "+tpMoney(newSalary)+" effective "+date+"?"))return;
+ var before=JSON.stringify(tpData);
+ try{
+  if(!tpSetMonthSalary(emp,month,newSalary,"Salary Increment"))return;
+  var change=tpData.salaryChanges[tpData.salaryChanges.length-1];
+  change.effectiveDate=date;change.reason=reason;change.employmentPeriodId=emp.id;change.restaurant=emp.restaurant;
+  change.designation=emp.designation;
+  if(!tpSave()){tpData=JSON.parse(before);return;}
+  tpArcIncrementEmployee=emp.id;draw();showToast("Salary increment saved effective "+date+".");
+ }catch(err){tpData=JSON.parse(before);uxAlert(err.message||"Could not save salary increment.");}
+},true);
+// Prorate month-midpoint salary increments on the fixed 30-day basis.
+// The full monthly rate remains in the original salary history for future months.
+var tpArcBaseCompute=tpCompute;
+tpCompute=function(emp,period,override,month){
+ var result=tpArcBaseCompute(emp,period,override,month);
+ if(!result||tpIsParcel(emp)||period.finalized===true||period.locked===true)return result;
+ var m=month||tpPeriod,changes=(tpData.salaryChanges||[]).filter(function(c){
+  return c.employeeId===emp.id&&c.source==="Salary Increment"&&c.effectiveDate&&c.effectiveDate.slice(0,7)===m;
+ }).sort(function(a,b){return a.effectiveDate.localeCompare(b.effectiveDate)||a.changedAt.localeCompare(b.changedAt);});
+ if(!changes.length)return result;
+ var dailyTotal=0,rate=changes[0].previousSalary,idx=0;
+ for(var d=1;d<=30;d++){
+  while(idx<changes.length&&Math.min(30,Number(changes[idx].effectiveDate.slice(8)))<=d){
+   rate=changes[idx].newSalary;idx++;
+  }
+  dailyTotal+=rate/30;
+ }
+ var effective=Math.round(dailyTotal);
+ result.gross=tpRound(effective*result.days/TP_BASIS);
+ result.leavePay=tpRound(effective*result.leaveEarned/TP_BASIS);
+ result.earned=result.gross+result.leavePay;
+ result.withheld=result.paidAdvance+result.fine+result.other;
+ result.net=Math.max(0,result.earned-result.withheld);
+ result.shortfall=Math.max(0,result.withheld-result.earned);
+ result.proratedMonthly=effective;
+ return result;
+};
+function tpArcDownloadIncrements(){
+ var records=tpArcRaiseRecords(),byRestaurant=document.getElementById("tp-inc-filter-restaurant"),
+  byEmployee=document.getElementById("tp-inc-filter-employee"),from=document.getElementById("tp-inc-filter-from"),to=document.getElementById("tp-inc-filter-to");
+ var restaurant=byRestaurant&&byRestaurant.value||"",employee=byEmployee&&byEmployee.value||"",
+  since=from&&from.value||"",until=to&&to.value||"";
+ records=records.filter(function(c){
+  var emp=tpEmp(c.employeeId),date=c.effectiveDate||c.effectiveMonth+"-01";
+  return (!restaurant||c.restaurant===restaurant||emp&&emp.restaurant===restaurant)&&
+   (!employee||c.employeeId===employee)&&(!since||date>=since)&&(!until||date<=until);
+ });
+ if(!records.length)return uxAlert("No salary increments match these report filters.");
+ try{
+  var pages=[],maxRows=15;
+  for(var start=0;start<records.length;start+=maxRows){
+   var page=tpPdfCanvas(),ctx=page.ctx;
+   tpPdfHeader(ctx,"SALARY INCREMENT REPORT",tpPeriod,"Salary changes by effective date · "+records.length+" entries");
+   ctx.fillStyle="#e9f4ef";ctx.fillRect(38,140,519,31);
+   var cols=[["DATE",45],["EMPLOYEE",111],["RESTAURANT",93],["OLD",86],["NEW",86],["RAISE",98]],x=38;
+   cols.forEach(function(col){tpPdfText(ctx,col[0],x+5,159,8,true,"#346254",col[1]-8);x+=col[1];});
+   records.slice(start,start+maxRows).forEach(function(c,i){
+    var e=tpEmp(c.employeeId),y=195+i*33,values=[c.effectiveDate||c.effectiveMonth,
+     c.employeeName||e&&e.name||"Employee",c.restaurant||e&&e.restaurant||"",
+     tpMoney(c.previousSalary),tpMoney(c.newSalary),tpMoney(c.newSalary-c.previousSalary)];
+    if(i%2===0){ctx.fillStyle="#f7faf9";ctx.fillRect(38,y-19,519,31);}
+    var at=38;values.forEach(function(v,j){tpPdfText(ctx,v,at+5,y,9,j===0||j===5,"#243e4b",cols[j][1]-9);at+=cols[j][1];});
+   });
+   tpPdfText(ctx,"Generated "+tpDate(tpToday())+" · Filtered report · Historical entries are retained",40,733,9,false,"#627b7b",510);
+   tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
+  }
+  var file=tpPdfBuild(pages),url=URL.createObjectURL(file),a=document.createElement("a");
+  a.href=url;a.download="restaurant-salary-increment-report-"+tpToday()+".pdf";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+ }catch(err){uxAlert("Could not create increment PDF: "+(err.message||"Unknown error"));}
+}
+var arcCSS=document.createElement("style");
+arcCSS.textContent=".tp-archive-form{border-color:#d4c9a0}.tp-archive-form .tp-note{max-width:850px}#tp-increment-settings{scroll-margin-top:20px}#tp-increment-settings .tp-form{margin:15px 0 20px}.tp-arc-pdf-filters{margin-top:22px;border-top:1px solid #e2ebed;padding-top:18px}.tp-archive-form .tp-form-grid{max-width:900px}";
+document.head.appendChild(arcCSS);
+})();
