@@ -52,22 +52,37 @@ Test the cutoff logic locally from `pos/` using `bun test`.
 
 ## Restaurant Payroll Management Demo
 
-The **Payroll** navigation item now opens a **complete, browser-local demo** rather than the old payroll preview. It does not use the Railway/PostgreSQL payroll state or finalize real salary payments. Sample data and edits are stored in browser localStorage under `tablewise-payroll-demo-v3`. Each device/browser has its own demo data, so changes do **not** sync across devices.
+The **Payroll** navigation item opens a browser-local, interactive demonstration with six realistic employees and previous-month examples. All payroll information is saved only in this browser using `localStorage` under the existing key `tablewise-payroll-demo-v3`. It does **not** alter Railway/PostgreSQL employee data, restaurant invoices, or any real salary payment. Previous browser employee and advance data are retained.
 
-Within Payroll, navigate using the internal sections:
+### Features and workflow
 
-- **Dashboard:** total active employees, contractual monthly salary expense, all advances, estimated cash payroll, estimated cheque payroll
-- **Employees:** add/view/edit staff with designation, joining date, restaurant, salary, CASH/CHEQUE method and locally saved resized photo
-- **Advances (5th):** planned amounts, paid status, printable advance distribution sheet, fines and other deduction inputs
-- **Salary Calculator (15th):** **only days worked** are entered, with half-days supported; earned salary and deductions are calculated automatically
-- **Payment Sheets:** separate Cash and Cheque sheets, print and downloadable CSV, grand total and locally recorded salary-paid status
-- **Payroll History:** prior months, paid advances, saved calculated salaries and payment status (previous months are seeded for demonstration)
+- **Dashboard** — active employees, contractual monthly salary expense, advances entered, calculated Cash and Cheque salary totals.
+- **Employees** — add, view, and edit staff with name, photo, designation, joining date, restaurant, monthly salary, CASH/CHEQUE method, and **maximum paid leave days per month**. For example, set a four-day allowance for one employee and two for another; zero disables leave pay for an employee.
+- **Advances** — enter employee advance amounts, fines, and other deductions. **There is no Paid checkbox**: each entered advance is treated as distributed and deducted from salary. Set the amount to zero if no advance was given. Print or download an advance distribution sheet.
+- **Salary Calculator** — enter **only days worked**, including half days (e.g., 22.5 or 27). Working salary, earned leave days, leave money, advances, and other deductions are calculated and displayed automatically.
+- **Payment Sheets** — printable/downloadable Cash and Cheque sheets and a combined grand total. **There are no salary Paid checkboxes** or payment-status tracking.
+- **History** — monthly salary, earned leave money, and advance figures, with example months available initially.
+- **Settings** — configure how many working days earn one paid leave day (default: **1 leave day per 7 days worked**, valid intervals 1–30). The same settings are accessible from the main restaurant Settings page via a shortcut to Payroll Settings.
 
-**Demo payroll calculation (30-day basis):** `Gross = round(monthly salary in paise × days worked ÷ 30)`; `Net = max(0, Gross − advances actually marked paid − fines − other deductions)`. The 5th and 15th are display reminders, not enforced scheduling. All calculations round to the nearest paise. An unrecovered deduction is indicated when withholding exceeds gross pay.
+### Demo salary formula
 
-This is an interactive demo, **not tax-compliant payroll**: statutory tax, PF, ESIC, overtime, year-end adjustments, reimbursements, and actual bank/cheque disbursements are not calculated or performed. Paid-status checkboxes record a local demonstration entry, not real transfers. Old `payrollDrafts` in cloud state are preserved but are not used by this demo.
+For monthly salary **M** (in rupees), days worked **W**, employee maximum paid-leave allowance **L**, and configured workdays-per-leave rule **R**:
 
-Use `bun test` from `pos/` to run payroll calculation and existing business-day regression tests.
+`Working pay = round_to_paise(M ÷ 30 × W)`
+
+`Earned paid leave days = min(L, floor(W ÷ R))`
+
+`Leave pay = round_to_paise(M ÷ 30 × earned paid leave days)`
+
+`Net pay = max(0, working pay + leave pay − advance entered − fines − other deductions)`
+
+Example: with **R = 7**, an employee working **27 days** earns **3 paid leave days** when their allowance is at least three. An employee capped at **2 paid leave days** earns only two. Leave pay is an **addition** to working pay.
+
+Existing local demo records are migrated in place: employees without an allowance default to two leave days; a missing leave rule defaults to seven. Legacy paid/unpaid checkbox fields remain in the browser's stored data for compatibility but are no longer used.
+
+**Important:** This is a demonstration, not a compliant payroll engine. No PF, ESIC, income tax, overtime, banking transactions, statutory leave entitlement, or final payroll authorization is implemented. Verify policy and calculations before using any figures for actual payments.
+
+Run `bun test` from `pos/` to check payroll arithmetic, UI rendering, and the existing business-day and restaurant validation.
 
 ## Multiple restaurants
 
