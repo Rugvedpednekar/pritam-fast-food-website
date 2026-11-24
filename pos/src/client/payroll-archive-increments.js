@@ -13,7 +13,10 @@ function tpPayrollSelectedRestaurant(){
 }
 function tpPayrollMatchesRestaurant(employee){
  var name=tpPayrollSelectedRestaurant();
- return !name||!!employee&&employee.restaurant===name;
+ if(!name)return true;
+ if(!employee)return false;
+ if(employee.restaurantId&&typeof selected!=="undefined")return employee.restaurantId===selected;
+ return String(employee.restaurant||"").trim().toLowerCase()===String(name).trim().toLowerCase();
 }
 function tpArcPersonId(emp){return emp.personId||emp.id;}
 function tpArcCareer(emp){
@@ -83,8 +86,13 @@ tpEmployeeProfile=function(emp){
   extra='<div class="tp-note"><strong>Resigned · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
  }else if(emp.active!==false){
   extra='<div class="tp-actions">'+
-   tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
-   (!tpIsParcel(emp)?tpButton("go-increments","Salary Increase","tp-light",'data-id="'+tpEscape(emp.id)+'"'):"")+'</div>';
+   tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div>'+
+   (tpIsParcel(emp)?"":'<form id="tp-profile-salary-form" class="tp-form tp-profile-salary" data-id="'+tpEscape(emp.id)+'">'+
+    '<h3>Update Monthly Salary</h3><p class="tp-note">Current salary: <strong>'+tpMoney(tpMonthSalary(emp,tpMonth(0)))+
+    '</strong>. New salary is effective today ('+tpDate(tpToday())+'); earlier months and salary history are preserved.</p>'+
+    '<div class="tp-field"><label for="tp-profile-new-salary">New monthly salary (₹) *</label>'+
+    '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter the new salary"></div>'+
+    '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>');
  }
  html=html.replace(close,extra+close);
  var pos=html.lastIndexOf("</section>");
@@ -214,13 +222,13 @@ document.addEventListener("submit",function(ev){
  if(!confirm("Rejoin "+old.name+" on "+joined+"? A new employment period and monthly ID will be created without changing any historical records."))return;
  var before=JSON.stringify(tpData),newId=tpId(),person=tpArcPersonId(old);
  var next=Object.assign({},old,{id:newId,personId:person,previousEmploymentId:old.id,joined:joined,
-  designation:designation,restaurant:restaurant,salary:salary,initialSalary:salary,
+  designation:designation,restaurant:restaurant,restaurantId:tpResolveRestaurantId(restaurant,null),salary:salary,initialSalary:salary,
   active:true,left:false,createdAt:tpStamp(),employmentPeriodStartedAt:tpStamp()});
  delete next.leftAt;delete next.lastWorkingDate;delete next.closedAt;delete next.rejoinedAs;delete next.deletedAt;delete next.exitType;delete next.finalSettlement;
  old.rejoinedAs=newId;old.rejoinedAt=tpStamp();
  tpData.employees.push(next);
  var month=joined.slice(0,7),period=tpGetPeriod(month),taken=new Set(Object.keys(period.serials).filter(function(id){
-  var employee=tpEmp(id);return employee&&employee.restaurant===restaurant;
+  var employee=tpEmp(id);return employee&&employee.active!==false&&tpSameRestaurant(employee,next);
  }).map(function(id){return tpSerialValue(period.serials[id]);}));
  var serial=1;
  while(taken.has(serial))serial++;
@@ -232,7 +240,7 @@ document.addEventListener("submit",function(ev){
  showToast(old.name+" rejoined · new restaurant-specific monthly ID "+serial+".");
 },true);
 function tpArcRaiseRecords(){
- return (tpData.salaryChanges||[]).filter(function(c){return c.source==="Salary Increment"&&tpPayrollMatchesRestaurant(tpEmp(c.employeeId));})
+ return (tpData.salaryChanges||[]).filter(function(c){return ["Salary Increment","Salary Revision"].includes(c.source)&&tpPayrollMatchesRestaurant(tpEmp(c.employeeId));})
   .sort(function(a,b){return String(b.effectiveDate||b.effectiveMonth).localeCompare(String(a.effectiveDate||a.effectiveMonth));});
 }
 function tpArcIncrementPage(){
@@ -268,7 +276,7 @@ function tpArcIncrementPage(){
  return html;
 }
 var tpArcSettings=tpSettings;
-tpSettings=function(){return tpArcSettings()+tpArcIncrementPage();};
+tpSettings=function(){return tpArcSettings();};
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-increment-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
@@ -307,7 +315,7 @@ tpCompute=function(emp,period,override,month){
  var result=tpArcBaseCompute(emp,period,override,month);
  if(!result||tpIsParcel(emp)||period.finalized===true||period.locked===true)return result;
  var m=month||tpPeriod,changes=(tpData.salaryChanges||[]).filter(function(c){
-  return c.employeeId===emp.id&&c.source==="Salary Increment"&&c.effectiveDate&&c.effectiveDate.slice(0,7)===m;
+  return c.employeeId===emp.id&&["Salary Increment","Salary Revision"].includes(c.source)&&c.effectiveDate&&c.effectiveDate.slice(0,7)===m;
  }).sort(function(a,b){return a.effectiveDate.localeCompare(b.effectiveDate)||a.changedAt.localeCompare(b.changedAt);});
  if(!changes.length)return result;
  var dailyTotal=0,rate=changes[0].previousSalary,idx=0;
