@@ -48,3 +48,25 @@ Business days are named for the **date on which the shift began** (the most rece
 
 Test the cutoff logic locally from `pos/` using `bun test`.
 
+
+
+## Testable Payroll Preview
+
+Payroll is enabled as a **preview**, not a finalized payroll ledger. Open **Payroll**, select a month, verify or enter monthly salary in rupees, leave taken and paid-leave allowance. Recalculate, save a draft or export a CSV. Drafts are stored in the restaurant snapshot under `payrollDrafts` (no payments are issued). The calculation is:
+
+`Estimated net = monthly salary – round(monthly salary × max(0, leave taken – paid leave allowance) ÷ number of calendar days)`.
+
+The calculation intentionally excludes statutory deductions, advances, half-days, PF/ESIC, income tax and finalized payslips because the original approved payroll rulebook is not present. **Do not use preview totals to pay real staff without validating policy and compliance.**
+
+## Multiple restaurants
+
+From **Settings → Manage Restaurants** add restaurants (up to 50 entries), remove one from the active workspace, or restore an archived restaurant. Removing a restaurant archives it, **not deletes it**: historical sales, staff, menus and audit records are preserved. At least one active restaurant is required. Open pending orders must be completed or voided before archiving.
+
+## Zomato and phone navigation
+
+On the POS floor screen the red **+ Zomato** button runs the existing New Parcel workflow and tags newly created parcel orders as Zomato. This is a channel label only; it is **not** connected to the Zomato ordering API. On phones, browser Back gestures follow the visible POS screens and return to Home rather than immediately abandoning billing. Native browser behavior can differ by mobile browser, so confirm on your specific device.
+
+## Menu deletion control
+
+Delete Full Menu appears next to the Categories filter in Menu Management. It is red, restaurant-scoped, protected by confirmation, and does not delete historical invoices.
+

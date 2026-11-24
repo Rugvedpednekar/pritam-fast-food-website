@@ -10,50 +10,43 @@
   var twBulkMenuStyles=document.createElement("style");
   twBulkMenuStyles.id="tw-bulk-menu-style";
   twBulkMenuStyles.textContent=
-    '#tw-menu-bulk-controls{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:13px 16px;margin:0 0 16px;background:#fff;border:1px solid #e7dadd;border-radius:12px}' +
-    '#tw-menu-bulk-controls .tw-bulk-description{display:flex;flex-direction:column;gap:4px}' +
-    '#tw-menu-bulk-controls strong{color:#293e50;font-size:14px}' +
-    '#tw-menu-bulk-controls small{color:#697f8e;font-size:12px;line-height:1.4}' +
-    '#tw-delete-full-menu{background:#fff;color:#b4232f;border:1px solid #deb9bd;min-height:42px;padding:10px 14px;border-radius:9px;font-weight:750;cursor:pointer}' +
-    '#tw-delete-full-menu:hover:not(:disabled){background:#fff2f3;border-color:#b4232f}' +
-    '#tw-delete-full-menu:focus-visible{outline:3px solid #cc444d;outline-offset:2px}' +
-    '#tw-delete-full-menu:disabled{opacity:.55;cursor:not-allowed}' +
-    '@media(max-width:560px){#tw-menu-bulk-controls{padding:12px;align-items:stretch}#tw-delete-full-menu{width:100%}}';
+    '#tw-delete-full-menu{background:#c62838!important;color:white!important;border:1px solid #a9192a!important;padding:10px 14px;border-radius:9px;font-weight:800;min-height:44px;cursor:pointer;white-space:nowrap}' +
+    '#tw-delete-full-menu:hover:not(:disabled){background:#a61f2e!important}' +
+    '#tw-delete-full-menu:focus-visible{outline:3px solid #ed8590;outline-offset:2px}' +
+    '#tw-delete-full-menu:disabled{opacity:.5;cursor:not-allowed}' +
+    '.tw-delete-menu-slot{display:flex;align-items:end;flex:0 0 auto;margin-left:2px}' +
+    '@media(max-width:560px){.tw-delete-menu-slot{width:auto;flex:1 1 120px}.tw-delete-menu-slot button{width:100%;font-size:11px;padding:9px 8px}}';
   document.head.appendChild(twBulkMenuStyles);
 
   function twRenderMenuBulkButton(){
     if(tab!=="menu")return;
     var holder=document.getElementById("content");
     if(!holder)return;
+    var menu=holder.querySelector(".mm")||holder;
+    var filters=menu.querySelector(".mm-filters");
+    var buttons=menu.querySelector(".mm-actions");
     var count=((data.menus&&data.menus[selected])||[]).length;
-    var existing=document.getElementById("tw-menu-bulk-controls");
-    if(existing){
-      var current=existing.querySelector("#tw-delete-full-menu");
-      if(current){
-        current.disabled=count===0||twBulkMenuInProgress;
-        current.textContent="Delete Full Menu ("+count+")";
-      }
-      return;
-    }
-    var area=document.createElement("section");
-    area.id="tw-menu-bulk-controls";
-    area.setAttribute("aria-label","Menu bulk actions");
-    var details=document.createElement("div");
-    details.className="tw-bulk-description";
-    var title=document.createElement("strong");title.textContent="Full menu management";
-    var description=document.createElement("small");
-    description.textContent="Delete all "+count+" menu items from this restaurant only. Existing bills stay unchanged.";
-    details.appendChild(title);details.appendChild(description);
+    var existing=document.getElementById("tw-delete-full-menu");
+    if(existing){existing.disabled=count===0||twBulkMenuInProgress;existing.textContent="Delete Full Menu ("+count+")";return;}
+    var slot=document.createElement("div");
+    slot.className="tw-delete-menu-slot";
     var button=document.createElement("button");
-    button.id="tw-delete-full-menu";
-    button.type="button";
+    button.id="tw-delete-full-menu";button.type="button";
+    button.className="btn danger";button.disabled=count===0||twBulkMenuInProgress;
     button.textContent="Delete Full Menu ("+count+")";
-    button.disabled=count===0||twBulkMenuInProgress;
-    button.setAttribute("aria-label","Delete all menu items for the selected restaurant");
-    area.appendChild(details);area.appendChild(button);
-    var heading=holder.querySelector(".heading");
-    if(heading&&heading.parentElement===holder)heading.insertAdjacentElement("afterend",area);
-    else holder.insertBefore(area,holder.firstChild);
+    button.setAttribute("aria-label","Delete every menu item for the selected restaurant");
+    slot.appendChild(button);
+    if(filters){
+      var categoryField=Array.from(filters.children).find(function(el){
+        return /categor/i.test(el.textContent||"")||el.querySelector('select[id*="cat" i],select[name*="cat" i]');
+      });
+      if(categoryField)categoryField.insertAdjacentElement("afterend",slot);
+      else filters.appendChild(slot);
+    }else if(buttons){
+      buttons.appendChild(slot);
+    }else{
+      (menu.querySelector(".mm-head")||menu).appendChild(slot);
+    }
   }
 
   var twDrawBeforeBulkMenu=draw;

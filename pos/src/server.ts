@@ -70,6 +70,25 @@ const autoDayEndClient=await Bun.file(new URL("./client/auto-day-end.js",import.
 const autoDayEndBoot="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(autoDayEndBoot))throw Error("Auto day-end insertion point not found");
 html=html.replace(autoDayEndBoot,autoDayEndClient+"\n"+autoDayEndBoot);
+// Restaurant archive and restore Settings.
+const twExtension1=await Bun.file(new URL("./client/manage-restaurants.js",import.meta.url)).text();
+if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("manage-restaurants.js insertion point missing");
+html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension1+"\n"+"startupFinished=true;\ncloudStart();\n})();");
+
+// Payroll testing UI.
+const twExtension2=await Bun.file(new URL("./client/payroll-preview.js",import.meta.url)).text();
+if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("payroll-preview.js insertion point missing");
+html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension2+"\n"+"startupFinished=true;\ncloudStart();\n})();");
+
+// Zomato parcel shortcut.
+const twExtension3=await Bun.file(new URL("./client/zomato-shortcut.js",import.meta.url)).text();
+if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("zomato-shortcut.js insertion point missing");
+html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension3+"\n"+"startupFinished=true;\ncloudStart();\n})();");
+
+// Phone Back navigation.
+const twExtension4=await Bun.file(new URL("./client/mobile-back.js",import.meta.url)).text();
+if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("mobile-back.js insertion point missing");
+html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension4+"\n"+"startupFinished=true;\ncloudStart();\n})();");
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
@@ -142,7 +161,7 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
   const text=await req.text();if(text.length>2500000)return res({error:"Payload too large"},413);
   let b;try{b=JSON.parse(text)}catch{return res({error:"Invalid JSON"},400)}
   let v=b?.version,state=b?.state;
-  if(!Number.isSafeInteger(v)||v<0||state?.schema!==1||!Array.isArray(state.restaurants)||state.restaurants.length!==5||!Array.isArray(state.bills)||!Array.isArray(state.employees)||!Array.isArray(state.closings)||!state.menus||!Number.isSafeInteger(state.seq))return res({error:"Invalid demo schema"},422);
+  if(!Number.isSafeInteger(v)||v<0||state?.schema!==1||!Array.isArray(state.restaurants)||(state.restaurants.length<1||state.restaurants.length>50||!state.restaurants.some(r=>r&&r.active!==false))||!Array.isArray(state.bills)||!Array.isArray(state.employees)||!Array.isArray(state.closings)||!state.menus||!Number.isSafeInteger(state.seq))return res({error:"Invalid demo schema"},422);
   try{await ready();await runAutomaticDayEnd();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
   else rows=await db.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",[JSON.stringify(state),v]);
   return rows.length?res({ok:true,version:Number(rows[0].version)}):res({error:"Concurrent update detected. Reload cloud data.",code:"VERSION_CONFLICT"},409)
