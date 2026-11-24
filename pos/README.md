@@ -52,38 +52,42 @@ Test the cutoff logic locally from `pos/` using `bun test`.
 
 ## Restaurant Payroll Management Demo
 
-The **Payroll** navigation item opens a browser-local, interactive demonstration with six realistic employees and previous-month examples. All payroll information is saved only in this browser using `localStorage` under the existing key `tablewise-payroll-demo-v3`. It does **not** alter Railway/PostgreSQL employee data, restaurant invoices, or any real salary payment. Previous browser employee and advance data are retained.
+Payroll is a **browser-local demonstration** (no shared database or production payroll). It uses `localStorage` key `tablewise-payroll-demo-v3`. The existing employee data, attendance days and previous pay calculations are preserved during migration.
 
-### Features and workflow
+### Monthly attendance and staff IDs
 
-- **Dashboard** — active employees, contractual monthly salary expense, advances entered, calculated Cash and Cheque salary totals.
-- **Employees** — add, view, edit, and **delete** staff from the active roster with confirmation. Deleted employees disappear from active salary and attendance calculations and can be restored under **Deleted Employees**. Past monthly records remain intact. Employee details include name, photo, designation, joining date, restaurant, monthly salary, CASH/CHEQUE method, and **maximum paid leave days per month**. For example, set a four-day allowance for one employee and two for another; zero disables leave pay for an employee.
-- **Attendance** — a **monthly** days-worked view, not a daily timesheet. Select a month using the Payroll month picker; enter 0–30 working days, including half-days. Attendance and Salary Calculator read/write **exactly the same** month-and-employee days field, so edits in either place appear in the other. **Earned paid leave days are not counted as attendance**.
-- **Advances** — enter employee advance amounts, fines, and other deductions. **There is no Paid checkbox**: each entered advance is treated as distributed and deducted from salary. Set the amount to zero if no advance was given. Print or download an advance distribution sheet.
-- **Salary Calculator** — enter **only days worked**, including half days (e.g., 22.5 or 27). **Press Enter to save the current employee’s days and focus/select the next employee’s days input** on desktop or phone; the last employee’s Enter saves without moving to another employee. Working salary, earned leave days, leave money, advances, and other deductions are calculated and displayed automatically.
-- **Payment Sheets** — printable/downloadable Cash and Cheque sheets and a combined grand total. **There are no salary Paid checkboxes** or payment-status tracking.
-- **History** — monthly salary, earned leave money, and advance figures, with example months available initially.
-- **Settings** — configure how many working days earn one paid leave day (default: **1 leave day per 7 days worked**, valid intervals 1–30). The same settings are accessible from the main restaurant Settings page via a shortcut to Payroll Settings.
+- Open **Payroll → Attendance** and choose a payroll month. Assign each employee a **monthly ID / serial number from 1 to 100**. This number is separate from the permanent internal employee ID and **can change every month**.
+- Each monthly ID must be unique within that month's employee records. The table sorts numerically ascending, with unassigned IDs last. Use the **All / 1–25 / 26–50 / 51–75 / 76–100 / Unassigned** filter to inspect a range.
+- Next to the serial and employee name, you can view or edit **that month's salary** and enter **actual days worked** (0–30, half days permitted). Paid leave credit is **not** counted as attendance.
+- Attendance and Salary Calculator read/write the same saved days. Press **Enter** in Attendance to move from monthly ID → salary → days, then from days to the next employee's days; in Salary Calculator Enter moves to the next employee's days input.
+- **Every month uses a fixed 30-day salary divisor**, including January and February. Calendar length does not change the formula.
+
+### Salary changes and history
+
+- Editing salary in **Employees → Edit** now has an **effective month**. Changes to monthly salary entered in **Attendance** also record a salary change with the month, previous salary, new salary and timestamp.
+- **Employee → View → Salary Change History** lists the changes for later inspection. Saved earlier months keep their prior salaries. Existing browser data is migrated using old monthly snapshots when available; old monthly serial IDs are left empty, not invented.
+- For each month, **Payroll History** shows the stored monthly ID, salary, days, leave pay, advances, and calculated net pay.
+- In Payroll History, expand the desired month and choose **Download CASH**, **Download CHEQUE**, **Download Advances**, **Download Attendance**, **Print CASH**, or **Print CHEQUE**. Downloads are CSV files. CASH and CHEQUE lists remain **separate**, each sorted ascending by its monthly IDs (unassigned IDs last).
+- The main Payment Sheets page also uses these numeric monthly IDs and the same ascending ordering for CASH and CHEQUE separately.
+- Deleting an employee hides them from active Payroll/Attendance without erasing earlier monthly data; Restore is available under Deleted Employees.
 
 ### Demo salary formula
 
-For monthly salary **M** (in rupees), days worked **W**, employee maximum paid-leave allowance **L**, and configured workdays-per-leave rule **R**:
+For monthly salary **M**, monthly worked days **W**, employee paid leave cap **L**, and configured workdays-per-leave interval **R**:
 
-`Working pay = round_to_paise(M ÷ 30 × W)`
+`Working salary = round_to_paise(M × W ÷ 30)`
 
 `Earned paid leave days = min(L, floor(W ÷ R))`
 
-`Leave pay = round_to_paise(M ÷ 30 × earned paid leave days)`
+`Leave money = round_to_paise(M × earned leave days ÷ 30)`
 
-`Net pay = max(0, working pay + leave pay − advance entered − fines − other deductions)`
+`Net salary = max(0, working salary + leave money − entered advances − fines − other deductions)`
 
-Example: with **R = 7**, an employee working **27 days** earns **3 paid leave days** when their allowance is at least three. An employee capped at **2 paid leave days** earns only two. Leave pay is an **addition** to working pay.
+For example, with 27 worked days and R=7, a four-day allowance earns 3 additional paid leave days. A two-day allowance earns only two. Entered advances are deducted automatically; there are no Paid checkboxes.
 
-Existing local demo records are migrated in place: employees without an allowance default to two leave days; a missing leave rule defaults to seven. Legacy paid/unpaid checkbox fields remain in the browser's stored data for compatibility but are no longer used.
+This is not tax-compliant payroll. The calculations exclude PF, ESIC, income tax, overtime, banking transfers, and statutory leave policy checks. Browser-local data does not synchronize between devices and may be lost when local storage is cleared.
 
-**Important:** This is a demonstration, not a compliant payroll engine. No PF, ESIC, income tax, overtime, banking transactions, statutory leave entitlement, or final payroll authorization is implemented. Verify policy and calculations before using any figures for actual payments.
-
-Run `bun test` from `pos/` to check payroll arithmetic, shared attendance data, delete/restore behavior, Enter navigation, UI rendering, and the existing business-day and restaurant validation.
+Run `bun test` in `pos/` for payroll, attendance sorting, salary-history and day-end regressions.
 
 ## Multiple restaurants
 

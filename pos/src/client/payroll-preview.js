@@ -6,7 +6,7 @@
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
 var TP_SECTIONS=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="";
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all";
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
 function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.\d{1,2})?$/.test(v))return null;var p=v.split(".");return Number(p[0])*100+Number((p[1]||"").padEnd(2,"0"));}
@@ -21,7 +21,7 @@ function tpStamp(){return new Date().toISOString();}
 function tpId(){return "emp-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7);}
 function tpTrim(v,n){return String(v==null?"":v).trim().slice(0,n);}
 function tpRound(p){return Math.round(p);}
-function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},payments:{},snapshots:{},updatedAt:null};}
+function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},salaries:{},payments:{},snapshots:{},updatedAt:null};}
 function tpSample(){
  var first=(data.restaurants&&data.restaurants[0]&&data.restaurants[0].name)||"Pritam Fast Food";
  if(/^Restaurant\s*0*1$/i.test(first))first="Pritam Fast Food";
@@ -34,11 +34,11 @@ function tpSample(){
  {id:"demo5",name:"Kabir Khan",designation:"Delivery Coordinator",joined:"2023-11-10",restaurant:second,salary:2150000,method:"CASH",photo:"",leaveAllowance:4,active:true},
  {id:"demo6",name:"Riya Kulkarni",designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true}
  ];
- var s={version:3,employees:emps,periods:{},settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
+ var s={version:3,employees:emps,periods:{},salaryChanges:[],settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
  var months=[tpMonth(0),tpMonth(-1),tpMonth(-2)];
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
-  emps.forEach(function(emp,i){
+  emps.forEach(function(emp,i){p.serials[emp.id]=i+1;p.salaries[emp.id]=emp.salary;
    var adv=(i%3===0?500000:i%3===1?400000:300000);
    p.advances[emp.id]={amount:adv,enteredAt:m+"-05T10:30:00+05:30"};
    p.deductions[emp.id]={fine:i===2?15000:0,other:i===4?20000:0};
@@ -59,8 +59,22 @@ function tpRead(){
    if(!x.settings||typeof x.settings!=="object")x.settings={};
    var rule=Number(x.settings.leaveEarnEveryDays);
    if(!Number.isSafeInteger(rule)||rule<1||rule>30)x.settings.leaveEarnEveryDays=7;
+   if(!Array.isArray(x.salaryChanges))x.salaryChanges=[];
    x.employees.forEach(function(emp){
     if(!Number.isSafeInteger(emp.leaveAllowance)||emp.leaveAllowance<0||emp.leaveAllowance>31)emp.leaveAllowance=2;
+    if(!Number.isSafeInteger(emp.initialSalary)||emp.initialSalary<=0)emp.initialSalary=emp.salary;
+   });
+   Object.keys(x.periods).forEach(function(month){
+    var p=x.periods[month];
+    if(!p||typeof p!=="object")return;
+    if(!p.serials||typeof p.serials!=="object")p.serials={};
+    if(!p.salaries||typeof p.salaries!=="object")p.salaries={};
+    // Preserve historic salary rates from snapshots created before monthly salary tracking existed.
+    x.employees.forEach(function(emp){
+     var old=p.snapshots&&p.snapshots[emp.id];
+     if(!Object.prototype.hasOwnProperty.call(p.salaries,emp.id)&&old&&Number.isSafeInteger(old.monthly)&&old.monthly>0)
+      p.salaries[emp.id]=old.monthly;
+    });
    });
    return x;
   }
@@ -72,7 +86,60 @@ function tpSave(){
  try{localStorage.setItem(TP_KEY,JSON.stringify(tpData));return true;}
  catch(err){uxAlert("Payroll demo could not save on this device. Free browser storage or use a smaller photo.");return false;}
 }
-function tpGetPeriod(month){var m=month||tpPeriod;if(!tpData.periods[m])tpData.periods[m]=tpDefaultPeriod();return tpData.periods[m];}
+function tpGetPeriod(month){
+ var m=month||tpPeriod;
+ if(!tpData.periods[m])tpData.periods[m]=tpDefaultPeriod();
+ var p=tpData.periods[m];
+ if(!p.serials)p.serials={};
+ if(!p.salaries)p.salaries={};
+ return p;
+}
+function tpSerialValue(raw){
+ if(raw===null||raw===undefined||String(raw).trim()==="")return null;
+ var n=Number(raw);
+ return Number.isInteger(n)&&n>=1&&n<=100&&String(n)===String(raw).trim()?n:null;
+}
+function tpMonthSalary(emp,month){
+ if(!tpData)return emp.salary;
+ var m=month||tpPeriod,p=tpGetPeriod(m),saved=p.salaries[emp.id];
+ if(Number.isSafeInteger(saved)&&saved>0)return saved;
+ var history=(tpData.salaryChanges||[]).filter(function(c){return c.employeeId===emp.id&&c.effectiveMonth<=m;})
+ .sort(function(a,b){return a.effectiveMonth.localeCompare(b.effectiveMonth)||a.changedAt.localeCompare(b.changedAt);});
+ if(history.length)return history[history.length-1].newSalary;
+ return emp.initialSalary||emp.salary;
+}
+function tpSetMonthSalary(emp,month,value,source){
+ var m=month||tpPeriod,old=tpMonthSalary(emp,m);
+ if(!Number.isSafeInteger(value)||value<=0)throw Error("Invalid salary value");
+ if(value===old)return false;
+ var period=tpGetPeriod(m);
+ period.salaries[emp.id]=value;
+ // An increase is effective from this month onward; prior months retain recorded rates.
+ // Existing future months using the old rate follow this change, but custom rates remain intact.
+ Object.keys(tpData.periods).forEach(function(otherMonth){
+  if(otherMonth<=m)return;
+  var future=tpGetPeriod(otherMonth);
+  if(future.salaries[emp.id]===old)future.salaries[emp.id]=value;
+ });
+ if(!Array.isArray(tpData.salaryChanges))tpData.salaryChanges=[];
+ tpData.salaryChanges.push({employeeId:emp.id,employeeName:emp.name,effectiveMonth:m,
+  previousSalary:old,newSalary:value,changedAt:tpStamp(),source:source||"Attendance"});
+ // The profile shows the most recently effective salary, while archived months keep their rates.
+ emp.salary=tpMonthSalary(emp,tpMonth(0));
+ return true;
+}
+function tpSerialSort(a,b){
+ var na=a.serial===null?101:a.serial,nb=b.serial===null?101:b.serial;
+ return na-nb||a.emp.name.localeCompare(b.emp.name);
+}
+function tpHistoricEmployees(month){
+ var p=tpGetPeriod(month);
+ return tpData.employees.filter(function(emp){
+  return emp.active!==false||[p.days,p.serials,p.salaries,p.advances,p.snapshots].some(function(obj){
+   return obj&&Object.prototype.hasOwnProperty.call(obj,emp.id);
+  });
+ });
+}
 function tpEmployees(includeInactive){return tpData.employees.filter(function(x){return includeInactive||x.active!==false;});}
 function tpEmp(id){return tpData.employees.find(function(x){return x.id===id;});}
 function tpAvatar(emp,size){
@@ -90,40 +157,42 @@ function tpLeaveEarned(days,allowance,interval){
  if(!Number.isInteger(rate)||rate<1||rate>30)rate=7;
  return Math.min(cap,Math.floor(days/rate));
 }
-function tpCompute(emp,period,override){
+function tpCompute(emp,period,override,month){
  var raw=override===undefined?period.days[emp.id]:override;
  var days=tpInputDays(raw);
  if(days===null)return null;
- var gross=tpRound(emp.salary*days/TP_BASIS);
+ var monthly=tpMonthSalary(emp,month||tpPeriod);
+ var gross=tpRound(monthly*days/TP_BASIS);
  var policy=tpData&&tpData.settings?tpData.settings.leaveEarnEveryDays:7;
  var leaveEarned=tpLeaveEarned(days,emp.leaveAllowance,policy);
- var leavePay=tpRound(emp.salary*leaveEarned/TP_BASIS);
+ var leavePay=tpRound(monthly*leaveEarned/TP_BASIS);
  var a=period.advances[emp.id]||{},ded=period.deductions[emp.id]||{};
- // Entered advances count as distributed: there is deliberately no separate paid checkbox.
  var paidAdvance=Number(a.amount)||0;
  var fine=Number(ded.fine)||0,other=Number(ded.other)||0;
  var withheld=paidAdvance+fine+other,earned=gross+leavePay;
- return {days:days,gross:gross,leaveEarned:leaveEarned,leavePay:leavePay,earned:earned,paidAdvance:paidAdvance,
-         fine:fine,other:other,withheld:withheld,net:Math.max(0,earned-withheld),
-         shortfall:Math.max(0,withheld-earned),method:emp.method};
+ return {days:days,monthly:monthly,gross:gross,leaveEarned:leaveEarned,leavePay:leavePay,
+  earned:earned,paidAdvance:paidAdvance,fine:fine,other:other,withheld:withheld,
+  net:Math.max(0,earned-withheld),shortfall:Math.max(0,withheld-earned),method:emp.method};
 }
 function tpSnapshot(emp,c,days){
- return {name:emp.name,designation:emp.designation,restaurant:emp.restaurant,method:emp.method,monthly:emp.salary,
+ return {name:emp.name,designation:emp.designation,restaurant:emp.restaurant,method:emp.method,monthly:c.monthly||tpMonthSalary(emp,tpPeriod),
   days:days,gross:c.gross,leaveEarned:c.leaveEarned||0,leaveAllowance:emp.leaveAllowance,
   leavePay:c.leavePay||0,earned:c.earned||c.gross,advance:c.paidAdvance,fine:c.fine,
   other:c.other,net:c.net,shortfall:c.shortfall};
 }
-function tpRows(month){
- var p=tpGetPeriod(month);
- return tpEmployees(false).map(function(emp){
-  return {emp:emp,advance:p.advances[emp.id]||{},deductions:p.deductions[emp.id]||{},
-   worked:p.days[emp.id],calc:tpCompute(emp,p),payment:null};
- });
+function tpRows(month,includeHistory){
+ var m=month||tpPeriod,p=tpGetPeriod(m);
+ var emps=includeHistory?tpHistoricEmployees(m):tpEmployees(false);
+ return emps.map(function(emp){
+  return {emp:emp,serial:tpSerialValue(p.serials[emp.id]),salary:tpMonthSalary(emp,m),
+   advance:p.advances[emp.id]||{},deductions:p.deductions[emp.id]||{},
+   worked:p.days[emp.id],calc:tpCompute(emp,p,undefined,m),payment:null};
+ }).sort(tpSerialSort);
 }
 function tpTotals(rows){
  var t={base:0,adv:0,advPaid:0,cash:0,cheque:0,ready:0,fines:0,other:0,leavePay:0,grand:0};
  rows.forEach(function(r){
-  t.base+=r.emp.salary;t.adv+=Number(r.advance.amount)||0;t.advPaid+=Number(r.advance.amount)||0;
+  t.base+=r.salary;t.adv+=Number(r.advance.amount)||0;t.advPaid+=Number(r.advance.amount)||0;
   if(r.calc){
    t.ready++;t.grand+=r.calc.net;t.fines+=r.calc.fine;t.other+=r.calc.other;
    t.leavePay+=Number(r.calc.leavePay)||0;
@@ -163,14 +232,21 @@ function tpDashboard(){
  return out;
 }
 function tpEmployeeProfile(emp){
+ var changes=(tpData.salaryChanges||[]).filter(function(c){return c.employeeId===emp.id;}).slice().reverse();
  return'<section class="tp-panel tp-profile"><div class="tp-profile-head">'+tpAvatar(emp,"large")+'<div><span class="tp-eyebrow">EMPLOYEE PROFILE</span><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p></div><button type="button" class="tp-x" data-tp-action="close-profile" aria-label="Close employee profile">×</button></div>'+
- '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Monthly salary</small><strong>'+tpMoney(emp.salary)+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>Maximum paid leave days</small><strong>'+tpEscape(emp.leaveAllowance)+' days</strong></div></div>'+
- '<div class="tp-note">Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days for this employee. Attendance excludes earned leave.</div>'+
+ '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Monthly salary for '+tpEscape(tpPeriod)+'</small><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>Maximum paid leave days</small><strong>'+tpEscape(emp.leaveAllowance)+' days</strong></div></div>'+
+ '<div class="tp-note">Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days for this employee.</div>'+
  '<div class="tp-actions">'+(emp.active===false?
  tpButton("restore-employee","Restore employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"'):
  tpButton("edit-employee","Edit profile","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+
  tpButton("delete-employee","Delete Employee","tp-danger",'data-id="'+tpEscape(emp.id)+'"'))+
- tpButton("close-profile","Close","tp-light")+'</div></section>';
+ tpButton("close-profile","Close","tp-light")+'</div>'+
+ '<div class="tp-salary-log"><h3>Salary Change History</h3>'+
+ (changes.length?tpTable(["Effective month","Previous salary","New salary","Change","Entered from"],changes.map(function(c){
+  var diff=Number(c.newSalary)-Number(c.previousSalary);
+  return'<tr><td>'+tpEscape(tpMonthLabel(c.effectiveMonth))+'</td><td>'+tpMoney(c.previousSalary)+'</td>'+
+  '<td>'+tpMoney(c.newSalary)+'</td><td>'+tpEscape(diff>=0?"+":"−")+tpMoney(Math.abs(diff))+'</td><td>'+tpEscape(c.source||"Profile")+'</td></tr>';
+ })):'<p class="tp-note">No recorded salary changes yet. Changes entered from Employee Management or Attendance appear here.</p>')+'</div></section>';
 }
 function tpEmployeeForm(emp){
  var values=emp||{id:"",name:"",designation:"",joined:tpToday(),restaurant:(data.restaurants.find(function(r){return r.active!==false;})||{}).name||"Pritam Fast Food",salary:1800000,leaveAllowance:2,method:"CASH",photo:""};
@@ -184,7 +260,7 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" required maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Chef, cashier, server..."></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+possible.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?"selected":"")+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
- '<div class="tp-field"><label for="tp-salary">Monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" required value="'+(values.salary/100).toFixed(2)+'"></div>'+
+ '<div class="tp-field"><label for="tp-salary">Monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" required value="'+(emp?tpMonthSalary(emp,tpPeriod)/100:values.salary/100).toFixed(2)+'"></div><div class="tp-field"><label for="tp-effective-month">Salary effective from month</label><input id="tp-effective-month" name="salaryEffectiveMonth" type="month" required value="'+tpEscape(tpPeriod)+'"><small>Salary changes are recorded with their effective month. Older months retain their previous salary amounts.</small></div>'+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
  '<div class="tp-field"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" required value="'+tpEscape(values.leaveAllowance)+'"><small>For example: 4 days for one employee, 2 for another. Enter 0 for no leave money.</small></div></div>'+
  '<div class="tp-note">Leave money: salary ÷ 30 × min(employee maximum, floor(days worked ÷ '+tpData.settings.leaveEarnEveryDays+')). Change the earning interval in Payroll Settings.</div>'+
@@ -228,41 +304,53 @@ function tpAdvances(){
 function tpAttendance(){
  var rows=tpRows(),entered=rows.filter(function(r){return tpInputDays(r.worked)!==null;});
  var worked=entered.reduce(function(sum,r){return sum+Number(r.worked||0);},0);
+ var assigned=rows.filter(function(r){return r.serial!==null;}).length;
+ var filter=tpIdRange;
+ var visible=rows.filter(function(r){
+  if(filter==="unassigned")return r.serial===null;
+  if(filter==="all")return true;
+  var bounds=filter.split("-").map(Number);
+  return r.serial!==null&&r.serial>=bounds[0]&&r.serial<=bounds[1];
+ });
  var out='<div class="tp-stats tp-stats-three">'+
  tpCard("Employees",String(rows.length),"Current active employees","♙")+
- tpCard("Days recorded",String(entered.length)+' / '+rows.length,"Employees with days entered","✓")+
- tpCard("Total working days",String(worked),"Worked days only · no leave days","▤")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Monthly days worked only. No daily attendance tracking.',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
- '<div class="tp-note">Enter only the actual days worked (0–30, including half-days). <strong>Paid leave days are not counted as attendance.</strong> Changes save automatically and update the Salary Calculator for the same employee and month. Press Enter to save and move to the next employee.</div>'+
- tpTable(["Employee / designation","Restaurant","Days worked this month"],rows.map(function(r,i){
- var id=tpEscape(r.emp.id);
- return'<tr data-tp-attendance-row="'+id+'"><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
- '<td>'+tpEscape(r.emp.restaurant)+'</td>'+
- '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===rows.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
+ tpCard("Monthly IDs assigned",assigned+' / '+rows.length,"Unique numbers from 1 to 100","▤")+
+ tpCard("Total working days",String(worked),"Actual days worked only; paid leave excluded","✓")+'</div>';
+ out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Assign monthly serial numbers and salary rates; record days worked.',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
+ '<div class="tp-note">Enter a unique employee ID / serial number (1–100) for this month. IDs can change every month. Employees are sorted by ID from 1 upwards; unassigned employees are last. Monthly salary here is saved for that month and salary changes are recorded. Enter actual worked days only; extra paid leave is excluded. These worked days appear immediately in Salary Calculator.</div>'+
+ '<div class="tp-field tp-att-filter"><label for="tp-id-filter">Filter monthly ID</label><select id="tp-id-filter">'+
+ [['all','All IDs — ascending 1 to 100'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['unassigned','Unassigned IDs']].map(function(opt){
+  return'<option value="'+opt[0]+'" '+(filter===opt[0]?'selected':'')+'>'+opt[1]+'</option>';
+ }).join("")+'</select></div>'+
+ tpTable(["Monthly ID (1–100)","Employee / designation","Monthly salary (₹)","Days worked"],visible.map(function(r,i){
+  var id=tpEscape(r.emp.id);
+  return'<tr data-tp-attendance-row="'+id+'"><td><input aria-label="Monthly ID for '+tpEscape(r.emp.name)+'" class="tp-serial-input" type="number" inputmode="numeric" min="1" max="100" step="1" placeholder="1–100" data-tp-field="serial" data-id="'+id+'" enterkeyhint="next" value="'+(r.serial===null?"":r.serial)+'"></td>'+
+  '<td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
+  '<td><input aria-label="Monthly salary for '+tpEscape(r.emp.name)+'" class="tp-cell-input tp-month-salary" type="text" inputmode="decimal" data-tp-field="monthlySalary" data-id="'+id+'" enterkeyhint="next" value="'+(r.salary/100).toFixed(2)+'"></td>'+
+  '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===visible.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
  }))+
- '<div class="tp-note">Select a different payroll month at the top of Payroll to view or update that month’s attendance. No separate attendance database is maintained.</div></section>';
+ '<div class="tp-note">Press Enter to move from ID → salary → days, or from days to the next employee’s days box. Values are saved immediately in this browser. Monthly serial IDs and salary changes remain available for inspection in Payroll History.</div></section>';
  return out;
 }
 function tpSalary(){
  var rows=tpRows(),total=tpTotals(rows);
  var out='<div class="tp-stats tp-stats-three">'+tpCard("Net salary calculated",tpMoney(total.grand),total.ready+" of "+rows.length+" employees completed","₹")+
- tpCard("Leave money added",tpMoney(total.leavePay),"Earned leave pay credits","+")+
- tpCard("Advances deducted",tpMoney(total.advPaid),"Advance amounts entered","↘")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Salary Calculator","Enter only days worked. Paid leave days, leave pay, advances and other deductions calculate automatically.",tpButton("go-sheets","View Payment Sheets","tp-primary"))+
- '<div class="tp-note"><strong>Working salary:</strong> monthly salary ÷ 30 × days worked. <strong>Leave pay:</strong> monthly salary ÷ 30 × earned leave days. Earned leave days = min(employee maximum, floor(days worked ÷ '+tpData.settings.leaveEarnEveryDays+')). <strong>Net pay</strong> = working salary + leave pay − advance − fines − other deductions.</div>'+
- tpTable(["Employee / designation","Monthly salary","Days worked (only input)","Working salary","Leave money","Advance","Fine + other","Net salary"],rows.map(function(r,i){
- var id=tpEscape(r.emp.id),c=r.calc;
- var advance=Number(r.advance.amount)||0;
+ tpCard("Leave money added",tpMoney(total.leavePay),"Earned paid leave credits","+")+
+ tpCard("Advances deducted",tpMoney(total.advPaid),"Entered advance amounts","↘")+'</div>';
+ out+='<section class="tp-panel">'+tpToolbar("Salary Calculator","Days worked are shared with Attendance. Employee monthly ID and salary are taken from that month's records.",tpButton("go-attendance","Open Attendance","tp-light")+tpButton("go-sheets","View Payment Sheets","tp-primary"))+
+ '<div class="tp-note"><strong>Fixed 30-day calculation for every month, including January and February:</strong> working salary = monthly salary ÷ 30 × days worked. Leave pay = monthly salary ÷ 30 × earned leave days. Net = working pay + leave pay − advance − fines − other deductions.</div>'+
+ tpTable(["Monthly ID","Employee / designation","Monthly salary","Days worked","Working salary","Leave money","Advance","Fine + other","Net salary"],rows.map(function(r,i){
+ var id=tpEscape(r.emp.id),c=r.calc,advance=Number(r.advance.amount)||0;
  var ded=(Number(r.deductions.fine)||0)+(Number(r.deductions.other)||0);
- return'<tr data-tp-salary-row="'+id+'"><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+' · max '+r.emp.leaveAllowance+' leave days</small></div></div></td>'+
- '<td>'+tpMoney(r.emp.salary)+'</td>'+
+ return'<tr data-tp-salary-row="'+id+'"><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td>'+
+ '<td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+' · max '+r.emp.leaveAllowance+' leave days</small></div></div></td>'+
+ '<td>'+tpMoney(r.salary)+'</td>'+
  '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===rows.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">0–30, half days allowed</small></td>'+
  '<td data-tp-salary-value="gross">'+(c?tpMoney(c.gross):"Enter days")+'</td>'+
- '<td data-tp-salary-value="leave">'+(c?c.leaveEarned+' days · '+tpMoney(c.leavePay):"—")+'</td>'+
+ '<td data-tp-salary-value="leave">'+(c?c.leaveEarned+' d · '+tpMoney(c.leavePay):"—")+'</td>'+
  '<td>'+tpMoney(advance)+'</td><td>'+tpMoney(ded)+'</td>'+
  '<td><strong data-tp-salary-value="net">'+(c?tpMoney(c.net):"—")+'</strong>'+(c&&c.shortfall?'<small class="tp-warning">Excess deductions '+tpMoney(c.shortfall)+'</small>':"")+'</td></tr>';
- }))+
- '<div class="tp-note">Salary calculations save automatically on this device. Review the totals before printing payment sheets.</div></section>';
+ }))+'<div class="tp-note">Rows are sorted by monthly ID (1–100) and Cash/Cheque payment sheets follow the same order within each payment method. Unassigned IDs appear after assigned IDs.</div></section>';
  return out;
 }
 function tpSheets(){
@@ -275,34 +363,49 @@ function tpSheets(){
   var matches=rows.filter(function(r){return r.emp.method===method;}),sum=matches.reduce(function(n,r){return n+(r.calc?r.calc.net:0);},0);
   out+='<section class="tp-panel"><div class="tp-sheet-title"><div><span class="tp-eyebrow">'+method+' PAYROLL</span><h2>'+method+' SHEET</h2><p>'+tpMonthLabel(tpPeriod)+'</p></div><span class="tp-sheet-symbol">'+(method==="CASH"?"₹":"▤")+'</span></div>'+
   '<div class="tp-actions tp-sheet-actions">'+tpButton("print-"+method.toLowerCase(),"Print "+method+" Sheet","tp-primary")+tpButton("csv-"+method.toLowerCase(),"Download CSV","tp-light")+'</div>'+
-  tpTable(["Employee","Designation","Net salary"],matches.map(function(r){
-    return'<tr><td><strong>'+tpEscape(r.emp.name)+'</strong></td><td>'+tpEscape(r.emp.designation)+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):"Enter days")+'</strong></td></tr>';
+  tpTable(["Monthly ID","Employee","Designation","Net salary"],matches.map(function(r){
+   return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
+   '<td>'+tpEscape(r.emp.designation)+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):"Enter days")+'</strong></td></tr>';
   }))+'<div class="tp-sheet-total"><span>Total '+method.toLowerCase()+' payable</span><strong>'+tpMoney(sum)+'</strong></div>'+
-  '<p class="tp-note">Calculated payment sheet only. Verify totals before distributing salary.</p></section>';
+  '<p class="tp-note">Sorted in ascending monthly ID order, separately for CASH and CHEQUE. No payment-status tracking.</p></section>';
  });
  out+='</div><div class="tp-grand"><span>Combined cash + cheque</span><strong>'+tpMoney(t.grand)+'</strong><small>'+t.ready+' of '+rows.length+' employees calculated</small></div>';
  return out;
 }
 function tpHistory(){
  var months=Object.keys(tpData.periods).sort().reverse();
- var out='<section class="tp-panel">'+tpToolbar("Payroll History","Monthly salary calculations, leave pay, advances and deductions","")+
+ var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download previous CASH, CHEQUE and advance sheets.","")+
  '<div class="tp-history-list">'+months.map(function(month){
-  var p=tpGetPeriod(month),employees=tpData.employees.filter(function(emp){
-   return emp.active!==false||Object.prototype.hasOwnProperty.call(p.days,emp.id)||Object.prototype.hasOwnProperty.call(p.advances,emp.id);
+  var p=tpGetPeriod(month),rows=tpRows(month,true),net=0,advance=0,leaveTotal=0,completed=0;
+  var table=rows.map(function(r){
+   var c=r.calc,amt=c?c.net:0;
+   net+=amt;advance+=Number(r.advance.amount)||0;leaveTotal+=c?c.leavePay:0;
+   if(c)completed++;
+   return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td>'+
+    '<td>'+tpEscape(r.emp.name)+'</td><td>'+tpEscape(r.emp.designation)+'</td>'+
+    '<td>'+tpMoney(r.salary)+'</td><td>'+tpEscape(r.worked==null?"—":r.worked)+'</td>'+
+    '<td>'+(c?c.leaveEarned+" d / "+tpMoney(c.leavePay):"—")+'</td>'+
+    '<td>'+tpMoney(Number(r.advance.amount)||0)+'</td><td>'+(c?tpMoney(amt):"Not calculated")+'</td></tr>';
   });
-  var net=0,adv=0,completed=0,leaveTotal=0;
-  var detail=employees.map(function(emp){
-   var a=p.advances[emp.id]||{},calc=tpCompute(emp,p);
-   var amount=calc?calc.net:0,leave=calc?calc.leaveEarned:0,leavePay=calc?calc.leavePay:0;
-   net+=amount;adv+=Number(a.amount)||0;leaveTotal+=leavePay;
-   if(calc)completed++;
-   return'<tr><td>'+tpEscape(emp.name)+'</td><td>'+tpEscape(emp.designation)+'</td><td>'+tpEscape(p.days[emp.id]??"—")+'</td>'+
-    '<td>'+leave+' d / '+tpMoney(leavePay)+'</td><td>'+tpMoney(Number(a.amount)||0)+'</td><td>'+(calc?tpMoney(amount):"Not calculated")+'</td></tr>';
-  });
-  return'<details class="tp-history-entry" '+(month===tpPeriod?'open':'')+'><summary><div><strong>'+tpMonthLabel(month)+'</strong><small>'+completed+' of '+employees.length+' salaries calculated</small></div><div><strong>'+tpMoney(net)+'</strong><small>Leave pay '+tpMoney(leaveTotal)+' · Advances '+tpMoney(adv)+'</small></div><span class="tp-chevron">⌄</span></summary>'+
-  tpTable(["Employee","Designation","Days worked","Leave money","Advance","Net salary"],detail)+'</details>';
+  var changes=(tpData.salaryChanges||[]).filter(function(c){return c.effectiveMonth===month;});
+  var actions='<div class="tp-actions tp-history-actions">'+
+    tpButton("csv-history-cash","Download CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("csv-history-cheque","Download CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("csv-history-advance","Download Advances","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("csv-history-attendance","Download Attendance","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("print-history-cash","Print CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("print-history-cheque","Print CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+'</div>';
+  var changeLog=changes.length?'<div class="tp-note"><strong>Salary changes effective this month</strong>'+
+    changes.map(function(c){return'<div>'+tpEscape(c.employeeName||tpEmp(c.employeeId)?.name||"Employee")+
+      ': '+tpMoney(c.previousSalary)+' → '+tpMoney(c.newSalary)+' ('+tpEscape(c.source)+')</div>';}).join("")+'</div>':"";
+  return'<details class="tp-history-entry" '+(month===tpPeriod?'open':'')+'><summary><div><strong>'+tpMonthLabel(month)+'</strong>'+
+   '<small>'+completed+' of '+rows.length+' salaries calculated · monthly IDs retained</small></div>'+
+   '<div><strong>'+tpMoney(net)+'</strong><small>Leave '+tpMoney(leaveTotal)+' · Advances '+tpMoney(advance)+'</small></div>'+
+   '<span class="tp-chevron">⌄</span></summary><div class="tp-history-body">'+actions+changeLog+
+   tpTable(["Monthly ID","Employee","Designation","Monthly salary","Days worked","Leave money","Advance","Net salary"],table)+
+   '</div></details>';
  }).join("")+'</div></section>';
- if(!months.length)out+='<div class="tp-note">No payroll history yet. Enter advances or salary days to create a monthly record.</div>';
+ if(!months.length)out+='<div class="tp-note">No history yet. Enter attendance or advances to create the first monthly record.</div>';
  return out;
 }
 function tpSettings(){
@@ -356,24 +459,24 @@ function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
  if(signatures)output+='<div class="tp-print-signs"><span>Prepared by: ___________________</span><span>Authorised by: ___________________</span></div>';
  return output+'<p class="tp-print-demo">Sample payroll demonstration · Not a statutory payslip or payment authorisation</p></div>';
 }
-function tpDoPrint(kind){
- var rows=tpRows(),title,sub,heads,records,total=0;
+function tpDoPrint(kind,month){
+ var m=month||tpPeriod,rows=tpRows(m,!!month),title,sub,heads,records,total=0;
  if(kind==="advance"){
   title="Advance Distribution Sheet";
-  sub=tpMonthLabel(tpPeriod);
-  heads=["Employee","Designation","Advance (₹)","Signature"];
+  sub=tpMonthLabel(m);
+  heads=["Monthly ID","Employee","Designation","Advance (₹)","Signature"];
   records=rows.map(function(r){
-    var amount=Number(r.advance.amount)||0;total+=amount;
-    return[r.emp.name,r.emp.designation,(amount/100).toFixed(2),""];
+   var amount=Number(r.advance.amount)||0;total+=amount;
+   return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,(amount/100).toFixed(2),""];
   });
  }else{
   var method=kind.toUpperCase();
   title=method+" Salary Sheet";
-  sub=tpMonthLabel(tpPeriod);
-  heads=["Employee","Designation","Net salary (₹)","Signature"];
+  sub=tpMonthLabel(m);
+  heads=["Monthly ID","Employee","Designation","Net salary (₹)","Signature"];
   records=rows.filter(function(r){return r.emp.method===method;}).map(function(r){
     var n=r.calc?r.calc.net:0;total+=n;
-    return[r.emp.name,r.emp.designation,r.calc?(n/100).toFixed(2):"Not calculated",""];
+    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,r.calc?(n/100).toFixed(2):"Not calculated",""];
   });
  }
  if(!records.length)return uxAlert("No employee rows to print.");
@@ -384,18 +487,34 @@ function tpDoPrint(kind){
  window.print();
 }
 window.addEventListener("afterprint",function(){document.body.classList.remove("tp-payroll-printing");});
-function tpDoCSV(kind){
- var rows=tpRows(),out;
- if(kind==="advance"){
-  out=[["Month","Employee","Designation","Advance INR","Fine INR","Other deduction INR"]];
-  rows.forEach(function(r){out.push([tpPeriod,r.emp.name,r.emp.designation,((r.advance.amount||0)/100).toFixed(2),((r.deductions.fine||0)/100).toFixed(2),((r.deductions.other||0)/100).toFixed(2)]);});
- }else{
-  var method=kind.toUpperCase();out=[["Month","Employee","Designation","Net salary INR"]];
-  rows.filter(function(r){return r.emp.method===method;}).forEach(function(r){
-    out.push([tpPeriod,r.emp.name,r.emp.designation,r.calc?(r.calc.net/100).toFixed(2):"Not calculated"]);
+function tpDoCSV(kind,month){
+ var m=month||tpPeriod,rows=tpRows(m,!!month),out,total=0;
+ if(kind==="attendance"){
+  out=[["Month","Monthly ID","Employee","Designation","Monthly salary INR","Days worked","Paid leave earned","Working salary INR","Leave pay INR","Net salary INR"]];
+  rows.forEach(function(r){
+   var c=r.calc;out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,
+    (r.salary/100).toFixed(2),r.worked==null?"":r.worked,c?c.leaveEarned:"",
+    c?(c.gross/100).toFixed(2):"",c?(c.leavePay/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
   });
+ }else if(kind==="advance"){
+  out=[["Month","Monthly ID","Employee","Designation","Advance INR","Fine INR","Other deduction INR"]];
+  rows.forEach(function(r){
+   total+=Number(r.advance.amount)||0;
+   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,(Number(r.advance.amount||0)/100).toFixed(2),
+    ((r.deductions.fine||0)/100).toFixed(2),((r.deductions.other||0)/100).toFixed(2)]);
+  });
+  out.push(["","","TOTAL","",(total/100).toFixed(2),"",""]);
+ }else{
+  var method=kind.toUpperCase();
+  out=[["Month","Monthly ID","Employee","Designation","Monthly salary INR","Days worked","Net salary INR"]];
+  rows.filter(function(r){return r.emp.method===method;}).forEach(function(r){
+   if(r.calc)total+=r.calc.net;
+   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,(r.salary/100).toFixed(2),
+     r.worked==null?"":r.worked,r.calc?(r.calc.net/100).toFixed(2):"Not calculated"]);
+  });
+  out.push(["","","GRAND TOTAL","","","",(total/100).toFixed(2)]);
  }
- tpCsv("restaurant-"+kind+"-sheet-"+tpPeriod+".csv",out);
+ tpCsv("restaurant-"+kind+"-sheet-"+m+".csv",out);
 }
 function tpNewEmployee(){
  tpEditing="new";tpViewing=null;tpPhoto=null;tpSetTab("employees");tpEditing="new";draw();
@@ -439,6 +558,12 @@ function tpHandleAction(button){
  if(act==="csv-advance")return tpDoCSV("advance");
  if(act==="csv-cash")return tpDoCSV("cash");
  if(act==="csv-cheque")return tpDoCSV("cheque");
+ if(act.startsWith("csv-history-")||act.startsWith("print-history-")){
+  var m=button.dataset.month,kind=act.replace(/^(csv|print)-history-/,"");
+  if(!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(m)||!tpData.periods[m])return uxAlert("Previous payroll month not found.");
+  if(act.startsWith("csv-"))return tpDoCSV(kind,m);
+  if(kind!=="attendance")return tpDoPrint(kind,m);
+ }
 }
 document.addEventListener("click",function(ev){
  if(tab!=="payroll")return;
@@ -453,8 +578,8 @@ document.addEventListener("submit",function(ev){
  var form=ev.target;
  var name=tpTrim(form.elements.name.value,90),designation=tpTrim(form.elements.designation.value,90),joined=form.elements.joined.value;
  var restaurant=tpTrim(form.elements.restaurant.value,90),salary=parsePaise(form.elements.salary.value),method=form.elements.method.value,
-     leaveAllowance=Number(form.elements.leaveAllowance.value);
- if(!name||!designation||!restaurant||!/^\d{4}-\d{2}-\d{2}$/.test(joined)||salary===null||salary<=0||!["CASH","CHEQUE"].includes(method)||!Number.isSafeInteger(leaveAllowance)||leaveAllowance<0||leaveAllowance>31){
+     leaveAllowance=Number(form.elements.leaveAllowance.value),salaryEffectiveMonth=form.elements.salaryEffectiveMonth.value;
+ if(!name||!designation||!restaurant||!/^\d{4}-\d{2}-\d{2}$/.test(joined)||salary===null||salary<=0||!["CASH","CHEQUE"].includes(method)||!Number.isSafeInteger(leaveAllowance)||leaveAllowance<0||leaveAllowance>31||!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(salaryEffectiveMonth)){
   uxAlert("Enter a name, designation, joining date, restaurant, salary, CASH/CHEQUE method and whole-number leave allowance (0–31).");return;
  }
  if(salary>1000000000)return uxAlert("For this demo, monthly salary must be at most ₹1,00,00,000.");
@@ -462,10 +587,15 @@ document.addEventListener("submit",function(ev){
  if(tpEditing!=="new"&&!existing)return uxAlert("Employee no longer exists. Refresh Payroll.");
  var before=JSON.stringify(tpData);
  if(existing){
-  Object.assign(existing,{name:name,designation:designation,joined:joined,restaurant:restaurant,salary:salary,method:method,leaveAllowance:leaveAllowance,photo:tpPhoto===null?existing.photo:tpPhoto});
+  // Salary changes are effective from the selected month, not retroactive to older months.
+  var changed=tpSetMonthSalary(existing,salaryEffectiveMonth,salary,"Employee profile");
+  Object.assign(existing,{name:name,designation:designation,joined:joined,restaurant:restaurant,
+    method:method,leaveAllowance:leaveAllowance,photo:tpPhoto===null?existing.photo:tpPhoto});
  }else{
-  var added={id:tpId(),name:name,designation:designation,joined:joined,restaurant:restaurant,salary:salary,method:method,leaveAllowance:leaveAllowance,photo:tpPhoto||"",active:true};
+  var added={id:tpId(),name:name,designation:designation,joined:joined,restaurant:restaurant,
+    salary:salary,initialSalary:salary,method:method,leaveAllowance:leaveAllowance,photo:tpPhoto||"",active:true};
   tpData.employees.push(added);
+  tpGetPeriod(salaryEffectiveMonth).salaries[added.id]=salary;
  }
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved to Payroll Demo on this device.");
@@ -473,9 +603,14 @@ document.addEventListener("submit",function(ev){
 document.addEventListener("change",function(ev){
  var field=ev.target;
  if(tab!=="payroll")return;
+ if(field.id==="tp-id-filter"){
+  var option=field.value;
+  if(!["all","1-25","26-50","51-75","76-100","unassigned"].includes(option))return;
+  tpIdRange=option;draw();return;
+ }
  if(field.id==="tp-month"){
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(field.value)){uxAlert("Please select a valid payroll month.");return;}
-  tpPeriod=field.value;draw();return;
+  tpPeriod=field.value;tpIdRange="all";draw();return;
  }
  if(field.id==="tp-photo"){
   var file=field.files&&field.files[0];if(!file)return;
@@ -503,7 +638,26 @@ document.addEventListener("change",function(ev){
  var emp=tpEmp(id),p=tpGetPeriod();
  if(!emp)return;
  var old=JSON.stringify(tpData);
- if(name==="days"){
+ if(name==="serial"){
+  if(field.value.trim()===""){delete p.serials[id];}
+  else{
+   var serial=tpSerialValue(field.value);
+   if(serial===null){uxAlert("Monthly employee ID must be a whole number from 1 to 100.");draw();return;}
+   if(Object.keys(p.serials).some(function(other){return other!==id&&tpSerialValue(p.serials[other])===serial;})){
+    uxAlert("Monthly ID "+serial+" is already assigned to another employee in "+tpMonthLabel(tpPeriod)+". IDs must be unique each month.");
+    draw();return;
+   }
+   p.serials[id]=serial;
+  }
+ }else if(name==="monthlySalary"){
+  var monthly=parsePaise(field.value);
+  if(monthly===null||monthly<=0||monthly>1000000000){
+   uxAlert("Enter a valid monthly salary from ₹0.01 to ₹1,00,00,000.");draw();return;
+  }
+  tpSetMonthSalary(emp,tpPeriod,monthly,"Monthly attendance");
+  var updated=tpCompute(emp,p);
+  if(updated)p.snapshots[id]=tpSnapshot(emp,updated,updated.days);
+ }else if(name==="days"){
   var days=tpInputDays(field.value);
   if(days===null&&field.value.trim()!==""){uxAlert("Days worked must be 0–30 in half-day steps, such as 22.5, 25 or 27.");draw();return;}
   if(!field.value.trim()){delete p.days[id];delete p.snapshots[id];}
@@ -530,21 +684,30 @@ document.addEventListener("change",function(ev){
  draw();
 },true);
 // Enter saves days to the same monthly record and advances to the next employee in the visible tab.
+// Enter saves monthly data and advances to the next field.
+// Attendance: monthly ID → salary → days → next employee's days; Salary: days → next days.
 document.addEventListener("keydown",function(ev){
  if(tab!=="payroll"||(tpTab!=="attendance"&&tpTab!=="salary")||ev.key!=="Enter"||ev.isComposing)return;
  var field=ev.target;
- if(!field||!field.matches||!field.matches('input[data-tp-field="days"]'))return;
+ if(!field||!field.matches||!field.matches('input[data-tp-field="days"],input[data-tp-field="serial"],input[data-tp-field="monthlySalary"]'))return;
+ var kind=field.dataset.tpField,empId=field.dataset.id;
  ev.preventDefault();ev.stopImmediatePropagation();
- var all=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="days"]'));
- var i=all.indexOf(field),nextId=i>=0&&i+1<all.length?all[i+1].dataset.id:null;
- if(field.value.trim()!==""&&tpInputDays(field.value)===null){
-  uxAlert("Use 0–30 days in half-day steps (such as 22.5 or 27).");
-  field.focus();if(typeof field.select==="function")field.select();return;
+ if(kind==="days"&&field.value.trim()!==""&&tpInputDays(field.value)===null){
+  uxAlert("Use 0–30 days in half-day steps (such as 22.5 or 27).");field.focus();if(typeof field.select==="function")field.select();return;
  }
- // The existing change listener saves p.days[employeeId] and re-renders both views.
+ if(kind==="serial"&&field.value.trim()!==""&&tpSerialValue(field.value)===null){
+  uxAlert("Monthly ID must be between 1 and 100.");field.focus();return;
+ }
+ var nextId=null,nextField="days";
+ if(tpTab==="attendance"&&kind==="serial"){nextId=empId;nextField="monthlySalary";}
+ else if(tpTab==="attendance"&&kind==="monthlySalary"){nextId=empId;nextField="days";}
+ else{
+  var all=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="days"]'));
+  var i=all.indexOf(field);nextId=i>=0&&i+1<all.length?all[i+1].dataset.id:null;
+ }
  field.dispatchEvent(new Event("change",{bubbles:true}));
  if(nextId!==null){
-  var next=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="days"]'))
+  var next=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="'+nextField+'"]'))
    .find(function(input){return input.dataset.id===nextId;});
   if(next){
    next.focus({preventScroll:true});
@@ -629,6 +792,19 @@ css.textContent=String.raw`
 .tp-badge-positive{background:#e5f5ed;color:#0e825f}.tp-badge-muted{background:#f1f4f6;color:#61788b}
 .tp-person-buttons{display:flex;width:100%;justify-content:flex-end;gap:6px}
 .tp-person-buttons button{min-height:33px;padding:7px 12px}
+.tp-serial-input{min-width:70px;max-width:86px;text-align:center;font-weight:850;font-size:14px;border:2px solid #b7dbd0;background:#f4faf7}
+.tp-month-salary{min-width:110px;width:128px;font-weight:750}
+.tp-att-filter{max-width:280px;margin:12px 0 16px}
+.tp-att-filter select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #d7e3e8;background:white;color:#274d57}
+.tp-history-actions{padding:14px 3px;gap:7px}
+.tp-history-actions .tp-button{white-space:normal}
+.tp-history-body{padding:8px 13px 15px;min-width:0}
+.tp-salary-log{margin-top:20px;padding-top:18px;border-top:1px solid #e6ecee}
+.tp-salary-log .tp-table{min-width:630px}
+@media(max-width:760px){.tp-history-body{padding:8px 4px 12px}.tp-history-actions{padding:9px 7px;gap:6px}
+.tp-history-actions .tp-button{font-size:10px;min-height:38px;padding:8px}
+.tp-att-filter{max-width:100%}.tp-serial-input{width:74px;min-width:74px}}
+
 .tp-button.tp-danger{background:#fff0f0;color:#ad2833;border-color:#ebb7bc}
 .tp-button.tp-danger:hover{background:#ffdddd;color:#92202e}
 .tp-deleted-people>summary{cursor:pointer;font-weight:800;color:#5a7180;padding:5px 0}
@@ -656,7 +832,7 @@ css.textContent=String.raw`
 .tp-table td{padding:12px;border-bottom:1px solid #edf1f3;vertical-align:middle;color:#344c5c}
 .tp-table tbody tr:last-child td{border-bottom:0}.tp-table strong{color:#253e4b}
 .tp-person-cell{display:flex;align-items:center;gap:9px;min-width:155px}.tp-person-cell>div{display:grid;gap:3px}.tp-person-cell small{display:block;color:#8297a1;font-size:10px}
-.tp-cell-input,.tp-days-input{border:1px solid #d7e3e8;background:white;color:#264457;padding:9px;border-radius:9px;min-width:90px;width:104px;font-size:12px}
+.tp-cell-input,.tp-days-input,.tp-serial-input{border:1px solid #d7e3e8;background:white;color:#264457;padding:9px;border-radius:9px;min-width:90px;width:104px;font-size:12px}
 .tp-days-input{border:2px solid #17a27c;background:#f3faf6;font-weight:900;font-size:15px;width:102px}
 .tp-days-hint{display:block;color:#7794a0;font-size:10px;margin-top:5px;white-space:nowrap}
 .tp-check{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:11px;font-weight:750}.tp-check input{width:17px;height:17px;accent-color:#098566}

@@ -20,7 +20,7 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},data:function(){return tpData;},compute:tpCompute,leaveEarned:tpLeaveEarned,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
@@ -201,4 +201,101 @@ test("Enter on salary/attendance saves monthly days and focuses the next employe
   expect(scrollId).toBe("demo2");
   expect(app.rows()[0].calc.days).toBe(22.5);
  }
+});
+
+
+test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance and Salary",()=>{
+ const {app,handlers}=boot();
+ const p=app.period("2026-11");
+ p.serials.demo1=99;p.serials.demo2=3;p.serials.demo3=2;
+ expect(app.rows().slice(0,3).map(r=>r.emp.id)).toEqual(["demo3","demo2","demo4"]);
+ app.setPage("attendance");
+ const page=app.page();
+ expect(page).toContain('id="tp-id-filter"');
+ expect(page).toContain('data-tp-field="serial"');
+ expect(page).toContain('data-tp-field="monthlySalary"');
+ expect(app.serial("1")).toBe(1);
+ expect(app.serial("100")).toBe(100);
+ expect(app.serial("101")).toBe(null);
+ expect(app.serial("0")).toBe(null);
+ let warning="";
+ const fake={dataset:{tpField:"serial",id:"demo1"},value:"4"};
+ const previous=app.data().periods["2026-11"].serials.demo1;
+ // Existing UI change handler uses the standard payroll route.
+ const originalAlert=console.warn;
+ handlers.change[0]({target:fake});
+ expect(p.serials.demo1).toBe(previous);
+ // ID 99 in November is not a permanent employee ID or October's serial.
+ expect(app.period("2026-10").serials.demo1).toBe(1);
+ app.setPage("salary");
+ expect(app.page()).toContain("Monthly ID");
+});
+
+test("Salary change is recorded from its effective month without overwriting prior month salaries",()=>{
+ const {app}=boot(),emp=app.data().employees[0];
+ const oct=app.monthSalary(emp,"2026-10");
+ expect(app.changeSalary(emp,"2026-11",3600000,"Employee profile")).toBe(true);
+ expect(app.monthSalary(emp,"2026-11")).toBe(3600000);
+ expect(app.monthSalary(emp,"2026-10")).toBe(oct);
+ const rec=app.data().salaryChanges[0];
+ expect(rec).toMatchObject({employeeId:"demo1",effectiveMonth:"2026-11",previousSalary:3200000,newSalary:3600000});
+ app.setPage("employees");
+ // Change log is in employee profile source even if not selected in the UI.
+ expect(source).toContain("Salary Change History");
+ const november=app.rows("2026-11").find(r=>r.emp.id==="demo1");
+ const october=app.rows("2026-10").find(r=>r.emp.id==="demo1");
+ expect(november.salary).toBe(3600000);
+ expect(october.salary).toBe(3200000);
+});
+
+test("February and January use fixed 30-day divisor regardless of calendar length",()=>{
+ const {app}=boot(),emp=app.data().employees[0];
+ emp.leaveAllowance=0;
+ for(const month of ["2027-01","2027-02"]){
+  const p=app.period(month);p.days.demo1="28";
+  const r=app.compute(emp,p,undefined,month);
+  expect(r.gross).toBe(Math.round(app.monthSalary(emp,month)*28/30));
+ }
+});
+
+test("Old monthly payroll history includes ID, monthly salary and download actions",()=>{
+ const {app}=boot();
+ app.setPage("history");
+ const h=app.page();
+ expect(h).toContain('data-tp-action="csv-history-cash"');
+ expect(h).toContain('data-tp-action="csv-history-cheque"');
+ expect(h).toContain('data-tp-action="csv-history-advance"');
+ expect(h).toContain('data-tp-action="csv-history-attendance"');
+ expect(h).toContain('data-tp-action="print-history-cash"');
+ expect(h).toContain("Monthly ID");
+ expect(h).toContain("Monthly salary");
+ expect(h).toContain("October 2026");
+ expect(source).toContain('tpDoCSV(kind,m)');
+ expect(source).toContain('tpDoPrint(kind,m)');
+});
+
+test("Cash and cheque lists remain separated and sorted by monthly ID",()=>{
+ const {app}=boot(),p=app.period("2026-11");
+ p.serials.demo1=98;p.serials.demo3=1;p.serials.demo5=5;
+ const rows=app.rows();
+ const cash=rows.filter(r=>r.emp.method==="CASH");
+ const cheque=rows.filter(r=>r.emp.method==="CHEQUE");
+ expect(cash.map(r=>r.serial)).toEqual([1,5,6,98]);
+ expect(cheque.map(r=>r.serial)).toEqual([2,4]);
+ app.setPage("sheets");
+ const html=app.page();
+ expect(html).toContain("CASH SHEET");
+ expect(html).toContain("CHEQUE SHEET");
+ expect(html).toContain('tp-sheet');
+});
+
+test("Old demo data migrates salary snapshots without inventing employee monthly serial IDs",()=>{
+ const previous={version:3,employees:[{id:"old",name:"Former staff",salary:2000000,method:"CASH",designation:"Cook",active:true}],
+ periods:{"2026-10":{advances:{},deductions:{},days:{old:"24"},payments:{},
+  snapshots:{old:{monthly:1800000,days:"24",net:1440000}}}},createdAt:"2026-01-01T00:00:00Z"};
+ const {app}=boot(previous);
+ expect(app.period("2026-10").salaries.old).toBe(1800000);
+ expect(app.rows("2026-10")[0].salary).toBe(1800000);
+ expect(app.rows("2026-10")[0].serial).toBe(null);
+ expect(app.data().salaryChanges).toEqual([]);
 });
