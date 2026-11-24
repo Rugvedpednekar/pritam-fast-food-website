@@ -3,7 +3,7 @@
 (function(){
 "use strict";
 TP_SECTIONS.splice(TP_SECTIONS.indexOf("sheets")+1,0,"left");
-TP_TITLES.left="Left Employees (Without Salary)";
+TP_TITLES.left="Resigned Employees";
 var tpArcForm=null,tpArcIncrementEmployee="",tpArcOriginalEmployees=tpEmployees;
 /* The POS restaurant selector is scoped to the outer application; payroll uses the same selection. */
 function tpPayrollSelectedRestaurant(){
@@ -51,7 +51,7 @@ function tpArcHistory(emp){
   return '<tr><td>'+tpDate(e.joined)+'</td><td>'+tpDate(e.leftAt||e.lastWorkingDate)+'</td>'+
     '<td>'+tpEscape(e.designation)+'</td><td>'+tpEscape(e.restaurant)+'</td>'+
     '<td>'+(tpIsParcel(e)?"Commission only":tpMoney(e.initialSalary||e.salary))+'</td>'+
-    '<td>'+(e.active!==false?"Active":e.rejoinedAs?"Rejoined":"LEFT")+'</td></tr>';
+    '<td>'+(e.active!==false?"Active":e.rejoinedAs?"Rejoined":"Resigned")+'</td></tr>';
  });
  var ids=[],advances=[];
  Object.keys(tpData.periods).sort().forEach(function(month){
@@ -80,7 +80,7 @@ tpEmployeeProfile=function(emp){
  if(tpArcLeft(emp)){
   html=html.replace('data-tp-action="restore-employee"','data-tp-action="rejoin-employee"')
    .replace("Restore employee","Rejoin Employee");
-  extra='<div class="tp-note"><strong>LEFT · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
+  extra='<div class="tp-note"><strong>Resigned · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
  }else if(emp.active!==false){
   extra='<div class="tp-actions">'+
    tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
@@ -114,17 +114,17 @@ var tpArcBaseEmployeesPage=tpEmployeesPage;
 tpEmployeesPage=function(){
  var html=tpArcBaseEmployeesPage(),all=tpEmployees(),deleted=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&e.active===false&&e.left!==true;});
  // Rebuild the roster so the inactive LEFT group is not mixed into Deleted Employees.
- var out='<section class="tp-panel">'+tpToolbar("Active Employees",all.length+" currently employed · Left Employees have their own separate archive.",tpButton("new-employee","+ Add Employee","tp-primary"))+
+ var out='<section class="tp-panel">'+tpToolbar("Active Employees",all.length+" currently employed · Resigned Employees have their own separate archive.",tpButton("new-employee","+ Add Employee","tp-primary"))+
  '<div class="tp-employee-grid">'+all.map(function(emp){
   return '<article class="tp-person">'+tpAvatar(emp)+'<div class="tp-person-main"><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p><small>'+tpEscape(emp.restaurant)+'</small></div>'+
   '<div class="tp-person-extra"><strong>'+(tpIsParcel(emp)?"Commission only":tpMoney(emp.salary))+'</strong><small>Joined '+tpDate(emp.joined)+'</small>'+tpBadge(emp.method,emp.method==="CASH")+'</div>'+
   '<div class="tp-person-buttons">'+tpButton("view-employee","View","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
    tpButton("edit-employee","Edit","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
    tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
- }).join("")+'</div>'+(all.length?"":'<p class="tp-note">No active employees. Use Rejoin Employee from the Left Employees tab or add a new person.</p>')+'</section>';
+ }).join("")+'</div>'+(all.length?"":'<p class="tp-note">No active employees. Use Rejoin Employee from the Resigned Employees tab or add a new person.</p>')+'</section>';
  if(deleted.length){
   out+='<details class="tp-panel tp-deleted-people"><summary>Deleted Employees ('+deleted.length+') · Restore</summary>'+
-   '<p class="tp-note">Deleted is distinct from LEFT. Deleted profiles stay outside active payroll.</p><div class="tp-deleted-list">'+
+   '<p class="tp-note">Deleted is distinct from resignation. Deleted profiles stay outside active payroll.</p><div class="tp-deleted-list">'+
     deleted.map(function(emp){return '<div class="tp-deleted-row">'+tpAvatar(emp,"small")+
     '<div><strong>'+tpEscape(emp.name)+'</strong><small>'+tpEscape(emp.designation)+'</small></div>'+
     tpButton("restore-employee","Restore","tp-light",'data-id="'+tpEscape(emp.id)+'"')+'</div>';}).join("")+'</div></details>';
@@ -181,7 +181,7 @@ tpHandleAction=function(button){
  }
  if(action==="pdf-increments")return tpArcDownloadIncrements();
  if(action==="edit-employee"&&emp&&emp.active===false){uxAlert("This employment period is closed. Use Rejoin Employee to start a new period.");return;}
- if(action==="restore-employee"&&emp&&emp.left===true){uxAlert("Use Rejoin Employee for archived LEFT employees.");return;}
+ if(action==="restore-employee"&&emp&&emp.left===true){uxAlert("Use Rejoin Employee for resigned employees.");return;}
  return tpArcBaseAction(button);
 };
 var tpArcBaseTab=tpSetTab;
