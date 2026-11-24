@@ -5,6 +5,16 @@
 TP_SECTIONS.splice(2,0,"left");
 TP_TITLES.left="Left Employees (Without Salary)";
 var tpArcForm=null,tpArcIncrementEmployee="",tpArcOriginalEmployees=tpEmployees;
+/* The POS restaurant selector is scoped to the outer application; payroll uses the same selection. */
+function tpPayrollSelectedRestaurant(){
+ if(typeof selected==="undefined"||selected===null)return null;
+ var match=(data.restaurants||[]).find(function(r){return r.id===selected;});
+ return match?match.name:null;
+}
+function tpPayrollMatchesRestaurant(employee){
+ var name=tpPayrollSelectedRestaurant();
+ return !name||!!employee&&employee.restaurant===name;
+}
 function tpArcPersonId(emp){return emp.personId||emp.id;}
 function tpArcCareer(emp){
  var person=tpArcPersonId(emp);
@@ -24,7 +34,7 @@ function tpArcRestaurantOptions(selected){
  return names.map(function(n){return '<option value="'+tpEscape(n)+'" '+(n===selected?"selected":"")+'>'+tpEscape(n)+'</option>';}).join("");
 }
 tpEmployees=function(includeInactive){
- return tpArcOriginalEmployees(includeInactive).filter(function(emp){return includeInactive||emp.left!==true;});
+ return tpArcOriginalEmployees(includeInactive).filter(function(emp){return tpPayrollMatchesRestaurant(emp)&&(includeInactive||emp.left!==true);});
 };
 tpHistoricEmployees=function(month){
  var p=tpGetPeriod(month);
@@ -32,7 +42,7 @@ tpHistoricEmployees=function(month){
   var saved=[p.days,p.serials,p.salaries,p.advances,p.snapshots,p.commissions].some(function(obj){
    return obj&&Object.prototype.hasOwnProperty.call(obj,emp.id);
   });
-  return saved||(emp.active!==false&&emp.left!==true&&month>=String(emp.joined||"").slice(0,7));
+  return tpPayrollMatchesRestaurant(emp)&&(saved||(emp.active!==false&&emp.left!==true&&month>=String(emp.joined||"").slice(0,7)));
  });
 };
 function tpArcHistory(emp){
@@ -102,7 +112,7 @@ function tpArcRejoinForm(emp){
 }
 var tpArcBaseEmployeesPage=tpEmployeesPage;
 tpEmployeesPage=function(){
- var html=tpArcBaseEmployeesPage(),all=tpEmployees(),deleted=tpData.employees.filter(function(e){return e.active===false&&e.left!==true;});
+ var html=tpArcBaseEmployeesPage(),all=tpEmployees(),deleted=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&e.active===false&&e.left!==true;});
  // Rebuild the roster so the inactive LEFT group is not mixed into Deleted Employees.
  var out='<section class="tp-panel">'+tpToolbar("Active Employees",all.length+" currently employed · Left Employees have their own separate archive.",tpButton("new-employee","+ Add Employee","tp-primary"))+
  '<div class="tp-employee-grid">'+all.map(function(emp){
@@ -125,7 +135,7 @@ tpEmployeesPage=function(){
  return out;
 };
 function tpArcLeftPage(){
- var list=tpData.employees.filter(tpArcLeft).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
+ var list=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&tpArcLeft(e);}).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
  var out='<section class="tp-panel">'+tpToolbar("Left Employees (Without Salary)",list.length+" archived profiles · Excluded from active attendance, salary calculations and CASH/CHEQUE totals.","")+
  '<div class="tp-note">These profiles are retained only for reference. Rejoining creates a new employment period; it does not overwrite historic payroll or monthly employee IDs.</div>'+
  '<div class="tp-employee-grid">'+list.map(function(emp){
@@ -149,6 +159,7 @@ payroll=tpRender;
 var tpArcBaseAction=tpHandleAction;
 tpHandleAction=function(button){
  var action=button.dataset.tpAction,id=button.dataset.id,emp=tpEmp(id);
+ if(emp&&!tpPayrollMatchesRestaurant(emp))return uxAlert("Select the employee\u2019s restaurant to manage this record.");
  if(action==="mark-left"){
   if(!emp||emp.active===false||emp.left===true)return;
   tpArcForm={type:"left",id:id};tpEditing=null;tpViewing=null;tpTab="employees";draw();return;
@@ -174,7 +185,7 @@ document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-left-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target,emp=tpEmp(form.dataset.id),date=form.querySelector("#tp-left-date").value;
- if(!emp||emp.active===false||emp.left)return uxAlert("Employee is no longer active.");
+ if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left)return uxAlert("Employee is no longer active in the selected restaurant.");
  if(!tpArcDate(date)||date<emp.joined||date>tpToday())return uxAlert("Choose a valid last working date between the joining date and today.");
  if(!confirm('Mark '+emp.name+' as LEFT, effective '+date+'? They will disappear from active salary sheets. Historical payroll will be preserved.'))return;
  var before=JSON.stringify(tpData);
@@ -213,7 +224,7 @@ document.addEventListener("submit",function(ev){
  showToast(old.name+" rejoined"+(serial!==undefined?" · new monthly ID "+serial:" · assign a monthly ID in Attendance")+".");
 },true);
 function tpArcRaiseRecords(){
- return (tpData.salaryChanges||[]).filter(function(c){return c.source==="Salary Increment";})
+ return (tpData.salaryChanges||[]).filter(function(c){return c.source==="Salary Increment"&&tpPayrollMatchesRestaurant(tpEmp(c.employeeId));})
   .sort(function(a,b){return String(b.effectiveDate||b.effectiveMonth).localeCompare(String(a.effectiveDate||a.effectiveMonth));});
 }
 function tpArcIncrementPage(){
@@ -241,9 +252,9 @@ function tpArcIncrementPage(){
  })):'<p class="tp-note">No salary increments have been recorded.</p>')+
  '<div class="tp-form-grid tp-arc-pdf-filters">'+
  '<div class="tp-field"><label for="tp-inc-filter-restaurant">PDF report · Restaurant</label><select id="tp-inc-filter-restaurant"><option value="">All restaurants</option>'+
- Array.from(new Set(tpData.employees.map(function(e){return e.restaurant;}))).filter(Boolean).map(function(n){return '<option value="'+tpEscape(n)+'">'+tpEscape(n)+'</option>';}).join("")+
+ Array.from(new Set(tpEmployees(true).map(function(e){return e.restaurant;}))).filter(Boolean).map(function(n){return '<option value="'+tpEscape(n)+'">'+tpEscape(n)+'</option>';}).join("")+
  '</select></div><div class="tp-field"><label for="tp-inc-filter-employee">Employee</label><select id="tp-inc-filter-employee"><option value="">All employees</option>'+
- tpData.employees.map(function(e){return '<option value="'+tpEscape(e.id)+'">'+tpEscape(e.name)+' ('+tpEscape(e.joined)+')</option>';}).join("")+
+ tpEmployees(true).map(function(e){return '<option value="'+tpEscape(e.id)+'">'+tpEscape(e.name)+' ('+tpEscape(e.joined)+')</option>';}).join("")+
  '</select></div><div class="tp-field"><label for="tp-inc-filter-from">From date</label><input id="tp-inc-filter-from" type="date"></div>'+
  '<div class="tp-field"><label for="tp-inc-filter-to">Through date</label><input id="tp-inc-filter-to" type="date"></div></div></section>';
  return html;
@@ -311,7 +322,7 @@ tpCompute=function(emp,period,override,month){
 function tpArcDownloadIncrements(){
  var records=tpArcRaiseRecords(),byRestaurant=document.getElementById("tp-inc-filter-restaurant"),
   byEmployee=document.getElementById("tp-inc-filter-employee"),from=document.getElementById("tp-inc-filter-from"),to=document.getElementById("tp-inc-filter-to");
- var restaurant=byRestaurant&&byRestaurant.value||"",employee=byEmployee&&byEmployee.value||"",
+ var restaurant=byRestaurant&&byRestaurant.value||tpPayrollSelectedRestaurant()||"",employee=byEmployee&&byEmployee.value||"",
   since=from&&from.value||"",until=to&&to.value||"";
  records=records.filter(function(c){
   var emp=tpEmp(c.employeeId),date=c.effectiveDate||c.effectiveMonth+"-01";
@@ -394,7 +405,7 @@ function tpDeparturePaymentForm(emp){
  tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
 }
 tpArcLeftPage=function(){
- var archived=tpData.employees.filter(tpArcLeft).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
+ var archived=tpData.employees.filter(function(e){return tpPayrollMatchesRestaurant(e)&&tpArcLeft(e);}).sort(function(a,b){return String(b.leftAt||"").localeCompare(String(a.leftAt||""));});
  var resigned=archived.filter(function(e){return tpDepartureType(e)==="resigned";});
  var left=archived.filter(function(e){return tpDepartureType(e)==="without-salary";});
  function employeeCards(emps){
@@ -427,6 +438,7 @@ tpArcLeftPage=function(){
 var tpDepartureOriginalAction=tpHandleAction;
 tpHandleAction=function(button){
  var act=button.dataset.tpAction,emp=tpEmp(button.dataset.id);
+ if(emp&&!tpPayrollMatchesRestaurant(emp))return uxAlert("Select the employee\u2019s restaurant to manage this record.");
  if(act==="record-final-paid"){
   if(!emp||!tpArcLeft(emp)||!emp.finalSettlement||emp.finalSettlement.status!=="DUE")return;
   tpArcForm={type:"payment",id:emp.id};tpEditing=null;tpViewing=null;tpTab="left";draw();return;
@@ -471,7 +483,7 @@ document.addEventListener("submit",function(ev){
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target,emp=tpEmp(form.dataset.id),date=form.querySelector("#tp-departure-date").value,
      type=form.querySelector("#tp-departure-type").value;
- if(!emp||emp.active===false||emp.left)return uxAlert("This employee is no longer active.");
+ if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left)return uxAlert("This employee is not active in the selected restaurant.");
  if(!tpArcDate(date)||date<emp.joined||date>tpToday())return uxAlert("Enter a valid last working date.");
  if(!["resigned","without-salary"].includes(type))return uxAlert("Choose a valid leaving type.");
  var month=date.slice(0,7),period=tpGetPeriod(month),days=null,calc=null,status=null,paidAt=null,method=null,notes="";
@@ -513,7 +525,7 @@ document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-settle-payment-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target,emp=tpEmp(form.dataset.id),settlement=emp&&emp.finalSettlement;
- if(!emp||!tpArcLeft(emp)||!settlement||settlement.status!=="DUE")return uxAlert("There is no unpaid final salary settlement.");
+ if(!emp||!tpPayrollMatchesRestaurant(emp)||!tpArcLeft(emp)||!settlement||settlement.status!=="DUE")return uxAlert("There is no unpaid final salary settlement in this restaurant.");
  var date=form.querySelector("#tp-settle-date").value,method=form.querySelector("#tp-settle-method").value;
  if(!tpArcDate(date)||date>tpToday()||!["CASH","CHEQUE"].includes(method))return uxAlert("Enter a valid final salary payment date and method.");
  if(!confirm("Confirm "+tpMoney(settlement.net)+" final salary paid to "+emp.name+" by "+method+" on "+date+"?"))return;
