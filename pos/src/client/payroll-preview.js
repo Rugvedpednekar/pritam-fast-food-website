@@ -641,7 +641,7 @@ function tpSheets(){
 }
 function tpHistory(){
  var months=Object.keys(tpData.periods).sort().reverse();
- var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download PDF sheets for any month.","")+
+ var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download PDF sheets for any month.",tpButton("pdf-increments","Download Salary Change PDF","tp-light"))+
  '<div class="tp-history-list">'+months.map(function(month){
   var p=tpGetPeriod(month),rows=tpRows(month,true),net=0,advance=0,leaveTotal=0,completed=0;
   var table=rows.map(function(r){
