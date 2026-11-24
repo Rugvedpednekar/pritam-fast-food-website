@@ -1,0 +1,14 @@
+name: Tablewise payroll regression tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Run Bun regression tests
+        run: cd pos && bun test
