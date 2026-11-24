@@ -1,0 +1,13 @@
+{
+  "name": "tablewise-pos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}
