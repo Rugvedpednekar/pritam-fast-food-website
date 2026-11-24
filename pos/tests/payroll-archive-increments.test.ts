@@ -257,3 +257,17 @@ test("Payroll editing/viewing state does not leak across restaurant switches",()
  expect(app.render()).not.toContain("EMPLOYEE PROFILE");
  expect(app.render()).not.toContain("Aarav Patil");
 });
+
+
+test("Left & Resigned Employees tab appears after Payment Sheets and before Payroll History",()=>{
+ const {app}=boot("r1");
+ app.setPage("attendance");
+ const nav=app.render().match(/<nav class="tp-nav"[\s\S]*?<\/nav>/)?.[0]||"";
+ expect(nav).toContain('data-tp-section="left"');
+ const sheets=nav.indexOf('data-tp-section="sheets"');
+ const left=nav.indexOf('data-tp-section="left"');
+ const history=nav.indexOf('data-tp-section="history"');
+ expect(sheets).toBeGreaterThan(0);
+ expect(left).toBeGreaterThan(sheets);
+ expect(history).toBeGreaterThan(left);
+});
