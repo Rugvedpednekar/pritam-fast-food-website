@@ -536,6 +536,45 @@ function tpSalary(){
  }
  return out;
 }
+
+function tpSheetBreakdown(row){
+ var c=row.calc,parcel=tpIsParcel(row.emp);
+ function line(label,value,major){
+  return '<div class="tp-sheet-breakdown-line'+(major?' tp-sheet-breakdown-major':'')+'"><span>'+tpEscape(label)+'</span><strong>'+tpEscape(value)+'</strong></div>';
+ }
+ var out='<div class="tp-sheet-breakdown"><h3>Calculation for '+tpEscape(row.emp.name)+'</h3>'+
+  '<p class="tp-note">'+tpEscape(tpMonthLabel(tpPeriod))+' · '+tpEscape(row.emp.restaurant)+' · '+
+  (row.serial===null?'Monthly ID not assigned':'Monthly ID '+row.serial)+' · '+tpEscape(row.emp.method)+'</p>';
+ if(parcel){
+  out+=line("Monthly commission",c?tpMoney(c.commissionTotal):"Enter commission in Attendance")+
+   line("GST rate",c?String(c.gstRate)+"%":String(row.emp.commissionGstRate??5)+"%")+
+   line("GST deducted",c?tpMoney(c.gst):"—")+
+   line("Net payable",c?tpMoney(c.net):"Not calculated",true);
+ }else{
+  out+=line("Monthly salary",tpMoney(row.salary))+
+   (c&&Number.isSafeInteger(c.proratedMonthly)?line("Effective salary for mid-month increment",tpMoney(c.proratedMonthly)):"")+
+   line("Days worked",c?String(c.days):"Enter days in Attendance")+
+   line("Salary basis","Monthly salary ÷ 30 × days worked")+
+   line("Working salary",c?tpMoney(c.gross):"—")+
+   line("Earned paid leave days",c?String(c.leaveEarned):"—")+
+   line("Leave pay",c?tpMoney(c.leavePay):"—")+
+   line("Gross earnings",c?tpMoney(c.earned):"—")+
+   line("Advance deducted",tpMoney(Number(row.advance.amount)||0))+
+   line("Fine deducted",tpMoney(Number(row.deductions.fine)||0))+
+   line("Other deductions",tpMoney(Number(row.deductions.other)||0))+
+   line("Net salary payable",c?tpMoney(c.net):"Awaiting Attendance",true)+
+   (c&&c.shortfall?'<p class="tp-warning">Deductions exceed earnings by '+tpMoney(c.shortfall)+'. Net payable is capped at zero.</p>':"");
+ }
+ return out+'</div>';
+}
+function tpSheetDetailRow(row,columns){
+ if(tpCalculationOpenId!==row.emp.id)return '';
+ return '<tr class="tp-sheet-calculation-row" id="tp-sheet-calculation-'+tpEscape(row.emp.id)+'"><td colspan="'+columns+'">'+tpSheetBreakdown(row)+'</td></tr>';
+}
+var tpSheetCSS=document.createElement("style");
+tpSheetCSS.textContent=".tp-sheet-calculation-row>td{background:#f2f8f6!important;padding:15px 22px!important}.tp-sheet-breakdown{max-width:800px;border-left:3px solid #168a70;padding:12px 15px;background:#fff;border-radius:9px}.tp-sheet-breakdown h3{margin:0 0 7px;font-size:1.05rem}.tp-sheet-breakdown .tp-note{margin:0 0 13px}.tp-sheet-breakdown-line{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #e7eeea;padding:8px 2px;font-size:.93rem}.tp-sheet-breakdown-line span{color:#4a6670}.tp-sheet-breakdown-line strong{text-align:right}.tp-sheet-breakdown-major{border-top:2px solid #168a70;font-size:1.03rem;color:#0c6b58}.tp-sheet-breakdown-major span{font-weight:700;color:inherit}";
+document.head.appendChild(tpSheetCSS);
+
 function tpSheets(){
  var rows=tpRows(),t=tpTotals(rows);
  var out='<div class="tp-stats tp-stats-three">'+tpCard("Total cash payable",tpMoney(t.cash),"Cash salary distribution","₹")+
