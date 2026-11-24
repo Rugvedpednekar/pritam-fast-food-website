@@ -49,6 +49,11 @@ html=html.split("printOnSave=true").join("printOnSave=false");
 html=html.replace('if(printOnSave)requestAnimationFrame(function(){document.body.classList.add("fl-printing");window.print();});','');
 html=html.replace("Generate bill & print","Generate bill");
 console.log("TW_POS_PRINT_OPTION_V3", "autoPrintFlagsDisabled="+twPrintFlagsBefore, "option5="+html.includes('else if(n===5){flHideOptions();printOnSave=false;await saveBill();}'));
+// GitHub-managed menu bulk delete UI (runs after Railway-injected extensions).
+const fullMenuDeleteModule=await Bun.file(new URL("./client/delete-full-menu.js",import.meta.url)).text();
+const bulkMenuBootMarker="startupFinished=true;\ncloudStart();\n})();";
+if(!html.includes(bulkMenuBootMarker))throw Error("Menu delete insertion point missing");
+html=html.replace(bulkMenuBootMarker,fullMenuDeleteModule+"\n"+bulkMenuBootMarker);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
