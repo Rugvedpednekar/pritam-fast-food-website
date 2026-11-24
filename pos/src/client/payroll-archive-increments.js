@@ -135,7 +135,7 @@ function tpArcLeftPage(){
  tpButton("rejoin-employee","Rejoin Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div></article>';
  }).join("")+'</div>'+(list.length?"":'<p class="tp-note">No employees are currently marked LEFT.</p>')+'</section>';
  if(tpArcForm&&tpArcForm.type==="rejoin"){var e=tpEmp(tpArcForm.id);if(e&&tpArcLeft(e))out=tpArcRejoinForm(e)+out;}
- else if(tpViewing){var e2=tpEmp(tpViewing);if(e2)out=tpEmployeeProfile(e2)+out;}
+ else if(tpViewing){var e2=tpEmp(tpViewing);if(e2&&tpArcLeft(e2))out=tpEmployeeProfile(e2)+out;}
  return out;
 }
 var tpArcBaseRender=tpRender;
