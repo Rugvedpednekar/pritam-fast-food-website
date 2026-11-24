@@ -371,7 +371,7 @@ tpArcLeftForm=function(emp){
  '<option value="without-salary">Left — no final salary settlement recorded</option></select></div></div>'+
  '<div id="tp-departure-pay-fields"><div class="tp-form-grid">'+
  (tpIsParcel(emp)?'<div class="tp-note">Parcel Boy: enter the final monthly commission in Attendance first. Commission and GST will be used for settlement.</div>':
- '<div class="tp-field"><label for="tp-departure-days">Actual days worked until leaving *</label><input id="tp-departure-days" required type="number" min="0" max="30" step="0.5" inputmode="decimal" value="'+tpEscape(saved===undefined?"":saved)+'" placeholder="e.g. 17.5">'+
+ '<div class="tp-field"><label for="tp-departure-days">Actual days worked until leaving *</label><input id="tp-departure-days" type="number" min="0" max="30" step="0.5" inputmode="decimal" value="'+tpEscape(saved===undefined?"":saved)+'" placeholder="e.g. 17.5">'+
  '<small>Only worked days up to the last working date. Salary uses the existing 30-day basis plus earned leave pay and deductions.</small></div>')+
  '<div class="tp-field"><label for="tp-departure-payment">Final salary payment status *</label>'+
  '<select id="tp-departure-payment"><option value="DUE">Due — salary not yet paid</option><option value="PAID">Paid — salary already received</option></select></div>'+
