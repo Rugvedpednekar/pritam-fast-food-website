@@ -600,11 +600,13 @@ function tpSheets(){
  if(parcelRows.length){
   out+='<section class="tp-panel">'+tpToolbar("Parcel Boy Payment Sheet","Separate parcel commission payment sheet including GST deductions",
    tpButton("pdf-parcel","Download Parcel Boy PDF","tp-primary")+tpButton("print-parcel","Print Parcel Sheet","tp-light"))+
-   tpTable(["Monthly ID","Parcel Boy","Commission","GST","Net payable"],parcelRows.map(function(r){
-    var c=r.calc;
+   tpTable(["Monthly ID","Parcel Boy","Commission","GST","Net payable","Calculation"],parcelRows.map(function(r){
+    var c=r.calc,id=tpEscape(r.emp.id),opened=tpCalculationOpenId===r.emp.id;
     return'<tr><td>'+(r.serial===null?"—":r.serial)+'</td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
      '<td>'+(c?tpMoney(c.commissionTotal):"Not entered")+'</td><td>'+(c?tpMoney(c.gst):"—")+'</td>'+
-     '<td><strong>'+(c?tpMoney(c.net):"—")+'</strong></td></tr>';
+     '<td><strong>'+(c?tpMoney(c.net):"—")+'</strong></td>'+
+     '<td>'+tpButton("view-calculation",opened?"Hide Calculation":"View Calculation","tp-light",'data-id="'+id+'" aria-expanded="'+opened+'"')+'</td></tr>'+
+     tpSheetDetailRow(r,6);
    }))+'</section>';
  }
  out+='<div class="tp-grand"><span>Combined cash + cheque</span><strong>'+tpMoney(t.grand)+'</strong><small>'+t.ready+' of '+rows.length+' employees calculated</small></div>';
