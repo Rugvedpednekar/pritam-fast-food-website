@@ -408,11 +408,11 @@ function tpAdvances(){
  tpCard("Advances deducted",tpMoney(total.advPaid),"Automatically subtracted from salaries","↘")+
  tpCard("Other deductions",tpMoney(totalsFineOther(rows)),"Fines and other deductions","▤")+'</div>';
  out+='<section class="tp-panel">'+tpToolbar("Advance Management","Enter advances, fines and other deductions. Every advance amount entered is deducted from the salary calculation.",tpButton("print-advance","Print Distribution Sheet","tp-primary")+tpButton("pdf-advance","Download PDF","tp-light"))+
- '<div class="tp-note">Every entered advance is deducted automatically from salary. Set the amount to ₹0 if no advance was given.</div>';
+ '<div class="tp-note">Every entered advance is deducted automatically from salary. Set the amount to ₹0 if no advance was given. <strong>Press Enter after an advance to save it and move to the next employee’s Advance field.</strong></div>';
  out+=tpTable(["Employee / designation","Advance (₹)","Fine (₹)","Other deduction (₹)"],rows.map(function(r){
  var id=tpEscape(r.emp.id);
  return'<tr data-tp-adv-row="'+id+'"><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
- '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" value="'+((r.advance.amount||0)/100).toFixed(2)+'"></td>'+
+ '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+((r.advance.amount||0)/100).toFixed(2)+'"></td>'+
  '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="fine" data-id="'+id+'" value="'+((r.deductions.fine||0)/100).toFixed(2)+'"></td>'+
  '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="other" data-id="'+id+'" value="'+((r.deductions.other||0)/100).toFixed(2)+'"></td></tr>';
  }))+'<div class="tp-note">✓ Changes save automatically on this device. This is a demonstration; it does not transfer money.</div></section>';
@@ -1233,15 +1233,18 @@ document.addEventListener("change",function(ev){
  if(!tpSave())tpData=JSON.parse(old);
  draw();
 },true);
-// Enter saves days to the same monthly record and advances to the next employee in the visible tab.
-// Enter saves monthly data and advances to the next field.
-// Attendance: monthly ID -> next monthly ID, days -> next days. Salary: days -> next days.
+// Enter saves and jumps only within the relevant column: Advances -> next advance, Attendance -> next ID/days, Salary -> next days.
 document.addEventListener("keydown",function(ev){
- if(tab!=="payroll"||(tpTab!=="attendance"&&tpTab!=="salary")||ev.key!=="Enter"||ev.isComposing)return;
+ if(tab!=="payroll"||(tpTab!=="attendance"&&tpTab!=="salary"&&tpTab!=="advances")||ev.key!=="Enter"||ev.isComposing)return;
  var field=ev.target;
- if(!field||!field.matches||!field.matches('input[data-tp-field="days"],input[data-tp-field="serial"],input[data-tp-field="monthlySalary"]'))return;
+ if(!field||!field.matches||!field.matches('input[data-tp-field="days"],input[data-tp-field="serial"],input[data-tp-field="advance"]'))return;
  var kind=field.dataset.tpField,empId=field.dataset.id;
+ if((tpTab==="advances")!==(kind==="advance"))return;
  ev.preventDefault();ev.stopImmediatePropagation();
+ if(kind==="advance"){
+  var amount=parsePaise(field.value);
+  if(amount===null||amount>100000000){uxAlert("Enter a valid advance amount from ₹0 to ₹10,00,000.");field.focus();if(field.select)field.select();return;}
+ }
  if(kind==="days"&&field.value.trim()!==""&&tpInputDays(field.value)===null){
   uxAlert("Use 0–30 days in half-day steps (such as 22.5 or 27).");field.focus();if(typeof field.select==="function")field.select();return;
  }
@@ -1249,7 +1252,13 @@ document.addEventListener("keydown",function(ev){
   uxAlert("Monthly ID must be between 1 and 100.");field.focus();return;
  }
  var nextId=null,nextField="days";
- if(tpTab==="attendance"&&kind==="serial"){
+ if(tpTab==="advances"&&kind==="advance"){
+  var advances=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="advance"]'));
+  var advanceIndex=advances.indexOf(field);
+  nextId=advanceIndex>=0&&advanceIndex+1<advances.length?advances[advanceIndex+1].dataset.id:null;
+  nextField="advance";
+ }
+ else if(tpTab==="attendance"&&kind==="serial"){
   var serialInputs=Array.from(document.querySelectorAll('.tp-app input[data-tp-field="serial"]'));
   var serialIndex=serialInputs.indexOf(field);
   nextId=serialIndex>=0&&serialIndex+1<serialInputs.length?serialInputs[serialIndex+1].dataset.id:null;
