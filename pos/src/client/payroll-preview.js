@@ -61,13 +61,13 @@ function tpSample(){
  if(/^Restaurant\s*0*1$/i.test(first))first="Pritam Fast Food";
  var second=(data.restaurants&&data.restaurants[1]&&data.restaurants[1].name)||"Restaurant 02";
  var emps=[
- {id:"demo1",name:"Aarav Patil",designation:"Head Chef",joined:"2023-04-12",restaurant:first,salary:3200000,method:"CASH",photo:"",leaveAllowance:4,active:true},
- {id:"demo2",name:"Meera Joshi",designation:"Restaurant Supervisor",joined:"2022-08-05",restaurant:first,salary:2850000,method:"CHEQUE",photo:"",leaveAllowance:2,active:true},
- {id:"demo3",name:"Ishaan Shetty",designation:"Cook",joined:"2024-01-18",restaurant:first,salary:2250000,method:"CASH",photo:"",leaveAllowance:4,active:true},
- {id:"demo4",name:"Ananya Naik",designation:"Cashier",joined:"2024-06-15",restaurant:first,salary:1950000,method:"CHEQUE",photo:"",leaveAllowance:2,active:true},
- {id:"demo5",name:"Kabir Khan",designation:"Delivery Coordinator",joined:"2023-11-10",restaurant:second,salary:2150000,method:"CASH",photo:"",leaveAllowance:4,active:true},
- {id:"demo6",name:"Riya Kulkarni",designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true},
- {id:"demo7",name:"Mukesh",designation:"Parcel Delivery Boy",joined:"2025-03-01",restaurant:first,salary:0,method:"CASH",photo:"",leaveAllowance:0,employeeType:"parcel",commissionGstRate:5,active:true}
+ {id:"demo1",name:"Aarav Patil",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Head Chef",joined:"2023-04-12",restaurant:first,salary:3200000,method:"CASH",photo:"",leaveAllowance:4,active:true},
+ {id:"demo2",name:"Meera Joshi",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Restaurant Supervisor",joined:"2022-08-05",restaurant:first,salary:2850000,method:"CHEQUE",photo:"",leaveAllowance:2,active:true},
+ {id:"demo3",name:"Ishaan Shetty",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Cook",joined:"2024-01-18",restaurant:first,salary:2250000,method:"CASH",photo:"",leaveAllowance:4,active:true},
+ {id:"demo4",name:"Ananya Naik",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Cashier",joined:"2024-06-15",restaurant:first,salary:1950000,method:"CHEQUE",photo:"",leaveAllowance:2,active:true},
+ {id:"demo5",name:"Kabir Khan",restaurantId:data.restaurants[1]&&data.restaurants[1].id,designation:"Delivery Coordinator",joined:"2023-11-10",restaurant:second,salary:2150000,method:"CASH",photo:"",leaveAllowance:4,active:true},
+ {id:"demo6",name:"Riya Kulkarni",restaurantId:data.restaurants[1]&&data.restaurants[1].id,designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true},
+ {id:"demo7",name:"Mukesh",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Parcel Delivery Boy",joined:"2025-03-01",restaurant:first,salary:0,method:"CASH",photo:"",leaveAllowance:0,employeeType:"parcel",commissionGstRate:5,active:true}
  ];
  var s={version:3,employees:emps,periods:{},salaryChanges:[],designations:tpDesignationDefaults(),settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
  var months=[tpMonth(0),tpMonth(-1),tpMonth(-2)];
@@ -105,6 +105,10 @@ function tpRead(){
    if(!Array.isArray(x.salaryChanges))x.salaryChanges=[];
    if(!Array.isArray(x.designations))x.designations=tpDesignationDefaults();
    x.employees.forEach(function(emp){
+    if(!emp.restaurantId){
+     var matches=(data.restaurants||[]).filter(function(r){return String(r.name||"").trim().toLowerCase()===String(emp.restaurant||"").trim().toLowerCase();});
+     if(matches.length===1)emp.restaurantId=matches[0].id;
+    }
     if(!Number.isSafeInteger(emp.leaveAllowance)||emp.leaveAllowance<0||emp.leaveAllowance>31)emp.leaveAllowance=2;
     if(!tpIsParcel(emp)&&(!Number.isSafeInteger(emp.initialSalary)||emp.initialSalary<=0))emp.initialSalary=emp.salary;
     if(tpIsParcel(emp)&&(!Number.isFinite(emp.commissionGstRate)||emp.commissionGstRate<0||emp.commissionGstRate>100))emp.commissionGstRate=5;
@@ -175,14 +179,36 @@ function tpSetMonthSalary(emp,month,value,source){
  emp.salary=tpMonthSalary(emp,tpMonth(0));
  return true;
 }
-function tpSerialInUse(period,number,employeeId){
+function tpRestaurantIdentity(emp){
+ if(!emp)return "";
+ if(emp.restaurantId)return "id:"+String(emp.restaurantId);
+ var name=String(emp.restaurant||"").trim().toLowerCase();
+ var matches=(data.restaurants||[]).filter(function(r){return String(r.name||"").trim().toLowerCase()===name;});
+ return matches.length===1?"id:"+matches[0].id:"name:"+name;
+}
+function tpSameRestaurant(a,b){
+ var ak=tpRestaurantIdentity(a),bk=tpRestaurantIdentity(b);
+ if(!ak||!bk)return false;
+ if(ak.startsWith("id:")&&bk.startsWith("id:"))return ak===bk;
+ return String(a.restaurant||"").trim().toLowerCase()===String(b.restaurant||"").trim().toLowerCase();
+}
+function tpResolveRestaurantId(name,existing){
+ if(existing&&existing.restaurant===name&&existing.restaurantId)return existing.restaurantId;
+ var selectedBranch=typeof selected!=="undefined"&&(data.restaurants||[]).find(function(r){return r.id===selected&&r.name===name;});
+ if(selectedBranch)return selectedBranch.id;
+ var matches=(data.restaurants||[]).filter(function(r){return r.name===name;});
+ return matches.length===1?matches[0].id:null;
+}
+function tpSerialConflict(period,number,employeeId){
  var employee=tpEmp(employeeId);
- if(!employee)return false;
- return Object.keys(period.serials||{}).some(function(other){
-  var matched=tpEmp(other);
-  return other!==employeeId&&matched&&matched.restaurant===employee.restaurant&&
-   tpSerialValue(period.serials[other])===number;
- });
+ if(!employee)return null;
+ return Object.keys(period.serials||{}).map(tpEmp).find(function(other){
+  return other&&other.id!==employeeId&&other.active!==false&&other.left!==true&&
+   tpSameRestaurant(other,employee)&&tpSerialValue(period.serials[other.id])===number;
+ })||null;
+}
+function tpSerialInUse(period,number,employeeId){
+ return !!tpSerialConflict(period,number,employeeId);
 }
 function tpSerialSort(a,b){
  var na=a.serial===null?Infinity:a.serial,nb=b.serial===null?Infinity:b.serial;
@@ -1245,8 +1271,10 @@ document.addEventListener("change",function(ev){
   if(field.value.trim()==="")delete p.serials[id];
   else{
    var num=tpSerialValue(field.value);
-   if(num===null||tpSerialInUse(p,num,id)){
-    uxAlert("Choose a positive monthly ID not already used by another employee at this restaurant for the selected month.");draw();return;
+   var holder=num===null?null:tpSerialConflict(p,num,id);
+   if(num===null||holder){
+    uxAlert(num===null?"Monthly ID must be a positive whole number.":"Monthly ID "+num+" is held by "+holder.name+" at "+emp.restaurant+" in "+tpMonthLabel(tpPeriod)+". Select a different ID for this active employee. Other restaurants can reuse this number.");
+    draw();return;
    }
    p.serials[id]=num;
   }
@@ -1255,8 +1283,9 @@ document.addEventListener("change",function(ev){
   else{
    var serial=tpSerialValue(field.value);
    if(serial===null){uxAlert("Monthly employee ID must be a positive whole number (1 or higher).");draw();return;}
-   if(tpSerialInUse(p,serial,id)){
-    uxAlert("Monthly ID "+serial+" is already assigned to another employee at "+emp.restaurant+" in "+tpMonthLabel(tpPeriod)+". IDs must be unique within each restaurant per month.");
+   var holder=tpSerialConflict(p,serial,id);
+   if(holder){
+    uxAlert("Monthly ID "+serial+" is held by "+holder.name+" at "+emp.restaurant+" in "+tpMonthLabel(tpPeriod)+". Select a different ID for this active employee. Other restaurants can reuse this number.");
     draw();return;
    }
    p.serials[id]=serial;
