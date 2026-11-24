@@ -4,8 +4,8 @@
 (function(){
 "use strict";
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
-var TP_SECTIONS=["dashboard","employees","designations","attendance","advances","salary","sheets","history","settings"];
-var TP_TITLES={dashboard:"Dashboard",employees:"Employees",designations:"Designations",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
+var TP_SECTIONS=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
+var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
 var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpDesignationEditing=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
@@ -349,7 +349,7 @@ function tpEmployeeForm(emp){
  tpDesignationList().slice().sort(function(a,b){return a.title.localeCompare(b.title);}).map(function(item){
   return'<option value="'+tpEscape(item.code)+'">'+tpEscape(item.code)+' — '+tpEscape(item.title)+'</option>';
  }).join("")+'</select>'+
- '<small>Manage shortcuts in Payroll → Designations.</small></div>'+
+ '<small>Create or change shortcuts in Payroll → Settings → Designation Shortcuts.</small></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
@@ -366,9 +366,9 @@ function tpEmployeeForm(emp){
 function tpDesignationsPage(){
  var rows=tpDesignationList().slice().sort(function(a,b){return a.code.localeCompare(b.code);});
  var editing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
- var out='<section class="tp-panel">'+tpToolbar("Designation Shortcuts",
-  'Create your own short codes to fill employee designations quickly.',tpButton("go-employees","Open Employees","tp-light"))+
- '<div class="tp-note">Example: type <strong>ek ch</strong> in Add Employee → Designation, then press Enter or Tab. It expands to <strong>Chinese Helper</strong>. You can also pick a designation from the dropdown in the employee form. Changes to this list do not rewrite existing employees.</div>'+
+ var out='<section class="tp-panel" id="tp-designation-settings">'+tpToolbar("Designation Shortcuts",
+  'Add, edit, or delete your own codes for employee designations.',tpButton("go-employees","Open Employees","tp-light"))+
+ '<div class="tp-note">Create any shortcut you prefer: for example <strong>ek ch</strong> → <strong>Chinese Helper</strong>. Type the code when adding or editing an employee, or choose it from the designation dropdown. Changes here never rewrite existing employees.</div>'+
  '<form id="tp-designation-form" class="tp-designation-form">'+
  '<div class="tp-field"><label for="tp-designation-code">Shortcut code *</label>'+
  '<input id="tp-designation-code" name="shortcut" maxlength="20" required autocomplete="off" placeholder="e.g. ek ch" value="'+tpEscape(editing?editing.code:"")+'">'+
@@ -377,7 +377,7 @@ function tpDesignationsPage(){
  '<input id="tp-designation-title" name="title" maxlength="90" required autocomplete="off" placeholder="e.g. Chinese Helper" value="'+tpEscape(editing?editing.title:"")+'"></div>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(editing?"Save Changes":"+ Add Designation")+'</button>'+
  (editing?tpButton("cancel-designation","Cancel","tp-light"):"")+'</div></form>'+
- '<div class="tp-designation-count">'+rows.length+' saved shortcuts · Available while adding or editing employees</div>'+
+ '<div class="tp-designation-count">'+rows.length+' saved shortcuts · Your changes are saved on this device</div>'+
  tpTable(["Shortcut","Full designation","Actions"],rows.map(function(item){
   return'<tr><td><code class="tp-shortcode">'+tpEscape(item.code)+'</code></td><td><strong>'+tpEscape(item.title)+'</strong></td>'+
   '<td><div class="tp-actions">'+tpButton("edit-designation","Edit","tp-light",'data-code="'+tpEscape(item.code)+'"')+
@@ -607,13 +607,12 @@ function tpSettings(){
  '<div class="tp-actions" style="margin-top:16px">'+tpButton("save-leave-settings","Save Leave Settings","tp-primary")+tpButton("go-employees","Edit Employee Allowances","tp-light")+'</div>'+
  '<div class="tp-note">Example: for 27 worked days, a 4-day allowance gives '+example+' paid leave days, and a 2-day allowance gives '+cap2+'. Leave pay = monthly salary ÷ 30 × earned leave days.</div>'+
  '<p class="sub">Changing the rule recalculates unfinalized demo monthly figures, including Payroll History. No real payroll is paid or submitted.</p></section>';
- return out;
+ return out+tpDesignationsPage();
 }
 function tpRender(){
  var out=tpTop();
  if(tpTab==="dashboard")out+=tpDashboard();
  else if(tpTab==="employees")out+=tpEmployeesPage();
- else if(tpTab==="designations")out+=tpDesignationsPage();
  else if(tpTab==="attendance")out+=tpAttendance();
  else if(tpTab==="advances")out+=tpAdvances();
  else if(tpTab==="salary")out+=tpSalary();
@@ -631,7 +630,7 @@ function tpTouch(period){
 }
 function tpSetTab(sec){
  if(!TP_SECTIONS.includes(sec))return;
- tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="designations")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
+ tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="settings")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
 function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
@@ -946,7 +945,7 @@ function tpHandleAction(button){
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
  if(act==="go-employees")return tpSetTab("employees");
- if(act==="go-designations")return tpSetTab("designations");
+ if(act==="go-designations")return tpSetTab("settings");
  if(act==="edit-designation"){
   var existing=tpDesignationFind(button.dataset.code);
   if(!existing)return;
@@ -1053,7 +1052,7 @@ document.addEventListener("submit",function(ev){
   uxAlert("Enter a shortcut of 1–20 letters/numbers/spaces/hyphens and a designation of up to 90 characters.");return;
  }
  var existing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
- if(tpDesignationEditing&&!existing){uxAlert("Shortcut no longer exists. Reload Designations.");return;}
+ if(tpDesignationEditing&&!existing){uxAlert("Shortcut no longer exists. Open Payroll Settings again.");return;}
  if(tpDesignationList().some(function(item){return tpDesignationCode(item.code)===code&&(!existing||item!==existing)})){
   uxAlert('Shortcut "'+code+'" is already used. Choose a different code.');return;
  }

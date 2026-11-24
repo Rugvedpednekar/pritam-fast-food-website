@@ -23,16 +23,16 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,navigate:tpSetTab,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
  return {app,storage,handlers,setInputs};
 }
 
-test("All nine payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
+test("All eight payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
  const {app}=boot();
- const tabs=["dashboard","employees","designations","attendance","advances","salary","sheets","history","settings"];
+ const tabs=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
  for(const tab of tabs){
   app.setPage(tab);
   const page=app.page();
@@ -453,7 +453,7 @@ test("Designation shortcuts are seeded and expand in the employee form",()=>{
  expect(form).toContain('id="tp-role-pick"');
  expect(form).toContain('id="tp-role-suggestions"');
  expect(form).toContain('ek ch — Chinese Helper');
- app.setPage("designations");
+ app.setPage("settings");
  const page=app.page();
  expect(page).toContain('id="tp-designation-form"');
  expect(page).toContain("Chinese Helper");
@@ -646,4 +646,45 @@ test("Legacy Employees link is hidden from the Workspace sidebar but Payroll Emp
  const {app}=boot();
  app.setPage("employees");
  expect(app.page()).toContain("Employee Management");
+});
+
+
+test("Designation shortcuts now appear in Payroll Settings, not as a separate tab",()=>{
+ const {app}=boot();
+ const all=app.page();
+ expect(all).not.toContain('data-tp-section="designations"');
+ app.navigate("settings");
+ const page=app.page();
+ expect(page).toContain('data-tp-section="settings"');
+ expect(page).toContain('id="tp-leave-interval"');
+ expect(page).toContain('id="tp-designation-settings"');
+ expect(page).toContain('id="tp-designation-form"');
+ expect(page).toContain('id="tp-designation-code"');
+ expect(page).toContain('id="tp-designation-title"');
+ expect(page).toContain('data-tp-action="edit-designation"');
+ expect(page).toContain('data-tp-action="delete-designation"');
+ expect(page).toContain("Add, edit, or delete your own codes");
+ expect(source).not.toContain('else if(tpTab==="designations")');
+ expect(app.employeeForm(null)).toContain("Payroll → Settings → Designation Shortcuts");
+});
+
+test("Editing a shortcut stays in Settings and saves user-created codes",()=>{
+ const {app,handlers,storage}=boot();
+ app.navigate("settings");
+ app.handle({dataset:{tpAction:"edit-designation",code:"ek ch"}});
+ const edit=app.page();
+ expect(edit).toContain("Save Changes");
+ expect(edit).toContain('value="ek ch"');
+ expect(edit).toContain('value="Chinese Helper"');
+ const submit=handlers.submit[0],newCode="veg hl";
+ submit({target:{id:"tp-designation-form",elements:{shortcut:{value:newCode},title:{value:"Veg Hall Assistant"}}},
+   preventDefault:()=>{},stopImmediatePropagation:()=>{}});
+ // Editing an existing shortcut changes the saved code; no duplicate is created.
+ expect(app.designationFind("ek ch")).toBe(null);
+ expect(app.designationExpand("VEG HL")).toBe("Veg Hall Assistant");
+ expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
+ app.navigate("settings");
+ const page=app.page();
+ expect(page).toContain("Veg Hall Assistant");
+ expect(page).toContain('id="tp-designation-form"');
 });

@@ -73,9 +73,9 @@ Payroll is a **browser-local demonstration** (no shared database or production p
 
 ### Payroll designation shortcuts
 
-The **Payroll → Designations** tab lets restaurant owners maintain reusable full designations and short codes (for example `ek ch` → `Chinese Helper`, `kh` → `Kitchen Helper`, `hc` → `Head Chef`). The defaults are supplied with fresh demo data and imported into saved browser payroll data that predates this feature.
+The **Payroll → Settings → Designation Shortcuts** section lets restaurant owners maintain their own designation codes (for example `ek ch` → `Chinese Helper`, `kh` → `Kitchen Helper`, `hc` → `Head Chef`). There is no separate Designations tab. This section appears beneath the leave-policy settings, with fields to create shortcuts and an editable list. Existing default shortcuts are available as starting examples and can be renamed or deleted. Earlier saved custom shortcuts are preserved.
 
-- Add, edit or delete a shortcut; codes are case-insensitive and duplicates are blocked. Removing a shortcut does not change existing employee designations.
+- Create shortcuts by entering a **shortcut code** and a **full designation**, then selecting **Add Designation**. Edit or delete any existing shortcut from the list. Codes are case-insensitive and duplicates are blocked. Removing a shortcut does not change existing employee designations.
 - In **Payroll → Employees → Add/Edit**, enter the shortcut in the **Designation** field and press **Tab** or **Enter**, or use **Quick select designation**. Full designations are saved on the employee record.
 - When the employee type is **Parcel Boy**, the Designation field and shortcut picker are hidden and disabled. New Parcel Boys automatically receive the **Parcel Boy** designation; editing a pre-existing Parcel Boy preserves their existing saved designation.
 - Designation shortcuts are browser-local along with the rest of the payroll demo.
