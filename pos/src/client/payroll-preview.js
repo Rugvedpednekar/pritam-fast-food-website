@@ -837,16 +837,15 @@ function tpGeneralPdfPages(kind,month){
   title="MONTHLY ATTENDANCE SHEET";
   detail="Worked days only, paid leave excluded";
   columns=[
-   {label:"ID",width:38},{label:"EMPLOYEE",width:129},{label:"DESIGNATION",width:142},
-   {label:"MONTHLY SALARY",width:97,right:true},{label:"WORK DAYS",width:67,right:true},
-   {label:"LEAVE",width:46,right:true}
+   {label:"ID",width:40},{label:"EMPLOYEE",width:145},{label:"DESIGNATION",width:155},
+   {label:"WORK DAYS",width:100,right:true},{label:"LEAVE",width:79,right:true}
   ];
   var worked=0,recorded=0;
   items=rows.map(function(r){
    var days=tpInputDays(r.worked);
    if(days!==null){worked+=days;recorded++;}
    return [r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
-    tpMoney(r.salary),days===null?"—":days, r.calc?r.calc.leaveEarned:"—"];
+    days===null?"—":days, r.calc?r.calc.leaveEarned:"—"];
   });
   footer="TOTAL WORKED DAYS: "+worked+"  |  RECORDED: "+recorded+"/"+rows.length;
  }else throw Error("Unknown PDF sheet type");
