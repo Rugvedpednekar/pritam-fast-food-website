@@ -150,6 +150,11 @@ function tpArcLeftPage(){
 }
 var tpArcBaseRender=tpRender;
 tpRender=function(){
+ // Restaurant changes invalidate editing/viewing state from the previous branch.
+ if(tpViewing&&!tpPayrollMatchesRestaurant(tpEmp(tpViewing)))tpViewing=null;
+ if(tpEditing&&tpEditing!=="new"&&!tpPayrollMatchesRestaurant(tpEmp(tpEditing)))tpEditing=null;
+ if(tpArcForm&&tpArcForm.id&&!tpPayrollMatchesRestaurant(tpEmp(tpArcForm.id)))tpArcForm=null;
+ if(tpCommissionOpen&&!tpPayrollMatchesRestaurant(tpEmp(tpCommissionOpen)))tpCommissionOpen=null;
  if(tpTab==="left"){
   return tpTop()+tpArcLeftPage()+'<footer class="tp-footer">Archived employees are outside active payroll · Browser-local demonstration</footer></div>';
  }
