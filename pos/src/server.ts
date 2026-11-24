@@ -54,6 +54,11 @@ const fullMenuDeleteModule=await Bun.file(new URL("./client/delete-full-menu.js"
 const bulkMenuBootMarker="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(bulkMenuBootMarker))throw Error("Menu delete insertion point missing");
 html=html.replace(bulkMenuBootMarker,fullMenuDeleteModule+"\n"+bulkMenuBootMarker);
+// GitHub-controlled mobile billing scrolling and pending-parcel access.
+const twMobileLayoutModule=await Bun.file(new URL("./client/mobile-billing-layout.js",import.meta.url)).text();
+const twMobileBootMarker="startupFinished=true;\ncloudStart();\n})();";
+if(!html.includes(twMobileBootMarker))throw Error("Mobile layout insertion point missing");
+html=html.replace(twMobileBootMarker,twMobileLayoutModule+"\n"+twMobileBootMarker);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
