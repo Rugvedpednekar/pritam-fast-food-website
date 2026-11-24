@@ -408,7 +408,7 @@ function tpAdvances(){
  var out='<div class="tp-stats tp-stats-three">'+tpCard("Total advances",tpMoney(total.adv),"Entered advance amounts","₹")+
  tpCard("Advances deducted",tpMoney(total.advPaid),"Automatically subtracted from salaries","↘")+
  tpCard("Other deductions",tpMoney(totalsFineOther(rows)),"Fines and other deductions","▤")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Advance Management","Enter advances, fines and other deductions. Every advance amount entered is deducted from the salary calculation.",tpButton("print-advance","Print Distribution Sheet","tp-primary")+tpButton("csv-advance","Download CSV","tp-light"))+
+ out+='<section class="tp-panel">'+tpToolbar("Advance Management","Enter advances, fines and other deductions. Every advance amount entered is deducted from the salary calculation.",tpButton("print-advance","Print Distribution Sheet","tp-primary")+tpButton("pdf-advance","Download PDF","tp-light"))+
  '<div class="tp-note">Every entered advance is deducted automatically from salary. Set the amount to ₹0 if no advance was given.</div>';
  out+=tpTable(["Employee / designation","Advance (₹)","Fine (₹)","Other deduction (₹)"],rows.map(function(r){
  var id=tpEscape(r.emp.id);
@@ -449,7 +449,7 @@ function tpCommissionEditor(emp){
  '<div><span>GST ('+tpEscape(rate)+'%)</span><strong>− '+tpMoney(calc?calc.gst:0)+'</strong></div>'+
  '<div class="tp-commission-pay"><span>Payable amount</span><strong>'+tpMoney(calc?calc.net:0)+'</strong></div></div>'+
  '<div class="tp-note">Only the selected entry method is used in calculations. Switching methods keeps previously entered daily and total values separately, so you can switch back without losing them.</div>'+
- '<div class="tp-actions">'+tpButton("csv-parcel","Download this month’s commission sheet","tp-light")+'</div></section>';
+ '<div class="tp-actions">'+tpButton("pdf-parcel","Download Parcel Boy PDF","tp-light",'data-id="'+tpEscape(emp.id)+'"')+'</div></section>';
  return head;
 }
 function tpAttendance(){
@@ -468,7 +468,7 @@ function tpAttendance(){
  tpCard("Salaried employees",String(rows.length),"Standard monthly attendance","♙")+
  tpCard("Salaried IDs assigned",assigned+' / '+rows.length,"Monthly IDs 1–100","▤")+
  tpCard("Total worked days",String(worked),"Excludes leave and parcel commissions","✓")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
+ out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("pdf-attendance","Download Attendance PDF","tp-light")+tpButton("go-salary","Open Salary Calculator","tp-primary"))+
  '<div class="tp-note">Assign each salaried employee a monthly ID (1–100), update monthly salary and enter actual days worked. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
  '<div class="tp-field tp-att-filter"><label for="tp-id-filter">Filter monthly ID</label><select id="tp-id-filter">'+
  [['all','All IDs — ascending 1 to 100'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['unassigned','Unassigned IDs']].map(function(opt){
@@ -536,19 +536,31 @@ function tpSheets(){
  ["CASH","CHEQUE"].forEach(function(method){
   var matches=rows.filter(function(r){return r.emp.method===method;}),sum=matches.reduce(function(n,r){return n+(r.calc?r.calc.net:0);},0);
   out+='<section class="tp-panel"><div class="tp-sheet-title"><div><span class="tp-eyebrow">'+method+' PAYROLL</span><h2>'+method+' SHEET</h2><p>'+tpMonthLabel(tpPeriod)+'</p></div><span class="tp-sheet-symbol">'+(method==="CASH"?"₹":"▤")+'</span></div>'+
-  '<div class="tp-actions tp-sheet-actions">'+tpButton("print-"+method.toLowerCase(),"Print "+method+" Sheet","tp-primary")+tpButton("csv-"+method.toLowerCase(),"Download CSV","tp-light")+'</div>'+
+  '<div class="tp-actions tp-sheet-actions">'+tpButton("print-"+method.toLowerCase(),"Print "+method+" Sheet","tp-primary")+tpButton("pdf-"+method.toLowerCase(),"Download PDF","tp-light")+'</div>'+
   tpTable(["Monthly ID","Employee","Designation","Net payable"],matches.map(function(r){
    return'<tr><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
    '<td>'+tpEscape(r.emp.designation)+(tpIsParcel(r.emp)?'<small class="tp-parcel-sheet-desc">Parcel Boy · GST '+(r.calc?r.calc.gstRate:(r.emp.commissionGstRate??5))+'%</small>':'')+'</td><td><strong>'+(r.calc?tpMoney(r.calc.net):(tpIsParcel(r.emp)?"Enter commission":"Enter days"))+'</strong></td></tr>';
   }))+'<div class="tp-sheet-total"><span>Total '+method.toLowerCase()+' payable</span><strong>'+tpMoney(sum)+'</strong></div>'+
   '<p class="tp-note">Sorted in ascending monthly ID order, separately for CASH and CHEQUE. No payment-status tracking.</p></section>';
  });
- out+='</div><div class="tp-grand"><span>Combined cash + cheque</span><strong>'+tpMoney(t.grand)+'</strong><small>'+t.ready+' of '+rows.length+' employees calculated</small></div>';
+ out+='</div>';
+ var parcelRows=rows.filter(function(r){return tpIsParcel(r.emp);});
+ if(parcelRows.length){
+  out+='<section class="tp-panel">'+tpToolbar("Parcel Boy Payment Sheet","Separate parcel commission payment sheet including GST deductions",
+   tpButton("pdf-parcel","Download Parcel Boy PDF","tp-primary")+tpButton("print-parcel","Print Parcel Sheet","tp-light"))+
+   tpTable(["Monthly ID","Parcel Boy","Commission","GST","Net payable"],parcelRows.map(function(r){
+    var c=r.calc;
+    return'<tr><td>'+(r.serial===null?"—":r.serial)+'</td><td><strong>'+tpEscape(r.emp.name)+'</strong></td>'+
+     '<td>'+(c?tpMoney(c.commissionTotal):"Not entered")+'</td><td>'+(c?tpMoney(c.gst):"—")+'</td>'+
+     '<td><strong>'+(c?tpMoney(c.net):"—")+'</strong></td></tr>';
+   }))+'</section>';
+ }
+ out+='<div class="tp-grand"><span>Combined cash + cheque</span><strong>'+tpMoney(t.grand)+'</strong><small>'+t.ready+' of '+rows.length+' employees calculated</small></div>';
  return out;
 }
 function tpHistory(){
  var months=Object.keys(tpData.periods).sort().reverse();
- var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download previous CASH, CHEQUE and advance sheets.","")+
+ var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download PDF sheets for any month.","")+
  '<div class="tp-history-list">'+months.map(function(month){
   var p=tpGetPeriod(month),rows=tpRows(month,true),net=0,advance=0,leaveTotal=0,completed=0;
   var table=rows.map(function(r){
@@ -563,11 +575,11 @@ function tpHistory(){
   });
   var changes=(tpData.salaryChanges||[]).filter(function(c){return c.effectiveMonth===month;});
   var actions='<div class="tp-actions tp-history-actions">'+
-    tpButton("csv-history-cash","Download CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("csv-history-cheque","Download CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("csv-history-advance","Download Advances","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("csv-history-attendance","Download Attendance","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("csv-history-parcel","Download Parcel Commissions","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("pdf-history-cash","Download CASH PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("pdf-history-cheque","Download CHEQUE PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("pdf-history-advance","Download Advances PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("pdf-history-attendance","Download Attendance PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
+    tpButton("pdf-history-parcel","Download Parcel Commissions PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("print-history-cash","Print CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("print-history-cheque","Print CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
     tpButton("print-history-parcel","Print Parcel Commissions","tp-light",'data-month="'+tpEscape(month)+'"')+'</div>';
@@ -622,12 +634,6 @@ function tpSetTab(sec){
  tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="designations")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
-function tpCsv(name,rows){
- var csv="\ufeff"+rows.map(function(row){return row.map(function(cell){return '"'+String(cell==null?"":cell).replace(/"/g,'""')+'"';}).join(",");}).join("\r\n");
- var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
- a.href=url;a.download=name;a.style.display="none";document.body.appendChild(a);a.click();a.remove();
- setTimeout(function(){URL.revokeObjectURL(url);},1500);
-}
 function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
  var output='<div class="tp-print-page"><div class="tp-print-head"><span>TABLEWISE RESTAURANT PAYROLL · DEMONSTRATION</span><h1>'+tpEscape(title)+'</h1><p>'+tpEscape(subtitle)+'</p></div>';
  output+='<table><thead><tr>'+heads.map(function(x){return'<th>'+tpEscape(x)+'</th>';}).join("")+'</tr></thead><tbody>'+
@@ -636,6 +642,263 @@ function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
  if(signatures)output+='<div class="tp-print-signs"><span>Prepared by: ___________________</span><span>Authorised by: ___________________</span></div>';
  return output+'<p class="tp-print-demo">Sample payroll demonstration · Not a statutory payslip or payment authorisation</p></div>';
 }
+// Generate a self-contained, downloadable PDF using canvas text (including Indian currency
+// and Unicode employee names) and native browser Blob APIs. No network or PDF service needed.
+function tpPdfBuild(jpegPages){
+ if(!jpegPages.length)throw Error("PDF needs at least one page");
+ var encoder=new TextEncoder(),chunks=[],length=0,offsets=[0];
+ function push(data){
+  var bytes=typeof data==="string"?encoder.encode(data):data;
+  chunks.push(bytes);length+=bytes.byteLength;
+ }
+ function object(id,body){
+  offsets[id]=length;push(id+" 0 obj\n"+body+"\nendobj\n");
+ }
+ push("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+ object(1,"<< /Type /Catalog /Pages 2 0 R >>");
+ var kids=jpegPages.map(function(_,i){return (3+i*3)+" 0 R";}).join(" ");
+ object(2,"<< /Type /Pages /Kids ["+kids+"] /Count "+jpegPages.length+" >>");
+ jpegPages.forEach(function(page,i){
+  var pid=3+i*3,cid=pid+1,jid=pid+2;
+  object(pid,"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "+
+   "/Resources << /XObject << /Im0 "+jid+" 0 R >> >> /Contents "+cid+" 0 R >>");
+  var stream=encoder.encode("q\n595 0 0 842 0 0 cm\n/Im0 Do\nQ\n");
+  offsets[cid]=length;
+  push(cid+" 0 obj\n<< /Length "+stream.byteLength+" >>\nstream\n");
+  push(stream);push("\nendstream\nendobj\n");
+  offsets[jid]=length;
+  push(jid+" 0 obj\n<< /Type /XObject /Subtype /Image /Width "+page.width+
+   " /Height "+page.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8 "+
+   "/Filter /DCTDecode /Length "+page.bytes.byteLength+" >>\nstream\n");
+  push(page.bytes);push("\nendstream\nendobj\n");
+ });
+ var xref=length,objects=2+jpegPages.length*3;
+ push("xref\n0 "+(objects+1)+"\n0000000000 65535 f \n");
+ for(var id=1;id<=objects;id++)push(String(offsets[id]).padStart(10,"0")+" 00000 n \n");
+ push("trailer\n<< /Size "+(objects+1)+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF\n");
+ return new Blob(chunks,{type:"application/pdf"});
+}
+function tpPdfCanvas(){
+ var canvas=document.createElement("canvas");
+ canvas.width=1190;canvas.height=1684;
+ var ctx=canvas.getContext("2d");
+ if(!ctx)throw Error("Canvas is unavailable");
+ ctx.scale(2,2);ctx.fillStyle="#ffffff";ctx.fillRect(0,0,595,842);
+ return {canvas:canvas,ctx:ctx};
+}
+function tpPdfText(ctx,value,x,y,size,bold,color,maxWidth,align){
+ var text=String(value==null?"":value);
+ ctx.save();ctx.font=(bold?"700 ":"400 ")+(size||11)+"px Arial, sans-serif";
+ ctx.fillStyle=color||"#213746";ctx.textBaseline="alphabetic";ctx.textAlign=align||"left";
+ if(maxWidth){
+  while(text.length>1&&ctx.measureText(text).width>maxWidth)text=text.slice(0,-2)+"…";
+ }
+ ctx.fillText(text,x,y);ctx.restore();
+}
+function tpPdfHeader(ctx,title,month,detail){
+ ctx.fillStyle="#145b50";ctx.fillRect(0,0,595,13);
+ tpPdfText(ctx,"TABLEWISE  /  RESTAURANT PAYROLL",38,45,10,true,"#14725d");
+ tpPdfText(ctx,title,38,83,22,true,"#19384a",515);
+ tpPdfText(ctx,tpMonthLabel(month)+(detail?"  |  "+detail:""),38,108,11,false,"#71828b",515);
+ ctx.strokeStyle="#e1e9eb";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(38,121);ctx.lineTo(557,121);ctx.stroke();
+}
+function tpPdfFooter(ctx,num){
+ ctx.strokeStyle="#e2e9e9";ctx.beginPath();ctx.moveTo(38,796);ctx.lineTo(557,796);ctx.stroke();
+ tpPdfText(ctx,"PAYROLL DEMO  ·  VERIFY BEFORE PAYMENT",38,814,8,false,"#819198");
+ tpPdfText(ctx,"Page "+num,557,814,8,false,"#819198",0,"right");
+}
+function tpPdfImage(page){
+ var encoded=page.canvas.toDataURL("image/jpeg",0.88);
+ if(!encoded.startsWith("data:image/jpeg;base64,"))throw Error("JPEG image generation failed");
+ var raw=atob(encoded.slice(encoded.indexOf(",")+1));
+ var bytes=new Uint8Array(raw.length);
+ for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+ return {width:page.canvas.width,height:page.canvas.height,bytes:bytes};
+}
+function tpParcelPdfPages(month,employeeId){
+ var m=month||tpPeriod,rows=tpRows(m,!!month).filter(function(r){
+  return tpIsParcel(r.emp)&&(!employeeId||r.emp.id===employeeId);
+ });
+ if(!rows.length)return [];
+ var pages=[],summary=rows.reduce(function(sum,r){
+  if(r.calc){sum.commission+=r.calc.commissionTotal;sum.gst+=r.calc.gst;sum.net+=r.calc.net;}
+  return sum;
+ },{commission:0,gst:0,net:0});
+ var count=Math.ceil(rows.length/20);
+ for(var part=0;part<count;part++){
+  var page=tpPdfCanvas(),ctx=page.ctx,group=rows.slice(part*20,(part+1)*20);
+  tpPdfHeader(ctx,"PARCEL BOYS - PAYMENT SHEET",m,count>1?"Summary "+(part+1)+"/"+count:"Summary");
+  ctx.fillStyle="#eaf4ef";ctx.fillRect(38,140,519,30);
+  var pos=[42,87,270,346,450,554],names=["ID","EMPLOYEE","MODE","COMMISSION","GST","NET PAY"];
+  names.forEach(function(v,i){tpPdfText(ctx,v,pos[i],159,9,true,"#2c6153",i===1?166:0,i>=3?"right":"left");});
+  group.forEach(function(r,i){
+   var y=194+i*26,c=r.calc;
+   if(i%2===0){ctx.fillStyle="#f7faf9";ctx.fillRect(38,y-17,519,25);}
+   tpPdfText(ctx,r.serial===null?"—":r.serial,pos[0],y,10,true);
+   tpPdfText(ctx,r.emp.name,pos[1],y,10,true,"#1c3746",169);
+   var mode=tpCommissionRecord(tpGetPeriod(m),r.emp)?.mode==="daily"?"Daily":"Monthly";
+   tpPdfText(ctx,mode,pos[2],y,9,false,"#526673",76);
+   tpPdfText(ctx,c?tpMoney(c.commissionTotal):"Not entered",pos[3],y,9,false,"#274356",76,"right");
+   tpPdfText(ctx,c?tpMoney(c.gst):"—",pos[4],y,9,false,"#9a4f41",88,"right");
+   tpPdfText(ctx,c?tpMoney(c.net):"—",pos[5],y,10,true,"#116a53",98,"right");
+  });
+  var base=194+group.length*26+14;
+  ctx.fillStyle="#e9f4ee";ctx.fillRect(38,base,519,49);
+  tpPdfText(ctx,"TOTAL NET PAYABLE",51,base+29,12,true,"#166e54");
+  tpPdfText(ctx,tpMoney(group.reduce(function(n,r){return n+(r.calc?r.calc.net:0);},0)),
+   546,base+29,14,true,"#136647",0,"right");
+  if(part===count-1){
+   tpPdfText(ctx,"ALL PARCEL BOYS  |  COMMISSION "+tpMoney(summary.commission)+
+      "   -   GST "+tpMoney(summary.gst)+"   =   NET "+tpMoney(summary.net),40,
+      Math.min(base+74,758),10,true,"#334f58",517);
+  }
+  tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
+ }
+ rows.forEach(function(r){
+  var page=tpPdfCanvas(),ctx=page.ctx,rec=tpCommissionRecord(tpGetPeriod(m),r.emp)||{},
+    calc=r.calc,rate=rec.gstRate==null?(r.emp.commissionGstRate??5):rec.gstRate;
+  tpPdfHeader(ctx,"PARCEL COMMISSION - EMPLOYEE SHEET",m,r.emp.name);
+  ctx.fillStyle="#f3f8f7";ctx.fillRect(38,139,519,63);
+  tpPdfText(ctx,"MONTHLY ID",51,159,8,true,"#718592");
+  tpPdfText(ctx,r.serial===null?"Not assigned":r.serial,51,184,16,true);
+  tpPdfText(ctx,"PAYMENT METHOD",200,159,8,true,"#718592");
+  tpPdfText(ctx,r.emp.method||"CASH",200,184,14,true);
+  tpPdfText(ctx,"ENTRY TYPE",382,159,8,true,"#718592");
+  var isDaily=rec.mode==="daily";
+  tpPdfText(ctx,isDaily?"Daily commissions":"Monthly total",382,184,13,true);
+  if(isDaily){
+   ctx.fillStyle="#eaf4ef";ctx.fillRect(38,229,245,29);ctx.fillRect(312,229,245,29);
+   tpPdfText(ctx,"DAY",48,248,10,true);tpPdfText(ctx,"COMMISSION",273,248,10,true,"#34576a",0,"right");
+   tpPdfText(ctx,"DAY",322,248,10,true);tpPdfText(ctx,"COMMISSION",547,248,10,true,"#34576a",0,"right");
+   for(var d=0;d<30;d++){
+    var isRight=d>=15,colX=isRight?312:38,row=d%15,top=269+row*25;
+    if(row%2===0){ctx.fillStyle="#f7faf9";ctx.fillRect(colX,top-17,245,25);}
+    tpPdfText(ctx,String(d+1),colX+12,top,10,false);
+    var amount=Array.isArray(rec.daily)?rec.daily[d]:null;
+    tpPdfText(ctx,amount===null||amount===undefined?"—":tpMoney(amount),colX+235,top,10,true,"#28485a",0,"right");
+   }
+  }else{
+   ctx.fillStyle="#f5f9f7";ctx.fillRect(38,238,519,135);
+   tpPdfText(ctx,"MONTHLY COMMISSION TOTAL",56,274,11,true,"#58736e");
+   tpPdfText(ctx,rec.total===null||rec.total===undefined?"Not entered":tpMoney(rec.total),
+    56,327,30,true,"#164e45");
+  }
+  var y=isDaily?664:408;
+  ctx.fillStyle="#f6f9f8";ctx.fillRect(38,y,519,110);
+  tpPdfText(ctx,"Total commission",51,y+29,11,false);tpPdfText(ctx,calc?tpMoney(calc.commissionTotal):"—",542,y+29,12,true,"#19384a",0,"right");
+  tpPdfText(ctx,"GST deduction ("+rate+"%)",51,y+54,11,false);tpPdfText(ctx,calc?"- "+tpMoney(calc.gst):"—",542,y+54,12,true,"#a04444",0,"right");
+  ctx.fillStyle="#e4f3eb";ctx.fillRect(45,y+66,505,37);
+  tpPdfText(ctx,"NET PAYABLE",53,y+91,12,true,"#0a6547");
+  tpPdfText(ctx,calc?tpMoney(calc.net):"Not calculated",539,y+91,16,true,"#0b704d",0,"right");
+  if(!isDaily){
+   tpPdfText(ctx,"Employee signature: __________________________",51,681,10,false,"#71828b");
+   tpPdfText(ctx,"Prepared by: __________________________",51,717,10,false,"#71828b");
+  }
+  tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
+ });
+ return pages;
+}
+function tpGeneralPdfPages(kind,month){
+ var m=month||tpPeriod,rows=tpRows(m,!!month),title="",columns=[],items=[],footer="",detail="";
+ if(kind==="cash"||kind==="cheque"){
+  var method=kind.toUpperCase();
+  rows=rows.filter(function(r){return r.emp.method===method;});
+  title=method+" SALARY PAYMENT SHEET";
+  detail=rows.length+" employees, sorted by monthly ID";
+  columns=[
+   {label:"ID",width:38},{label:"EMPLOYEE",width:130},{label:"DESIGNATION",width:150},
+   {label:"TYPE",width:86},{label:"NET PAY",width:115,right:true}
+  ];
+  var sum=0;
+  items=rows.map(function(r){if(r.calc)sum+=r.calc.net;return [
+   r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
+   tpIsParcel(r.emp)?"Parcel Boy":"Salaried",
+   r.calc?tpMoney(r.calc.net):"Not calculated"
+  ];});
+  footer="TOTAL "+method+" PAYABLE: "+tpMoney(sum);
+ }else if(kind==="advance"){
+  rows=rows.filter(function(r){return !tpIsParcel(r.emp);});
+  title="ADVANCE DISTRIBUTION SHEET";
+  detail=rows.length+" salaried employees";
+  columns=[
+   {label:"ID",width:38},{label:"EMPLOYEE",width:132},{label:"DESIGNATION",width:139},
+   {label:"ADVANCE",width:70,right:true},{label:"FINE",width:70,right:true},
+   {label:"OTHER",width:70,right:true}
+  ];
+  var advances=0,fines=0,other=0;
+  items=rows.map(function(r){
+   var adv=Number(r.advance.amount)||0,fine=Number(r.deductions.fine)||0,ded=Number(r.deductions.other)||0;
+   advances+=adv;fines+=fine;other+=ded;
+   return [r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
+    tpMoney(adv),tpMoney(fine),tpMoney(ded)];
+  });
+  footer="TOTAL ADVANCES: "+tpMoney(advances);
+  detail+="  |  Fines: "+tpMoney(fines)+"  |  Other: "+tpMoney(other);
+ }else if(kind==="attendance"){
+  rows=rows.filter(function(r){return !tpIsParcel(r.emp);});
+  title="MONTHLY ATTENDANCE SHEET";
+  detail="Worked days only, paid leave excluded";
+  columns=[
+   {label:"ID",width:38},{label:"EMPLOYEE",width:129},{label:"DESIGNATION",width:142},
+   {label:"MONTHLY SALARY",width:97,right:true},{label:"WORK DAYS",width:67,right:true},
+   {label:"LEAVE",width:46,right:true}
+  ];
+  var worked=0,recorded=0;
+  items=rows.map(function(r){
+   var days=tpInputDays(r.worked);
+   if(days!==null){worked+=days;recorded++;}
+   return [r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
+    tpMoney(r.salary),days===null?"—":days, r.calc?r.calc.leaveEarned:"—"];
+  });
+  footer="TOTAL WORKED DAYS: "+worked+"  |  RECORDED: "+recorded+"/"+rows.length;
+ }else throw Error("Unknown PDF sheet type");
+ if(!items.length)return [];
+ var pages=[],perPage=18;
+ for(var start=0;start<items.length;start+=perPage){
+  var part=items.slice(start,start+perPage),page=tpPdfCanvas(),ctx=page.ctx;
+  tpPdfHeader(ctx,title,m,detail);
+  ctx.fillStyle="#e9f4ef";ctx.fillRect(38,140,519,30);
+  var cursor=38;
+  columns.forEach(function(col){
+   var x=col.right?cursor+col.width-7:cursor+7;
+   tpPdfText(ctx,col.label,x,159,8,true,"#306455",col.width-11,col.right?"right":"left");
+   cursor+=col.width;
+  });
+  part.forEach(function(item,i){
+   var y=194+i*27;
+   if(i%2===0){ctx.fillStyle="#f7faf9";ctx.fillRect(38,y-17,519,26);}
+   var x=38;
+   columns.forEach(function(col,j){
+    var at=col.right?x+col.width-7:x+7;
+    tpPdfText(ctx,item[j],at,y,9,j===0||j===columns.length-1,
+      j===columns.length-1?"#125a49":"#203b49",col.width-13,col.right?"right":"left");
+    x+=col.width;
+   });
+  });
+  var yTotal=194+part.length*27+10;
+  ctx.fillStyle="#e4f3eb";ctx.fillRect(38,yTotal,519,49);
+  tpPdfText(ctx,start+part.length<items.length?"Continued on next page":footer,
+   49,yTotal+29,11,true,"#146b50",500);
+  tpPdfFooter(ctx,pages.length+1);
+  pages.push(tpPdfImage(page));
+ }
+ return pages;
+}
+function tpDownloadPDF(kind,month,employeeId){
+ var m=month||tpPeriod;
+ try{
+  if(!["cash","cheque","advance","attendance","parcel"].includes(kind))throw Error("Unknown sheet");
+  var pages=kind==="parcel"?tpParcelPdfPages(m,employeeId):tpGeneralPdfPages(kind,month);
+  if(!pages.length)return uxAlert("No employee records are available for this PDF sheet.");
+  var file=tpPdfBuild(pages),url=URL.createObjectURL(file),link=document.createElement("a");
+  var employeeTag=employeeId?"-"+String(employeeId).replace(/[^a-z0-9_-]/gi,""):"";
+  link.href=url;link.download="restaurant-"+kind+"-payment-sheet-"+m+employeeTag+".pdf";
+  link.style.display="none";document.body.appendChild(link);link.click();link.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+ }catch(err){uxAlert("Could not download the payroll PDF: "+(err&&err.message||"Unexpected error"));}
+}
+
+
 function tpDoPrint(kind,month){
  var m=month||tpPeriod,rows=tpRows(m,!!month),title,sub,heads,records,total=0;
  if(kind==="parcel"){
@@ -673,57 +936,6 @@ function tpDoPrint(kind,month){
  window.print();
 }
 window.addEventListener("afterprint",function(){document.body.classList.remove("tp-payroll-printing");});
-function tpDoCSV(kind,month){
- var m=month||tpPeriod,rows=tpRows(m,!!month),out,total=0;
- if(kind==="parcel"){
-  out=[["Month","Monthly ID","Employee","Designation","Entry mode","Date 1-30 / TOTAL","Commission INR","GST rate percent","GST deduction INR","Net payable INR"]];
-  rows.filter(function(r){return tpIsParcel(r.emp);}).forEach(function(r){
-   var rec=tpCommissionRecord(tpGetPeriod(m),r.emp),c=r.calc;
-   if(!rec){
-    out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Not entered","","","","",""]);return;
-   }
-   var rate=rec.gstRate==null?(r.emp.commissionGstRate??5):rec.gstRate;
-   if(rec.mode==="total"){
-    out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Monthly total","TOTAL",
-      rec.total==null?"":(rec.total/100).toFixed(2),rate,c?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
-   }else{
-    for(var day=1;day<=30;day++){
-      var amount=Array.isArray(rec.daily)?rec.daily[day-1]:null;
-      out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,"Daily",day,
-        amount==null?"":(amount/100).toFixed(2),day===30?rate:"",day===30&&c?(c.gst/100).toFixed(2):"",day===30&&c?(c.net/100).toFixed(2):""]);
-    }
-   }
-  });
- }else if(kind==="attendance"){
-  out=[["Month","Monthly ID","Employee","Designation","Employee type","Monthly salary INR","Days worked","Paid leave earned","Working salary / commission INR","Leave pay INR","GST deduction INR","Net salary INR"]];
-  rows.forEach(function(r){
-   var c=r.calc;out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",
-    tpIsParcel(r.emp)?"":(r.salary/100).toFixed(2),tpIsParcel(r.emp)?"":(r.worked==null?"":r.worked),c?c.leaveEarned:"",
-    c?(c.gross/100).toFixed(2):"",c?(c.leavePay/100).toFixed(2):"",c&&c.gst?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""]);
-  });
- }else if(kind==="advance"){
-  out=[["Month","Monthly ID","Employee","Designation","Advance INR","Fine INR","Other deduction INR"]];
-  rows.forEach(function(r){
-   total+=Number(r.advance.amount)||0;
-   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,(Number(r.advance.amount||0)/100).toFixed(2),
-    ((r.deductions.fine||0)/100).toFixed(2),((r.deductions.other||0)/100).toFixed(2)]);
-  });
-  out.push(["","","TOTAL","",(total/100).toFixed(2),"",""]);
- }else{
-  var method=kind.toUpperCase();
-  out=[["Month","Monthly ID","Employee","Designation","Employee type","Monthly salary INR","Days worked","Commission INR","GST INR","Net salary INR"]];
-  rows.filter(function(r){return r.emp.method===method;}).forEach(function(r){
-   if(r.calc)total+=r.calc.net;
-   out.push([m,r.serial===null?"":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",
-     tpIsParcel(r.emp)?"":(r.salary/100).toFixed(2),tpIsParcel(r.emp)?"":(r.worked==null?"":r.worked),
-     r.calc&&tpIsParcel(r.emp)?(r.calc.commissionTotal/100).toFixed(2):"",
-     r.calc&&tpIsParcel(r.emp)?(r.calc.gst/100).toFixed(2):"",
-     r.calc?(r.calc.net/100).toFixed(2):"Not calculated"]);
-  });
-  out.push(["","","GRAND TOTAL","","","","","","",(total/100).toFixed(2)]);
- }
- tpCsv("restaurant-"+kind+"-sheet-"+m+".csv",out);
-}
 function tpNewEmployee(){
  tpEditing="new";tpViewing=null;tpPhoto=null;tpSetTab("employees");tpEditing="new";draw();
 }
@@ -792,14 +1004,15 @@ function tpHandleAction(button){
  if(act==="print-cash")return tpDoPrint("cash");
  if(act==="print-cheque")return tpDoPrint("cheque");
  if(act==="print-parcel")return tpDoPrint("parcel");
- if(act==="csv-advance")return tpDoCSV("advance");
- if(act==="csv-cash")return tpDoCSV("cash");
- if(act==="csv-cheque")return tpDoCSV("cheque");
- if(act==="csv-parcel")return tpDoCSV("parcel");
- if(act.startsWith("csv-history-")||act.startsWith("print-history-")){
-  var m=button.dataset.month,kind=act.replace(/^(csv|print)-history-/,"");
+ if(act==="pdf-advance")return tpDownloadPDF("advance");
+ if(act==="pdf-attendance")return tpDownloadPDF("attendance");
+ if(act==="pdf-cash")return tpDownloadPDF("cash");
+ if(act==="pdf-cheque")return tpDownloadPDF("cheque");
+ if(act==="pdf-parcel")return tpDownloadPDF("parcel",null,id||null);
+ if(act.startsWith("pdf-history-")||act.startsWith("print-history-")){
+  var m=button.dataset.month,kind=act.replace(/^(pdf|print)-history-/,"");
   if(!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(m)||!tpData.periods[m])return uxAlert("Previous payroll month not found.");
-  if(act.startsWith("csv-"))return tpDoCSV(kind,m);
+  if(act.startsWith("pdf-"))return tpDownloadPDF(kind,m);
   if(kind!=="attendance")return tpDoPrint(kind,m);
  }
 }

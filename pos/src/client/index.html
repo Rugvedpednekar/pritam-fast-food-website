@@ -49,8 +49,8 @@ window.addEventListener("error",function(ev){
  }
 });
 var KEY="tablewise-cloud-v1";
-var icons={dashboard:"▦",pos:"▣",menu:"☷",bills:"▤",reports:"▥",employees:"♙",payroll:"₹",settings:"⚙"};
-var navnames={dashboard:"Overview",pos:"New Bill",menu:"Menu Management",bills:"Bill History",reports:"Reports & Day-End",employees:"Employees",payroll:"Payroll",settings:"Settings & Backup"};
+var icons={dashboard:"▦",pos:"▣",menu:"☷",bills:"▤",reports:"▥",payroll:"₹",settings:"⚙"};
+var navnames={dashboard:"Overview",pos:"New Bill",menu:"Menu Management",bills:"Bill History",reports:"Reports & Day-End",payroll:"Payroll",settings:"Settings & Backup"};
 var samples=[];
 function initial(){var r=[],m={};for(var i=1;i<=5;i++){var id="r"+i;r.push({id:id,name:"Restaurant "+String(i).padStart(2,"0")});m[id]=samples.map(function(x,j){return{id:id+"m"+j,code:x[0],name:x[1],category:x[2],price:Number(x[3])*100,active:true};});}return{schema:1,restaurants:r,menus:m,bills:[],employees:[],closings:[],seq:1};}
 function valid(d){return d&&d.schema===1&&Array.isArray(d.restaurants)&&d.restaurants.length>=1&&d.restaurants.length<=50&&d.restaurants.some(function(r){return r.active!==false;})&&d.menus&&Array.isArray(d.bills)&&Array.isArray(d.employees)&&Array.isArray(d.closings)&&Number.isSafeInteger(d.seq);}

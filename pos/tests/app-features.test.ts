@@ -14,13 +14,16 @@ function boot(savedData){
    createElement:()=>({textContent:"",id:"",style:{},appendChild:()=>{}}),
    head:{appendChild:()=>{}},
    addEventListener:(type,fn)=>{(handlers[type]??=[]).push(fn);},
-   querySelectorAll:selector=>selector.includes("data-tp-field")?inputs:[],
+   querySelectorAll:selector=>{
+    const kind=selector.match(/data-tp-field="([^"]+)"/)?.[1];
+    return kind?inputs.filter(x=>x.dataset.tpField===kind):[];
+   },
    getElementById:()=>null
  };
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
@@ -121,7 +124,7 @@ test("Restaurant archive and restore schema remains valid",()=>{
  expect(valid({...s,restaurants:s.restaurants.map(r=>({...r,active:false}))})).toBe(false);
 });
 
-test("Advance and cash/cheque print and CSV export remain available",()=>{
+test("Advance, attendance, cash, cheque and parcel PDF downloads remain available",()=>{
  expect(source).toContain('Print Distribution Sheet');
  expect(source).toContain('print-cash');
  expect(source).toContain('print-cheque');
@@ -262,15 +265,15 @@ test("Old monthly payroll history includes ID, monthly salary and download actio
  const {app}=boot();
  app.setPage("history");
  const h=app.page();
- expect(h).toContain('data-tp-action="csv-history-cash"');
- expect(h).toContain('data-tp-action="csv-history-cheque"');
- expect(h).toContain('data-tp-action="csv-history-advance"');
- expect(h).toContain('data-tp-action="csv-history-attendance"');
+ expect(h).toContain('data-tp-action="pdf-history-cash"');
+ expect(h).toContain('data-tp-action="pdf-history-cheque"');
+ expect(h).toContain('data-tp-action="pdf-history-advance"');
+ expect(h).toContain('data-tp-action="pdf-history-attendance"');
  expect(h).toContain('data-tp-action="print-history-cash"');
  expect(h).toContain("Monthly ID");
  expect(h).toContain("Monthly salary");
  expect(h).toContain("October 2026");
- expect(source).toContain('tpDoCSV(kind,m)');
+ expect(source).toContain('tpDownloadPDF(kind,m)');
  expect(source).toContain('tpDoPrint(kind,m)');
 });
 
@@ -370,9 +373,10 @@ test("Cash/cheque sheets include parcel boy net pay while historic month offers 
  expect(sheet).toContain("Mukesh");
  app.setPage("history");
  const h=app.page();
- expect(h).toContain('data-tp-action="csv-history-parcel"');
+ expect(h).toContain('data-tp-action="pdf-history-parcel"');
  expect(h).toContain('data-tp-action="print-history-parcel"');
- expect(source).toContain('["Month","Monthly ID","Employee","Designation","Entry mode","Date 1-30 / TOTAL"');
+ expect(source).toContain('function tpParcelPdfPages(');
+ expect(source).toContain('function tpPdfBuild(');
 });
 test("Existing local payroll data loads with no parcel changes or new fields required",()=>{
  const old={version:3,employees:[{id:"old",name:"Old cook",salary:2500000,method:"CASH",designation:"Cook",active:true}],
@@ -545,4 +549,101 @@ test("New Parcel Boy automatically saves the Parcel Boy designation without typi
  expect(created).toBeDefined();
  expect(created).toMatchObject({designation:"Parcel Boy",employeeType:"parcel",salary:0,leaveAllowance:0,commissionGstRate:5});
  expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
+});
+
+
+test("Every current and historical payroll download uses PDF rather than CSV",()=>{
+ const {app}=boot();
+ const tabs=["advances","attendance","sheets","history"];
+ for(const tab of tabs){
+  app.setPage(tab);
+  const page=app.page();
+  expect(page).not.toContain('data-tp-action="csv-');
+  expect(page).not.toContain("Download CSV");
+ }
+ app.setPage("history");
+ const history=app.page();
+ for(const kind of ["cash","cheque","advance","attendance","parcel"]){
+  expect(history).toContain('data-tp-action="pdf-history-'+kind+'"');
+ }
+ app.setPage("sheets");
+ const sheets=app.page();
+ expect(sheets).toContain('data-tp-action="pdf-cash"');
+ expect(sheets).toContain('data-tp-action="pdf-cheque"');
+ expect(sheets).toContain('data-tp-action="pdf-parcel"');
+ app.setPage("advances");
+ expect(app.page()).toContain('data-tp-action="pdf-advance"');
+ app.setPage("attendance");
+ expect(app.page()).toContain('data-tp-action="pdf-attendance"');
+ expect(source).not.toContain("text/csv");
+ expect(source).not.toContain("function tpDoCSV(");
+});
+
+test("PDF builder produces a PDF Blob with cross-reference and pages",async()=>{
+ const {app}=boot();
+ const pdf=app.pdfBuild([{width:1,height:1,bytes:new Uint8Array([255,216,255,217])}]);
+ expect(pdf.type).toBe("application/pdf");
+ expect(pdf.size).toBeGreaterThan(200);
+ const content=await pdf.text();
+ expect(content.startsWith("%PDF-1.4")).toBe(true);
+ expect(content).toContain("/Type /Catalog");
+ expect(content).toContain("/Type /Pages");
+ expect(content).toContain("/Type /Page ");
+ expect(content).toContain("xref");
+ expect(content).toContain("%%EOF");
+});
+
+test("New parcel-boy commission forms default to Monthly Total; prior daily entries stay daily",()=>{
+ const {app}=boot();
+ const existing=app.data().employees.find(e=>e.employeeType==="parcel");
+ const another={...existing,id:"brandnew",name:"Another Parcel Boy"};
+ app.data().employees.push(another);
+ app.setPage("attendance");
+ app.openCommission(another.id);
+ const first=app.page();
+ expect(first).toContain('value="total" selected');
+ expect(first).toContain('data-tp-field="commissionTotal"');
+ expect(first).not.toContain('data-tp-field="commissionDaily"');
+ app.openCommission(existing.id);
+ const old=app.page();
+ expect(old).toContain('value="daily" selected');
+ expect(old).toContain('data-tp-field="commissionDaily"');
+});
+
+test("Pressing Enter in a monthly ID goes to next employee's monthly ID, not days",()=>{
+ const {app,handlers,setInputs}=boot();
+ let focus=null,select=null;
+ const ids=["demo1","demo2","demo3"];
+ const serials=ids.map(id=>({
+   value:id==="demo1"?"15":id==="demo2"?"16":"17",
+   dataset:{tpField:"serial",id},
+   matches:()=>true,
+   dispatchEvent(){handlers.change[handlers.change.length-1]({target:this});},
+   focus(){focus=id;},
+   select(){select=id;},
+   scrollIntoView(){}
+ }));
+ const days=ids.map(id=>({
+  value:"26",dataset:{tpField:"days",id},matches:()=>true,
+  focus(){focus="DAYS-"+id;},select(){select="DAYS-"+id;},scrollIntoView(){}
+ }));
+ setInputs([...serials,...days]);
+ app.setPage("attendance");
+ const handler=handlers.keydown.find(fn=>fn.toString().includes('serialInputs'));
+ expect(handler).toBeDefined();
+ let prevented=false;
+ handler({target:serials[0],key:"Enter",isComposing:false,preventDefault:()=>{prevented=true;},stopImmediatePropagation:()=>{}});
+ expect(prevented).toBe(true);
+ expect(app.period("2026-11").serials.demo1).toBe(15);
+ expect(focus).toBe("demo2");
+ expect(select).toBe("demo2");
+});
+
+test("Legacy Employees link is hidden from the Workspace sidebar but Payroll Employees remains",()=>{
+ expect(html).not.toContain('employees:"Employees"');
+ expect(html).toContain('payroll:"Payroll"');
+ expect(html).toContain('employees:employees');
+ const {app}=boot();
+ app.setPage("employees");
+ expect(app.page()).toContain("Employee Management");
 });

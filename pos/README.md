@@ -59,7 +59,7 @@ Payroll is a **browser-local demonstration** (no shared database or production p
 - Open **Payroll → Attendance** and choose a payroll month. Assign each employee a **monthly ID / serial number from 1 to 100**. This number is separate from the permanent internal employee ID and **can change every month**.
 - Each monthly ID must be unique within that month's employee records. The table sorts numerically ascending, with unassigned IDs last. Use the **All / 1–25 / 26–50 / 51–75 / 76–100 / Unassigned** filter to inspect a range.
 - Next to the serial and employee name, you can view or edit **that month's salary** and enter **actual days worked** (0–30, half days permitted). Paid leave credit is **not** counted as attendance.
-- Attendance and Salary Calculator read/write the same saved days. Press **Enter** in Attendance to move from monthly ID → salary → days, then from days to the next employee's days; in Salary Calculator Enter moves to the next employee's days input.
+- Attendance and Salary Calculator read/write the same saved days. Press **Enter** in a monthly ID field to move to the **next employee’s monthly ID field**. Press Enter in Attendance’s salary field to move to that employee’s worked days; pressing Enter in the worked-days field advances to the next salaried employee’s worked-days input. Salary Calculator preserves the same days-to-next-days behavior.
 - **Every month uses a fixed 30-day salary divisor**, including January and February. Calendar length does not change the formula.
 
 ### Salary changes and history
@@ -67,7 +67,7 @@ Payroll is a **browser-local demonstration** (no shared database or production p
 - Editing salary in **Employees → Edit** now has an **effective month**. Changes to monthly salary entered in **Attendance** also record a salary change with the month, previous salary, new salary and timestamp.
 - **Employee → View → Salary Change History** lists the changes for later inspection. Saved earlier months keep their prior salaries. Existing browser data is migrated using old monthly snapshots when available; old monthly serial IDs are left empty, not invented.
 - For each month, **Payroll History** shows the stored monthly ID, salary, days, leave pay, advances, and calculated net pay.
-- In Payroll History, expand the desired month and choose **Download CASH**, **Download CHEQUE**, **Download Advances**, **Download Attendance**, **Print CASH**, or **Print CHEQUE**. Downloads are CSV files. CASH and CHEQUE lists remain **separate**, each sorted ascending by its monthly IDs (unassigned IDs last).
+- In Payroll History, expand any month (including the current month) and choose **Download CASH PDF**, **Download CHEQUE PDF**, **Download Advances PDF**, **Download Attendance PDF**, or **Download Parcel Commissions PDF**. Downloads are PDF files; no CSV payroll downloads are offered. **Print CASH**, **Print CHEQUE**, and **Print Parcel Commissions** remain available. CASH and CHEQUE lists remain **separate**, each sorted ascending by its monthly IDs (unassigned IDs last).
 - The main Payment Sheets page also uses these numeric monthly IDs and the same ascending ordering for CASH and CHEQUE separately.
 - Deleting an employee hides them from active Payroll/Attendance without erasing earlier monthly data; Restore is available under Deleted Employees.
 
@@ -87,7 +87,7 @@ Under **Payroll → Employees → Add Employee**, choose **Salaried employee** (
 In **Payroll → Attendance**, only salaried employees appear in the main days-worked table and its Enter-key sequence. Parcel Boys appear below in a separate compact section with monthly IDs and an **Enter Commission** button. The **30 daily rows do not open automatically**. Click a parcel boy to open the editor, then choose:
 
 - **30 daily entries** — Day 1 through Day 30 and a commission amount per day, as in the supplied example. Each day is an amount of commission earned from bills, not total restaurant bill sales. You can leave some days blank.
-- **Monthly total** — enter one total commission amount instead of 30 rows. Switching between modes preserves each set of inputs separately and calculates from the selected mode only.
+- **Monthly total (default for new commission entries)** — enter one total commission amount instead of 30 rows. Switching between modes preserves each set of inputs separately and calculates from the selected mode only.
 
 `GST deducted = round_to_paise(commission total × GST rate ÷ 100)`.
 
@@ -95,7 +95,7 @@ In **Payroll → Attendance**, only salaried employees appear in the main days-w
 
 **Example:** Mukesh's sample has Day 1 ₹1,000, Day 2 ₹1,500, Day 3 ₹1,300, Day 4 ₹1,200, Day 5 ₹1,202 and Day 6–30 ₹1,000 each. That gives **₹31,202 commission − ₹1,560.10 GST (5%) = ₹29,641.90 payable**. This example is included for a fresh payroll-demo browser; already saved users must add their own parcel boys.
 
-The parcel boy net amount feeds the ordinary Cash or Cheque payment sheet, sorted by monthly ID, and is also recorded in Payroll History. Download past months' **Parcel Commissions** as a CSV of the saved daily entries or the monthly total. Print parcel commission sheets from History. This is only a demonstration of an arithmetic deduction, not a determination of actual tax liability or GST treatment.
+The parcel boy net amount feeds the ordinary Cash or Cheque payment sheet, sorted by monthly ID, and is also recorded in Payroll History. Download **Parcel Commissions PDF** for any month; the PDF includes the parcel payment summary and each employee’s selected daily or monthly-total commission entry, GST and net payable. Print parcel commission sheets from History. This is only a demonstration of an arithmetic deduction, not a determination of actual tax liability or GST treatment.
 
 ### Demo salary formula
 
@@ -133,3 +133,9 @@ Delete Full Menu appears next to the Categories filter in Menu Management. It is
 The **Sections & Tables** shortcut remains absent from the Workspace sidebar. To access this page, open **Settings & Backup → Manage Sections & Tables**.
 
 Each section has a confirmed **Delete** action alongside Rename. Deletion archives the section and hides its linked tables rather than erasing historical bills or menu prices; **Deleted Sections → Restore** reactivates them. Deleting the final active section, a section with an open order, or a section containing an unsaved bill is blocked. The section changes continue using POS cloud sync.
+
+### Payroll PDF downloads and Workspace navigation
+
+**All payroll download buttons now produce PDF files, not CSV**: current Cash and Cheque sheets, current Advances and Attendance sheets, Parcel Boy commission payment sheets, and the same five sheet types for each month in Payroll History. A parcel-boy payment PDF contains a monthly summary and detailed commission pages (the chosen daily entries or monthly total) with GST and net pay. Printed Cash, Cheque, Advance and parcel sheets remain available where the UI provides a Print button. PDFs are created in the browser and downloaded without external services.
+
+The old standalone **Workspace → Employees** sidebar shortcut has been removed. Staff and payroll records are accessed through **Payroll → Employees**. The legacy employee-directory code remains in the POS for compatibility but is not in the navigation.
