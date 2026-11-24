@@ -230,7 +230,7 @@ test("Payroll employee roster, attendance, advances, and salary totals follow th
  app.setPage("advances");
  expect(app.render()).toContain("Kabir Khan");
  expect(app.render()).not.toContain("Aarav Patil");
- app.setPage("salary");
+ app.setPage("sheets");
  expect(app.render()).toContain("Kabir Khan");
  expect(app.render()).not.toContain("Aarav Patil");
  const r2Total=app.rows().reduce((sum,row)=>sum+(row.calc?row.calc.net:0),0);
