@@ -455,9 +455,11 @@ tpArcHistory=function(emp){
   return '<tr><td>'+tpDate(e.leftAt||e.lastWorkingDate)+'</td><td>'+tpEscape(s.month)+'</td><td>'+tpMoney(s.net)+'</td>'+
    '<td>'+tpEscape(s.status==="PAID"?"Paid":"Due")+'</td><td>'+tpDate(s.paidAt)+'</td><td>'+tpEscape(s.method||e.method)+'</td></tr>';
  });
- return output.replace('</div>','<h3>Final salary settlement history</h3>'+
+ var at=output.lastIndexOf('</div>');
+ var addition='<h3>Final salary settlement history</h3>'+
    (rows.length?tpTable(["Last working day","Salary month","Net payable","Status","Payment date","Method"],rows):
-   '<p class="tp-note">No final resignation settlements recorded.</p>')+'</div>');
+   '<p class="tp-note">No final resignation settlements recorded.</p>');
+ return at>=0?output.slice(0,at)+addition+output.slice(at):output+addition;
 };
 document.addEventListener("change",function(ev){
  if(!ev.target||ev.target.id!=="tp-departure-type")return;
