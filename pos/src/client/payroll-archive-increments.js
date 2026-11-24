@@ -219,14 +219,17 @@ document.addEventListener("submit",function(ev){
  delete next.leftAt;delete next.lastWorkingDate;delete next.closedAt;delete next.rejoinedAs;delete next.deletedAt;delete next.exitType;delete next.finalSettlement;
  old.rejoinedAs=newId;old.rejoinedAt=tpStamp();
  tpData.employees.push(next);
- var month=joined.slice(0,7),period=tpGetPeriod(month),taken=new Set(Object.keys(period.serials).map(function(id){return tpSerialValue(period.serials[id]);}));
- var serial=Array.from({length:100},function(_,i){return i+1;}).find(function(n){return !taken.has(n);});
- if(serial!==undefined)period.serials[newId]=serial;
+ var month=joined.slice(0,7),period=tpGetPeriod(month),taken=new Set(Object.keys(period.serials).filter(function(id){
+  var employee=tpEmp(id);return employee&&employee.restaurant===restaurant;
+ }).map(function(id){return tpSerialValue(period.serials[id]);}));
+ var serial=1;
+ while(taken.has(serial))serial++;
+ period.serials[newId]=serial;
  if(!tpIsParcel(next))period.salaries[newId]=salary;
  period.updatedAt=tpStamp();
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpArcForm=null;tpViewing=newId;tpTab="employees";draw();
- showToast(old.name+" rejoined"+(serial!==undefined?" · new monthly ID "+serial:" · assign a monthly ID in Attendance")+".");
+ showToast(old.name+" rejoined · new restaurant-specific monthly ID "+serial+".");
 },true);
 function tpArcRaiseRecords(){
  return (tpData.salaryChanges||[]).filter(function(c){return c.source==="Salary Increment"&&tpPayrollMatchesRestaurant(tpEmp(c.employeeId));})
