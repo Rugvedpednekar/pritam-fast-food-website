@@ -4,9 +4,9 @@
 (function(){
 "use strict";
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
-var TP_SECTIONS=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
+var TP_SECTIONS=["dashboard","employees","attendance","advances","sheets","history","settings"];
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpDesignationEditing=null;
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null,tpDesignationEditing=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
 function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.\d{1,2})?$/.test(v))return null;var p=v.split(".");return Number(p[0])*100+Number((p[1]||"").padEnd(2,"0"));}
@@ -74,7 +74,7 @@ function tpSample(){
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
   emps.forEach(function(emp,i){
-   p.serials[emp.id]=i+1;
+   p.serials[emp.id]=emp.restaurant===second?i-3:i<4?i+1:5;
    if(tpIsParcel(emp)){
     if(idx===0)p.commissions[emp.id]={mode:"daily",
      daily:[1000,1500,1300,1200,1202].concat(Array(25).fill(1000)).map(function(x){return x*100;}),
@@ -144,7 +144,7 @@ function tpGetPeriod(month){
 function tpSerialValue(raw){
  if(raw===null||raw===undefined||String(raw).trim()==="")return null;
  var n=Number(raw);
- return Number.isInteger(n)&&n>=1&&n<=100&&String(n)===String(raw).trim()?n:null;
+ return Number.isSafeInteger(n)&&n>=1&&String(n)===String(raw).trim()?n:null;
 }
 function tpMonthSalary(emp,month){
  if(!tpData)return emp.salary;
@@ -175,8 +175,17 @@ function tpSetMonthSalary(emp,month,value,source){
  emp.salary=tpMonthSalary(emp,tpMonth(0));
  return true;
 }
+function tpSerialInUse(period,number,employeeId){
+ var employee=tpEmp(employeeId);
+ if(!employee)return false;
+ return Object.keys(period.serials||{}).some(function(other){
+  var matched=tpEmp(other);
+  return other!==employeeId&&matched&&matched.restaurant===employee.restaurant&&
+   tpSerialValue(period.serials[other])===number;
+ });
+}
 function tpSerialSort(a,b){
- var na=a.serial===null?101:a.serial,nb=b.serial===null?101:b.serial;
+ var na=a.serial===null?Infinity:a.serial,nb=b.serial===null?Infinity:b.serial;
  return na-nb||a.emp.name.localeCompare(b.emp.name);
 }
 function tpHistoricEmployees(month){
@@ -291,7 +300,7 @@ function tpDashboard(){
   tpCard("Total advances",tpMoney(t.adv),"Entered advances are deducted","↗")+
   tpCard("Cash salary total",tpMoney(t.cash),"Calculated including leave pay","₹")+
   tpCard("Cheque salary total",tpMoney(t.cheque),"Calculated including leave pay","▤")+'</div>';
- out+='<div class="tp-two"><section class="tp-panel">'+tpToolbar("Payroll overview",tpMonthLabel(tpPeriod)+' · 30-day salary basis',tpButton("go-salary","Open Salary Calculator","tp-primary"))+
+ out+='<div class="tp-two"><section class="tp-panel">'+tpToolbar("Payroll overview",tpMonthLabel(tpPeriod)+' · 30-day salary basis',tpButton("go-sheets","View Payment Sheets","tp-primary"))+
  '<div class="tp-progress"><div><strong>'+t.ready+' of '+count+'</strong><span>salary calculations ready</span></div><div class="tp-track"><i style="width:'+(count?Math.round(t.ready/count*100):0)+'%"></i></div></div>'+
  '<div class="tp-summary-row"><span>Salary payable</span><strong>'+tpMoney(t.grand)+'</strong></div>'+
  '<div class="tp-summary-row"><span>Paid leave money included</span><strong>'+tpMoney(t.leavePay)+'</strong></div>'+
@@ -301,7 +310,7 @@ function tpDashboard(){
  out+='<section class="tp-panel">'+tpToolbar("Payroll workflow","Manage advance amounts, calculate pay and prepare separate payment sheets.","")+
  '<div class="tp-step"><span>₹</span><div><strong>Advances</strong><p>Record employee advances and deductions.</p></div>'+tpButton("go-advances","Open","tp-light")+'</div>'+
  '<div class="tp-step"><span>▦</span><div><strong>Monthly Attendance</strong><p>Enter days once for Attendance and Salary.</p></div>'+tpButton("go-attendance","Open","tp-light")+'</div>'+
- '<div class="tp-step"><span>≡</span><div><strong>Salary Calculator</strong><p>Enter days worked; leave pay and deductions apply automatically.</p></div>'+tpButton("go-salary","Open","tp-light")+'</div>'+
+ '<div class="tp-step"><span>≡</span><div><strong>Payment Details</strong><p>Review automatically calculated salary and individual pay breakdowns.</p></div>'+tpButton("go-sheets","Open","tp-light")+'</div>'+
  '<div class="tp-step"><span>✓</span><div><strong>Payment Sheets</strong><p>Generate cash and cheque sheets.</p></div>'+tpButton("go-sheets","Open","tp-light")+'</div></section></div>';
  return out;
 }
@@ -460,22 +469,23 @@ function tpAttendance(){
  var visible=rows.filter(function(r){
   if(filter==="unassigned")return r.serial===null;
   if(filter==="all")return true;
+  if(filter==="101+")return r.serial!==null&&r.serial>=101;
   var bounds=filter.split("-").map(Number);
   return r.serial!==null&&r.serial>=bounds[0]&&r.serial<=bounds[1];
  });
  var out='<div class="tp-stats tp-stats-three">'+
  tpCard("Salaried employees",String(rows.length),"Standard monthly attendance","♙")+
- tpCard("Salaried IDs assigned",assigned+' / '+rows.length,"Monthly IDs 1–100","▤")+
+ tpCard("Salaried IDs assigned",assigned+' / '+rows.length,"Unique within this restaurant each month","▤")+
  tpCard("Total worked days",String(worked),"Excludes leave and parcel commissions","✓")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("pdf-attendance","Download Attendance PDF","tp-light")+tpButton("go-salary","Open Salary Calculator","tp-primary"))+
- '<div class="tp-note">Assign each salaried employee a monthly ID (1–100) and enter actual days worked. Update salaries in Payroll Settings → Salary Increases. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
+ out+='<section class="tp-panel">'+tpToolbar("Monthly Attendance",tpMonthLabel(tpPeriod)+' · Salaried employee days only.',tpButton("pdf-attendance","Download Attendance PDF","tp-light")+tpButton("go-sheets","View Payment Sheets","tp-primary"))+
+ '<div class="tp-note">Assign each salaried employee a monthly ID (1, 2, 3, …), unique only within this restaurant for the selected month, and enter actual days worked. Update salaries in Payroll Settings → Salary Increases. Extra paid leave is excluded. Parcel boys have a separate commission editor below and <strong>will not interrupt pressing Enter between salaried employees.</strong></div>'+
  '<div class="tp-field tp-att-filter"><label for="tp-id-filter">Filter monthly ID</label><select id="tp-id-filter">'+
- [['all','All IDs — ascending 1 to 100'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['unassigned','Unassigned IDs']].map(function(opt){
+ [['all','All IDs — ascending'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['101+','101 and above'],['unassigned','Unassigned IDs']].map(function(opt){
   return'<option value="'+opt[0]+'" '+(filter===opt[0]?'selected':'')+'>'+opt[1]+'</option>';
  }).join("")+'</select></div>'+
- tpTable(["Monthly ID (1–100)","Employee / designation","Days worked"],visible.map(function(r,i){
+ tpTable(["Monthly ID","Employee / designation","Days worked"],visible.map(function(r,i){
   var id=tpEscape(r.emp.id);
-  return'<tr data-tp-attendance-row="'+id+'"><td><input aria-label="Monthly ID for '+tpEscape(r.emp.name)+'" class="tp-serial-input" type="number" inputmode="numeric" min="1" max="100" step="1" placeholder="1–100" data-tp-field="serial" data-id="'+id+'" enterkeyhint="next" value="'+(r.serial===null?"":r.serial)+'"></td>'+
+  return'<tr data-tp-attendance-row="'+id+'"><td><input aria-label="Monthly ID for '+tpEscape(r.emp.name)+'" class="tp-serial-input" type="number" inputmode="numeric" min="1" step="1" placeholder="1, 2, 3…" data-tp-field="serial" data-id="'+id+'" enterkeyhint="next" value="'+(r.serial===null?"":r.serial)+'"></td>'+
   '<td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
   
   '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===visible.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
@@ -486,7 +496,7 @@ function tpAttendance(){
   '<p>Open only the parcel boy you want to enter. The 30-day commission form stays closed otherwise.</p></div></div>'+
   tpTable(["Monthly ID","Parcel boy","Entry mode","Commission / GST / Net","Action"],parcelRows.map(function(r){
    var rec=tpCommissionRecord(tpGetPeriod(),r.emp),c=r.calc;
-   return'<tr><td><input class="tp-serial-input" type="number" inputmode="numeric" min="1" max="100" step="1" data-tp-field="parcelSerial" data-id="'+tpEscape(r.emp.id)+'" value="'+(r.serial===null?"":r.serial)+'" placeholder="1–100"></td><td><strong>'+tpEscape(r.emp.name)+'</strong><div class="sub">'+tpEscape(r.emp.designation)+'</div></td>'+
+   return'<tr><td><input class="tp-serial-input" type="number" inputmode="numeric" min="1" step="1" data-tp-field="parcelSerial" data-id="'+tpEscape(r.emp.id)+'" value="'+(r.serial===null?"":r.serial)+'" placeholder="1, 2, 3…"></td><td><strong>'+tpEscape(r.emp.name)+'</strong><div class="sub">'+tpEscape(r.emp.designation)+'</div></td>'+
    '<td>'+tpEscape(rec?(rec.mode==="total"?"Monthly total":"30 daily rows"):"Not entered")+'</td>'+
    '<td>'+(c?tpMoney(c.commissionTotal)+' / '+tpMoney(c.gst)+' / <strong>'+tpMoney(c.net)+'</strong>':'No commission entered')+'</td>'+
    '<td>'+tpButton("open-commission","Enter Commission","tp-primary",'data-id="'+tpEscape(r.emp.id)+'"')+'</td></tr>';
@@ -614,7 +624,6 @@ function tpRender(){
  else if(tpTab==="employees")out+=tpEmployeesPage();
  else if(tpTab==="attendance")out+=tpAttendance();
  else if(tpTab==="advances")out+=tpAdvances();
- else if(tpTab==="salary")out+=tpSalary();
  else if(tpTab==="sheets")out+=tpSheets();
  else if(tpTab==="history")out+=tpHistory();
  else out+=tpSettings();
@@ -628,8 +637,9 @@ function tpTouch(period){
  draw();return true;
 }
 function tpSetTab(sec){
+ if(sec==="salary")sec="sheets";
  if(!TP_SECTIONS.includes(sec))return;
- tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="settings")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
+ tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="settings")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;tpCalculationOpenId=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
 function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
@@ -938,7 +948,7 @@ function tpNewEmployee(){
 }
 function tpHandleAction(button){
  var act=button.dataset.tpAction,id=button.dataset.id;
- if(act==="go-salary")return tpSetTab("salary");
+ if(act==="go-salary")return tpSetTab("sheets");
  if(act==="go-attendance")return tpSetTab("attendance");
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
@@ -1117,12 +1127,12 @@ document.addEventListener("change",function(ev){
  if(tab!=="payroll")return;
  if(field.id==="tp-id-filter"){
   var option=field.value;
-  if(!["all","1-25","26-50","51-75","76-100","unassigned"].includes(option))return;
+  if(!["all","1-25","26-50","51-75","76-100","101+","unassigned"].includes(option))return;
   tpIdRange=option;draw();return;
  }
  if(field.id==="tp-month"){
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(field.value)){uxAlert("Please select a valid payroll month.");return;}
-  tpPeriod=field.value;tpIdRange="all";tpCommissionOpen=null;draw();return;
+  tpPeriod=field.value;tpIdRange="all";tpCommissionOpen=null;tpCalculationOpenId=null;draw();return;
  }
  if(field.id==="tp-photo"){
   var file=field.files&&field.files[0];if(!file)return;
@@ -1182,8 +1192,8 @@ document.addEventListener("change",function(ev){
   if(field.value.trim()==="")delete p.serials[id];
   else{
    var num=tpSerialValue(field.value);
-   if(num===null||Object.keys(p.serials).some(function(other){return other!==id&&tpSerialValue(p.serials[other])===num;})){
-    uxAlert("Choose a unique monthly ID from 1 to 100.");draw();return;
+   if(num===null||tpSerialInUse(p,num,id)){
+    uxAlert("Choose a positive monthly ID not already used by another employee at this restaurant for the selected month.");draw();return;
    }
    p.serials[id]=num;
   }
@@ -1191,9 +1201,9 @@ document.addEventListener("change",function(ev){
   if(field.value.trim()===""){delete p.serials[id];}
   else{
    var serial=tpSerialValue(field.value);
-   if(serial===null){uxAlert("Monthly employee ID must be a whole number from 1 to 100.");draw();return;}
-   if(Object.keys(p.serials).some(function(other){return other!==id&&tpSerialValue(p.serials[other])===serial;})){
-    uxAlert("Monthly ID "+serial+" is already assigned to another employee in "+tpMonthLabel(tpPeriod)+". IDs must be unique each month.");
+   if(serial===null){uxAlert("Monthly employee ID must be a positive whole number (1 or higher).");draw();return;}
+   if(tpSerialInUse(p,serial,id)){
+    uxAlert("Monthly ID "+serial+" is already assigned to another employee at "+emp.restaurant+" in "+tpMonthLabel(tpPeriod)+". IDs must be unique within each restaurant per month.");
     draw();return;
    }
    p.serials[id]=serial;
