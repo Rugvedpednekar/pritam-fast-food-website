@@ -4,9 +4,9 @@
 (function(){
 "use strict";
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
-var TP_SECTIONS=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
-var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null;
+var TP_SECTIONS=["dashboard","employees","designations","attendance","advances","salary","sheets","history","settings"];
+var TP_TITLES={dashboard:"Dashboard",employees:"Employees",designations:"Designations",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpDesignationEditing=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
 function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.\d{1,2})?$/.test(v))return null;var p=v.split(".");return Number(p[0])*100+Number((p[1]||"").padEnd(2,"0"));}
@@ -21,6 +21,40 @@ function tpStamp(){return new Date().toISOString();}
 function tpId(){return "emp-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7);}
 function tpTrim(v,n){return String(v==null?"":v).trim().slice(0,n);}
 function tpRound(p){return Math.round(p);}
+function tpDesignationDefaults(){
+ return [
+  {code:"ek ch",title:"Chinese Helper"},
+  {code:"hc",title:"Head Chef"},
+  {code:"ch",title:"Chef"},
+  {code:"cc",title:"Chinese Cook"},
+  {code:"kh",title:"Kitchen Helper"},
+  {code:"ca",title:"Cashier"},
+  {code:"wt",title:"Waiter"},
+  {code:"sv",title:"Server"},
+  {code:"sup",title:"Supervisor"},
+  {code:"pb",title:"Parcel Boy"},
+  {code:"dc",title:"Delivery Coordinator"},
+  {code:"cl",title:"Cleaner"}
+ ];
+}
+function tpDesignationCode(value){
+ return String(value==null?"":value).trim().toLowerCase().replace(/\s+/g," ");
+}
+function tpDesignationList(){
+ return Array.isArray(tpData.designations)?tpData.designations:[];
+}
+function tpDesignationFind(value){
+ var code=tpDesignationCode(value);
+ return tpDesignationList().find(function(item){return tpDesignationCode(item.code)===code;})||null;
+}
+function tpDesignationExpand(value){
+ var match=tpDesignationFind(value);
+ return match?match.title:tpTrim(value,90);
+}
+function tpDesignationValid(code,title){
+ return /^[a-z0-9][a-z0-9 -]{0,19}$/.test(code)&&title.length>0&&title.length<=90;
+}
+
 function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},salaries:{},commissions:{},payments:{},snapshots:{},updatedAt:null};}
 function tpSample(){
  var first=(data.restaurants&&data.restaurants[0]&&data.restaurants[0].name)||"Pritam Fast Food";
@@ -35,7 +69,7 @@ function tpSample(){
  {id:"demo6",name:"Riya Kulkarni",designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true},
  {id:"demo7",name:"Mukesh",designation:"Parcel Delivery Boy",joined:"2025-03-01",restaurant:first,salary:0,method:"CASH",photo:"",leaveAllowance:0,employeeType:"parcel",commissionGstRate:5,active:true}
  ];
- var s={version:3,employees:emps,periods:{},salaryChanges:[],settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
+ var s={version:3,employees:emps,periods:{},salaryChanges:[],designations:tpDesignationDefaults(),settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
  var months=[tpMonth(0),tpMonth(-1),tpMonth(-2)];
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
@@ -69,6 +103,7 @@ function tpRead(){
    var rule=Number(x.settings.leaveEarnEveryDays);
    if(!Number.isSafeInteger(rule)||rule<1||rule>30)x.settings.leaveEarnEveryDays=7;
    if(!Array.isArray(x.salaryChanges))x.salaryChanges=[];
+   if(!Array.isArray(x.designations))x.designations=tpDesignationDefaults();
    x.employees.forEach(function(emp){
     if(!Number.isSafeInteger(emp.leaveAllowance)||emp.leaveAllowance<0||emp.leaveAllowance>31)emp.leaveAllowance=2;
     if(!tpIsParcel(emp)&&(!Number.isSafeInteger(emp.initialSalary)||emp.initialSalary<=0))emp.initialSalary=emp.salary;
@@ -295,7 +330,7 @@ function tpEmployeeForm(emp){
  if(!options.length)options=["Pritam Fast Food"];
  var pic=tpPhoto!==null?tpPhoto:values.photo;
  var out='<section class="tp-panel tp-form-panel"><div class="tp-header-row"><div><h3>'+(emp?"Edit employee":"Add employee")+'</h3>'+
- '<p>Salaried employees use attendance and salary. Parcel boys use monthly commission instead.</p></div>'+
+ '</div>'+
  '<button type="button" class="tp-x" data-tp-action="cancel-employee" aria-label="Close form">×</button></div>'+
  '<form id="tp-employee-form" class="tp-form" data-employee-type="'+(parcel?"parcel":"salaried")+'">'+
  '<div class="tp-photo-box">'+(pic?'<img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo">':'<div class="tp-photo-placeholder">Photo</div>')+
@@ -305,8 +340,16 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-employee-type">Employee type *</label><select id="tp-employee-type" name="employeeType" '+(emp?'disabled title="Employee type is fixed after creation to keep past payroll consistent"':'')+'>'+
  '<option value="salaried" '+(!parcel?'selected':'')+'>Salaried employee</option>'+
  '<option value="parcel" '+(parcel?'selected':'')+'>Parcel Boy (commission)</option></select>'+
- (emp?'<small>Type is fixed after creation to protect older monthly payroll records.</small>':'')+'</div>'+
- '<div class="tp-field"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" required maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Chef, cashier, delivery boy..."></div>'+
+ ''+'</div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" list="tp-role-suggestions" autocomplete="off" '+(!parcel?'required':'disabled')+' maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Type ek ch or a designation">'+
+ '<small>Enter a shortcut such as <strong>ek ch</strong>, then press Enter or Tab.</small>'+
+ '<datalist id="tp-role-suggestions">'+tpDesignationList().map(function(item){return'<option value="'+tpEscape(item.code)+'" label="'+tpEscape(item.title)+'"></option>';}).join("")+'</datalist></div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-role-pick">Quick select designation</label>'+
+ '<select id="tp-role-pick" '+(parcel?'disabled':'')+'><option value="">Select a saved designation (optional)</option>'+
+ tpDesignationList().slice().sort(function(a,b){return a.title.localeCompare(b.title);}).map(function(item){
+  return'<option value="'+tpEscape(item.code)+'">'+tpEscape(item.code)+' — '+tpEscape(item.title)+'</option>';
+ }).join("")+'</select>'+
+ '<small>Manage shortcuts in Payroll → Designations.</small></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
@@ -316,8 +359,30 @@ function tpEmployeeForm(emp){
  '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
  '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
 
- '<div class="tp-note tp-parcel-only">Parcel Boy: no standard salary, leave money or advance deductions. Enter 30 daily commission amounts or one total in Attendance. Only GST is deducted.</div>'+
+ 
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(emp?"Save employee":"Add employee")+'</button>'+tpButton("cancel-employee","Cancel","tp-light")+'</div></form></section>';
+ return out;
+}
+function tpDesignationsPage(){
+ var rows=tpDesignationList().slice().sort(function(a,b){return a.code.localeCompare(b.code);});
+ var editing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
+ var out='<section class="tp-panel">'+tpToolbar("Designation Shortcuts",
+  'Create your own short codes to fill employee designations quickly.',tpButton("go-employees","Open Employees","tp-light"))+
+ '<div class="tp-note">Example: type <strong>ek ch</strong> in Add Employee → Designation, then press Enter or Tab. It expands to <strong>Chinese Helper</strong>. You can also pick a designation from the dropdown in the employee form. Changes to this list do not rewrite existing employees.</div>'+
+ '<form id="tp-designation-form" class="tp-designation-form">'+
+ '<div class="tp-field"><label for="tp-designation-code">Shortcut code *</label>'+
+ '<input id="tp-designation-code" name="shortcut" maxlength="20" required autocomplete="off" placeholder="e.g. ek ch" value="'+tpEscape(editing?editing.code:"")+'">'+
+ '<small>Letters, numbers, spaces or hyphens (up to 20 characters).</small></div>'+
+ '<div class="tp-field"><label for="tp-designation-title">Full designation *</label>'+
+ '<input id="tp-designation-title" name="title" maxlength="90" required autocomplete="off" placeholder="e.g. Chinese Helper" value="'+tpEscape(editing?editing.title:"")+'"></div>'+
+ '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(editing?"Save Changes":"+ Add Designation")+'</button>'+
+ (editing?tpButton("cancel-designation","Cancel","tp-light"):"")+'</div></form>'+
+ '<div class="tp-designation-count">'+rows.length+' saved shortcuts · Available while adding or editing employees</div>'+
+ tpTable(["Shortcut","Full designation","Actions"],rows.map(function(item){
+  return'<tr><td><code class="tp-shortcode">'+tpEscape(item.code)+'</code></td><td><strong>'+tpEscape(item.title)+'</strong></td>'+
+  '<td><div class="tp-actions">'+tpButton("edit-designation","Edit","tp-light",'data-code="'+tpEscape(item.code)+'"')+
+  tpButton("delete-designation","Delete","tp-danger",'data-code="'+tpEscape(item.code)+'"')+'</div></td></tr>';
+ }))+'</section>';
  return out;
 }
 function tpEmployeesPage(){
@@ -536,6 +601,7 @@ function tpRender(){
  var out=tpTop();
  if(tpTab==="dashboard")out+=tpDashboard();
  else if(tpTab==="employees")out+=tpEmployeesPage();
+ else if(tpTab==="designations")out+=tpDesignationsPage();
  else if(tpTab==="attendance")out+=tpAttendance();
  else if(tpTab==="advances")out+=tpAdvances();
  else if(tpTab==="salary")out+=tpSalary();
@@ -553,7 +619,7 @@ function tpTouch(period){
 }
 function tpSetTab(sec){
  if(!TP_SECTIONS.includes(sec))return;
- tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
+ tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="designations")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
 function tpCsv(name,rows){
@@ -668,6 +734,24 @@ function tpHandleAction(button){
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
  if(act==="go-employees")return tpSetTab("employees");
+ if(act==="go-designations")return tpSetTab("designations");
+ if(act==="edit-designation"){
+  var existing=tpDesignationFind(button.dataset.code);
+  if(!existing)return;
+  tpDesignationEditing=existing.code;draw();return;
+ }
+ if(act==="cancel-designation"){tpDesignationEditing=null;draw();return;}
+ if(act==="delete-designation"){
+  var code=tpDesignationCode(button.dataset.code),match=tpDesignationFind(code);
+  if(!match)return;
+  if(!confirm('Delete shortcut "'+match.code+' → '+match.title+'"? Employee designations already saved will not change.'))return;
+  var previous=JSON.stringify(tpData);
+  tpData.designations=tpDesignationList().filter(function(item){return tpDesignationCode(item.code)!==code;});
+  if(!tpSave()){tpData=JSON.parse(previous);return;}
+  if(tpDesignationEditing===code)tpDesignationEditing=null;
+  draw();showToast("Designation shortcut deleted.");return;
+ }
+
  if(act==="open-commission"){
   var employee=tpEmp(id);
   if(!tpIsParcel(employee)||employee.active===false)return;
@@ -727,25 +811,58 @@ document.addEventListener("click",function(ev){
  if(button){ev.preventDefault();ev.stopImmediatePropagation();return tpHandleAction(button);}
 },true);
 document.addEventListener("change",function(ev){
- if(ev.target.id!=="tp-employee-type")return;
+ var field=ev.target;
+ if(field.id==="tp-role-pick"){
+  var matched=tpDesignationFind(field.value);
+  var role=document.getElementById("tp-role");
+  if(role&&matched){role.value=matched.title;role.focus();}return;
+ }
+ if(field.id==="tp-role"){
+  var resolved=tpDesignationFind(field.value);
+  if(resolved)field.value=resolved.title;
+  return;
+ }
+ if(field.id!=="tp-employee-type")return;
  var form=ev.target.closest("form");
  if(!form)return;
  var parcel=ev.target.value==="parcel";
  form.dataset.employeeType=parcel?"parcel":"salaried";
  form.querySelectorAll(".tp-salaried-only input").forEach(function(input){input.disabled=parcel;input.required=!parcel;});
+ var shortcutPicker=form.querySelector("#tp-role-pick");if(shortcutPicker)shortcutPicker.disabled=parcel;
  form.querySelectorAll(".tp-parcel-only input").forEach(function(input){input.disabled=!parcel;input.required=parcel;});
+},true);
+document.addEventListener("submit",function(ev){
+ if(!ev.target||ev.target.id!=="tp-designation-form")return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target;
+ var code=tpDesignationCode(form.elements.shortcut.value),title=tpTrim(form.elements.title.value,90);
+ if(!tpDesignationValid(code,title)){
+  uxAlert("Enter a shortcut of 1–20 letters/numbers/spaces/hyphens and a designation of up to 90 characters.");return;
+ }
+ var existing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
+ if(tpDesignationEditing&&!existing){uxAlert("Shortcut no longer exists. Reload Designations.");return;}
+ if(tpDesignationList().some(function(item){return tpDesignationCode(item.code)===code&&(!existing||item!==existing)})){
+  uxAlert('Shortcut "'+code+'" is already used. Choose a different code.');return;
+ }
+ var previous=JSON.stringify(tpData);
+ if(existing){existing.code=code;existing.title=title;}
+ else tpData.designations.push({code:code,title:title});
+ if(!tpSave()){tpData=JSON.parse(previous);return;}
+ tpDesignationEditing=null;
+ draw();showToast("Designation shortcut saved.");return;
 },true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-employee-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target;
- var name=tpTrim(form.elements.name.value,90),designation=tpTrim(form.elements.designation.value,90),joined=form.elements.joined.value;
+ var name=tpTrim(form.elements.name.value,90),designation=tpTrim(tpDesignationExpand(form.elements.designation.value),90),joined=form.elements.joined.value;
  var restaurant=tpTrim(form.elements.restaurant.value,90),method=form.elements.method.value,
  employeeType=form.elements.employeeType.value==="parcel"?"parcel":"salaried",parcel=employeeType==="parcel",
  salary=parcel?0:parsePaise(form.elements.salary.value),
  leaveAllowance=parcel?0:Number(form.elements.leaveAllowance.value),
  salaryEffectiveMonth=parcel?tpPeriod:form.elements.salaryEffectiveMonth.value,
  gstRate=Number(form.elements.commissionGstRate.value);
+ if(parcel)designation=tpTrim(tpEditing&&tpEditing!=="new"&&tpEmp(tpEditing)?.designation||"Parcel Boy",90);
  if(parcel&&(!Number.isFinite(gstRate)||gstRate<0||gstRate>100||Math.round(gstRate*100)!==gstRate*100)){
   uxAlert("Enter a GST rate between 0% and 100%, with at most two decimal places.");return;
  }
@@ -771,6 +888,19 @@ document.addEventListener("submit",function(ev){
  }
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved to Payroll Demo on this device.");
+},true);
+document.addEventListener("keydown",function(ev){
+ if(tab!=="payroll"||tpTab!=="employees")return;
+ if(ev.target&&ev.target.id==="tp-role"&&!ev.isComposing&&(ev.key==="Enter"||ev.key==="Tab")){
+  var match=tpDesignationFind(ev.target.value);
+  if(match){
+   ev.target.value=match.title;
+   if(ev.key==="Enter"){ev.preventDefault();ev.stopImmediatePropagation();
+    var next=document.getElementById("tp-joined");
+    if(next)next.focus();
+   }
+  }
+ }
 },true);
 document.addEventListener("change",function(ev){
  var field=ev.target;
@@ -1055,6 +1185,13 @@ css.textContent=String.raw`
 .tp-commission-summary .tp-commission-pay{background:#e6f5ed;border-color:#b9e1cd;color:#116a4b}
 @media(max-width:600px){.tp-commission-summary{grid-template-columns:1fr;gap:7px}.tp-commission-summary>div{display:flex;justify-content:space-between;align-items:center;padding:11px}
 .tp-commission-editor .tp-form-grid{grid-template-columns:1fr}.tp-commission-days{width:100%;max-width:none}}
+
+.tp-designation-form{display:grid;grid-template-columns:minmax(160px,.65fr) minmax(220px,1.4fr) auto;gap:13px;align-items:end;padding:15px;background:#f7faf9;border:1px solid #e1ebe8;border-radius:12px;margin-bottom:17px}
+.tp-designation-form>.tp-actions{padding-bottom:2px}
+.tp-designation-count{font-weight:750;color:#688493;font-size:12px;margin:12px 0}
+.tp-shortcode{display:inline-block;border:1px solid #d7eadf;background:#eaf8f0;color:#0c795e;padding:6px 10px;border-radius:8px;font:800 12px ui-monospace,SFMono-Regular,Consolas,monospace}
+.tp-designation-form input{min-height:43px}
+@media(max-width:800px){.tp-designation-form{grid-template-columns:1fr}}
 .tp-form{display:grid;gap:17px}.tp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
 .tp-field{display:grid;gap:6px;min-width:0}.tp-field label,.tp-photo-box label{font-size:11px;color:#607889;font-weight:800}
 .tp-field input,.tp-field select{width:100%;min-width:0;min-height:43px;border:1px solid #d5e2e8;padding:10px 11px;border-radius:9px;background:white;color:#1e3f4f;font-size:13px}

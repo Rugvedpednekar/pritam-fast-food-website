@@ -20,16 +20,16 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,doCSV:tpDoCSV,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
  return {app,storage,handlers,setInputs};
 }
 
-test("All eight payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
+test("All nine payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
  const {app}=boot();
- const tabs=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
+ const tabs=["dashboard","employees","designations","attendance","advances","salary","sheets","history","settings"];
  for(const tab of tabs){
   app.setPage(tab);
   const page=app.page();
@@ -174,7 +174,7 @@ test("Delete employee removes from active salary and attendance but keeps monthl
 
 test("Enter on salary/attendance saves monthly days and focuses the next employee",()=>{
  const {app,handlers,setInputs}=boot();
- expect(handlers.keydown).toHaveLength(2);
+ expect(handlers.keydown).toHaveLength(3);
  expect(handlers.change?.length).toBeGreaterThan(0);
  let focusId=null,selectedId=null,scrollId=null;
  const ids=["demo1","demo2","demo3"];
@@ -418,4 +418,130 @@ test("Sections & Tables shortcut is absent from Workspace sidebar, while section
  expect(html).not.toContain('navnames.sections="Sections & Tables"');
  expect(html).toContain('function sectionsView()');
  expect(html).toContain('sections:sectionsView');
+});
+
+
+test("Employee forms do not display explanatory salary or type banners",()=>{
+ const {app}=boot();
+ const salaried=app.employeeForm(null);
+ const parcel=app.employeeForm(app.data().employees.find(e=>e.employeeType==="parcel"));
+ for(const form of [salaried,parcel]){
+  expect(form).not.toContain("Defaults to Salaried employee.");
+  expect(form).not.toContain("Salaried: salary ÷ 30 × days worked");
+  expect(form).not.toContain("Salaried employees use attendance and salary.");
+  expect(form).not.toContain("Parcel Boy: no standard salary");
+  expect(form).not.toContain("tp-note tp-salaried-only");
+  expect(form).not.toContain("tp-note tp-parcel-only");
+ }
+});
+test("Designation shortcuts are seeded and expand in the employee form",()=>{
+ const {app}=boot();
+ expect(app.data().designations).toEqual(expect.arrayContaining([
+  {code:"ek ch",title:"Chinese Helper"},
+  {code:"hc",title:"Head Chef"},
+  {code:"kh",title:"Kitchen Helper"}
+ ]));
+ expect(app.designationExpand("EK   CH")).toBe("Chinese Helper");
+ expect(app.designationExpand("Custom Role")).toBe("Custom Role");
+ expect(app.designationValid("ek ch","Chinese Helper")).toBe(true);
+ expect(app.designationValid("@bad","Chinese Helper")).toBe(false);
+ const form=app.employeeForm(null);
+ expect(form).toContain('id="tp-role-pick"');
+ expect(form).toContain('id="tp-role-suggestions"');
+ expect(form).toContain('ek ch — Chinese Helper');
+ app.setPage("designations");
+ const page=app.page();
+ expect(page).toContain('id="tp-designation-form"');
+ expect(page).toContain("Chinese Helper");
+ expect(page).toContain('data-tp-action="edit-designation"');
+ expect(page).toContain('data-tp-action="delete-designation"');
+});
+test("Designation shortcuts can be added, edited and deleted, and persist to local storage",()=>{
+ const {app,handlers,storage}=boot();
+ const save=handlers.submit[0];
+ const event=(code,title)=>({
+  target:{id:"tp-designation-form",elements:{shortcut:{value:code},title:{value:title}}},
+  preventDefault:()=>{},stopImmediatePropagation:()=>{}
+ });
+ save(event("ek nw","New Waiter"));
+ expect(app.designationExpand("EK NW")).toBe("New Waiter");
+ expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
+ app.handle({dataset:{tpAction:"edit-designation",code:"ek nw"}});
+ save(event("ek n","Night Waiter"));
+ expect(app.designationFind("ek nw")).toBe(null);
+ expect(app.designationFind("ek n").title).toBe("Night Waiter");
+ app.handle({dataset:{tpAction:"delete-designation",code:"ek n"}});
+ expect(app.designationFind("ek n")).toBe(null);
+});
+test("A duplicate designation shortcut cannot overwrite an existing shortcut",()=>{
+ const {app,handlers}=boot();
+ handlers.submit[0]({
+  target:{id:"tp-designation-form",elements:{shortcut:{value:"EK CH"},title:{value:"Another Role"}}},
+  preventDefault:()=>{},stopImmediatePropagation:()=>{}
+ });
+ expect(app.designationFind("ek ch").title).toBe("Chinese Helper");
+});
+test("Prior local payroll data migrates to Designations without changing employee titles",()=>{
+ const previous={version:3,employees:[{id:"one",name:"Demo",designation:"Chinese Cook",salary:2400000,method:"CASH",active:true}],periods:{}};
+ const {app}=boot(previous);
+ expect(app.data().employees[0].designation).toBe("Chinese Cook");
+ expect(app.designationExpand("ek ch")).toBe("Chinese Helper");
+ expect(app.data().designations.length).toBeGreaterThan(5);
+});
+test("Sections & Tables has Delete and Restore controls with open-order protection",()=>{
+ expect(html).toContain('data-ad="deleteSection"');
+ expect(html).toContain('data-ad="restoreSection"');
+ expect(html).toContain('if(a==="deleteSection")');
+ expect(html).toContain('if(a==="restoreSection")');
+ expect(html).toContain('Keep at least one active section');
+ expect(html).toContain('status==="open"');
+ expect(html).toContain('section_deleted');
+ expect(html).toContain('section_restored');
+ expect(html).toContain('archivedWithSection');
+ expect(html).toContain('data-route="sections"');
+ expect(html).not.toContain('navnames.sections="Sections & Tables"');
+});
+
+
+test("Parcel Boy selection hides designation entry and shortcut picker without making either required",()=>{
+ const {app}=boot();
+ const salaried=app.employeeForm(null);
+ const parcel=app.employeeForm(app.data().employees.find(e=>e.employeeType==="parcel"));
+ expect(salaried).toContain('<div class="tp-field tp-salaried-only"><label for="tp-role">');
+ expect(salaried).toContain('id="tp-role" name="designation"');
+ expect(salaried).toContain('autocomplete="off" required maxlength="90"');
+ expect(parcel).toContain('data-employee-type="parcel"');
+ expect(parcel).toContain('id="tp-role" name="designation"');
+ expect(parcel).toContain('autocomplete="off" disabled maxlength="90"');
+ expect(parcel).toContain('id="tp-role-pick" disabled');
+ expect(source).toContain('if(parcel)designation=tpTrim(');
+ expect(source).toContain('var shortcutPicker=form.querySelector("#tp-role-pick")');
+});
+
+test("New Parcel Boy automatically saves the Parcel Boy designation without typing it",()=>{
+ const {app,handlers,storage}=boot();
+ const submitted={
+  id:"tp-employee-form",
+  elements:{
+   name:{value:"New Delivery Worker"},
+   designation:{value:""},
+   joined:{value:"2026-11-20"},
+   restaurant:{value:"Pritam Fast Food"},
+   method:{value:"CASH"},
+   employeeType:{value:"parcel"},
+   salary:{value:""},
+   leaveAllowance:{value:""},
+   salaryEffectiveMonth:{value:""},
+   commissionGstRate:{value:"5"}
+  }
+ };
+ handlers.submit[handlers.submit.length-1]({
+  target:submitted,
+  preventDefault:()=>{},
+  stopImmediatePropagation:()=>{}
+ });
+ const created=app.data().employees.find(e=>e.name==="New Delivery Worker");
+ expect(created).toBeDefined();
+ expect(created).toMatchObject({designation:"Parcel Boy",employeeType:"parcel",salary:0,leaveAllowance:0,commissionGstRate:5});
+ expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
 });

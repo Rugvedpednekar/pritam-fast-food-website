@@ -145,7 +145,7 @@ function ensureReferenceModel(){
   if(!data.tables[r.id])data.tables[r.id]=Array.from({length:10},function(_,i){return{id:r.id+"t"+(i+1),name:"T"+(i+1),sectionId:r.id+"s1",active:true}});
   (data.menus[r.id]||[]).forEach(function(m){if(!m.sectionPrices){m.sectionPrices={};data.sections[r.id].forEach(function(s){m.sectionPrices[s.id]=m.price;});}if(!Number.isInteger(m.cgstBP))m.cgstBP=0;if(!Number.isInteger(m.sgstBP))m.sgstBP=0;if(!["inclusive","exclusive"].includes(m.priceType))m.priceType="inclusive";if(m.available===undefined)m.available=true;});
  });
- if(!sectionId||!(data.sections[selected]||[]).some(function(x){return x.id===sectionId;}))sectionId=data.sections[selected][0].id;
+ if(!sectionId||!(data.sections[selected]||[]).some(function(x){return x.id===sectionId&&x.active!==false;})){var firstActive=(data.sections[selected]||[]).find(function(x){return x.active!==false;});sectionId=firstActive?firstActive.id:"";}
 }
 ensureReferenceModel();
 function sectionList(){return(data.sections[selected]||[]).filter(function(x){return x.active;});}
@@ -236,7 +236,37 @@ pos=function(){
  return header("New Bill","Section-specific prices and accurate item totals.",'')+'<div class="split billing-layout"><div><div class="panel" style="margin-bottom:15px"><div class="detail-grid"><div class="field"><label>Price section</label>'+formSelect("adSection",sectionChoices(),sectionId)+'</div><div class="field"><label>Order type</label><input class="input" value="'+e(sec?.kind==="takeaway"?"Takeaway / parcel":"Dine-in")+'" disabled></div><div class="field"><label>Table / Token</label>'+(sec?.kind==="dine-in"?formSelect("adTable",[{value:"",label:"Select table"}].concat(tables.map(function(t){return{value:t.id,label:t.name};})),tableId):'<input class="input" value="Parcel" disabled>')+'</div></div></div><input id="itemSearch" class="search" placeholder="⌕  Search item / code (press /)" value="'+e(query)+'"><div class="chips">'+cats.map(function(c){return'<button class="chip '+(c===category?"active":"")+'" data-cat="'+e(c)+'">'+e(c)+'</button>';}).join("")+'</div><div class="menu-grid">'+available.map(function(m){return'<button class="item" data-ad-add="'+e(m.id)+'"><span class="item-code">#'+e(m.code)+' · '+e(m.category)+'</span><span class="item-name">'+e(m.name)+'</span><span class="item-tax">'+formatTax(branchCfg().gstRateBP||0)+' GST extra'+'</span><span class="item-price">'+money(sectionPrice(m,sectionId))+'</span></button>';}).join("")+'</div>'+(available.length?"":'<div class="empty">No available menu items for this section.</div>')+'</div><div class="panel cart-panel"><div class="table-toolbar"><div><h2 class="panel-title">'+(activeOrderId?"Editing open order":"Current bill")+'</h2><p class="panel-sub">'+e(selSection()?.name||"")+" · "+e(selectedName())+'</p></div><button class="btn small" data-ad="clear">Clear</button></div><div class="bill-lines">'+(cart.length?cart.map(function(x,i){return'<div class="cart-line"><div><div class="cartname">'+e(x.name)+'</div><div class="cartprice">'+money(x.price)+' · '+formatTax(branchCfg().gstRateBP||0)+' GST extra</div></div><div class="qty"><button data-ad-qty="'+i+'" data-dir="-1">−</button><b>'+x.qty+'</b><button data-ad-qty="'+i+'" data-dir="1">＋</button></div><strong>'+money(x.price*x.qty)+'</strong></div>';}).join(""):'<div class="empty bill-empty"><span class="empty-icon">🧾</span>Select menu items to begin</div>')+'</div><div class="divider"></div><div class="detail-grid" style="grid-template-columns:1fr 1fr"><div class="field"><label>Discount type</label>'+formSelect("discountKind",[{value:"none",label:"None"},{value:"percent",label:"Percentage (%)"},{value:"amount",label:"Fixed (₹)"}],discountKind)+'</div><div class="field"><label>Discount value</label><input id="discountValue" class="input" inputmode="decimal" value="'+e(discountValue)+'" '+(discountKind==="none"?"disabled":"")+' placeholder="0.00"></div></div>'+(discountKind!=="none"?'<div class="field" style="margin-top:10px"><label>Discount reason (required)</label><input id="discountReason" class="input" value="'+e(discountReason)+'" placeholder="Reason for discount"></div>':"")+(result?'<div class="totals"><div class="totalline"><span>Subtotal</span><b>'+money(result.subtotal)+'</b></div><div class="totalline"><span>Discount</span><b>−'+money(result.discount)+'</b></div><div class="totalline"><span>CGST</span><b>'+money(result.cgst)+'</b></div><div class="totalline"><span>SGST</span><b>'+money(result.sgst)+'</b></div><div class="totalline"><span>Rounding adjustment</span><b>'+money(result.roundOff)+'</b></div><div class="grand"><span>Grand Total</span><span>'+money(payable)+'</span></div></div>':'<div class="notice">Check discount and item values.</div>')+'<div class="divider"></div><div class="action-buttons"><button class="btn primary" style="flex:2" data-ad="save" '+(!cart.length||!result?"disabled":"")+'>✓ Complete Bill</button></div><p class="help" style="margin-top:14px">Preview mode. Owner approval, GST registration checks and authoritative financial records require a secured backend.</p></div></div>';
 };
 function sectionsView(){
- return header("Sections & Tables","Each branch can have separate pricing and dine-in tables.",'<button class="btn primary" data-ad="newsection">＋ Add Section</button>')+'<div class="panel"><h2 class="panel-title">Sections · '+e(selectedName())+'</h2><p class="panel-sub">A section defines order type, available menu and prices.</p><div class="table-wrap"><table><thead><tr><th>Section</th><th>Kind</th><th>Menu items</th><th>Action</th></tr></thead><tbody>'+sectionList().map(function(s){var n=(data.menus[selected]||[]).filter(function(m){return m.active&&sectionPrice(m,s.id)!==null;}).length;return'<tr><td><strong>'+e(s.name)+'</strong></td><td>'+e(s.kind)+'</td><td>'+n+'</td><td><button class="btn small" data-ad="sectionprice" data-id="'+e(s.id)+'">Item prices</button> <button class="btn small" data-ad="renameSection" data-id="'+e(s.id)+'">Rename</button></td></tr>';}).join("")+'</tbody></table></div></div><div class="panel" style="margin-top:18px"><div class="table-toolbar"><div><h2 class="panel-title">Dining Tables</h2><p class="panel-sub">Tables are branch-specific and belong to a dine-in section.</p></div><button class="btn small primary" data-ad="newtable">＋ Add table</button></div><div class="table-cards">'+(data.tables[selected]||[]).filter(function(t){return t.active;}).map(function(t){var sec=data.sections[selected].find(function(x){return x.id===t.sectionId;});var o=data.orders.find(function(x){return x.restaurantId===selected&&x.tableId===t.id&&x.status==="open";});return'<button class="table-card '+(o?"occupied":"")+'" data-ad="'+(o?"resume":"tableRename")+'" data-id="'+e(o?o.id:t.id)+'"><strong>'+e(t.name)+'</strong><small>'+e(sec?.name||"")+'</small><br><small>'+(o?"● Occupied — resume order":"○ Available — click to rename")+'</small></button>';}).join("")+'</div></div>';
+ var active=sectionList(),archived=(data.sections[selected]||[]).filter(function(s){return s.active===false;});
+ var sectionRows=active.map(function(s){
+  var count=(data.menus[selected]||[]).filter(function(m){return m.active&&sectionPrice(m,s.id)!==null;}).length;
+  var tableCount=(data.tables[selected]||[]).filter(function(t){return t.sectionId===s.id&&t.active!==false;}).length;
+  return'<tr><td><strong>'+e(s.name)+'</strong></td><td>'+e(s.kind)+'</td><td>'+count+'</td>'+
+  '<td><div class="tp-actions" style="display:flex;gap:6px;flex-wrap:wrap">'+
+  '<button class="btn small" data-ad="sectionprice" data-id="'+e(s.id)+'">Item prices</button> '+
+  '<button class="btn small" data-ad="renameSection" data-id="'+e(s.id)+'">Rename</button> '+
+  '<button class="btn small danger" data-ad="deleteSection" data-id="'+e(s.id)+'">Delete</button></div>'+
+  (tableCount?'<small class="sub">'+tableCount+' linked tables</small>':'')+'</td></tr>';
+ }).join("");
+ var archivedPanel=archived.length?'<details class="panel" style="margin-top:18px"><summary style="cursor:pointer;font-weight:750;padding:6px 0">Deleted Sections ('+archived.length+') · Restore</summary>'+
+ '<p class="panel-sub">Deleted sections and their tables are hidden from new orders, but past bills remain unchanged.</p>'+
+ '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Kind</th><th>Action</th></tr></thead><tbody>'+
+ archived.map(function(s){return'<tr><td><strong>'+e(s.name)+'</strong></td><td>'+e(s.kind)+'</td>'+
+ '<td><button class="btn small" data-ad="restoreSection" data-id="'+e(s.id)+'">Restore</button></td></tr>';}).join("")+
+ '</tbody></table></div></details>':"";
+ return header("Sections & Tables","Each branch can have separate pricing and dine-in tables.",'<button class="btn primary" data-ad="newsection">＋ Add Section</button>')+
+ '<div class="panel"><h2 class="panel-title">Sections · '+e(selectedName())+'</h2>'+
+ '<p class="panel-sub">A section defines order type, available menu and prices. Delete hides it from new orders while keeping historical bills.</p>'+
+ '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Kind</th><th>Menu items</th><th>Actions</th></tr></thead><tbody>'+
+ sectionRows+'</tbody></table></div></div>'+archivedPanel+
+ '<div class="panel" style="margin-top:18px"><div class="table-toolbar"><div><h2 class="panel-title">Dining Tables</h2>'+
+ '<p class="panel-sub">Tables are branch-specific and belong to a dine-in section.</p></div>'+
+ '<button class="btn small primary" data-ad="newtable">＋ Add table</button></div><div class="table-cards">'+
+ (data.tables[selected]||[]).filter(function(t){
+  return t.active!==false&&active.some(function(s){return s.id===t.sectionId;});
+ }).map(function(t){var sec=active.find(function(x){return x.id===t.sectionId;});var o=data.orders.find(function(x){return x.restaurantId===selected&&x.tableId===t.id&&x.status==="open";});
+ return'<button class="table-card '+(o?"occupied":"")+'" data-ad="'+(o?"resume":"tableRename")+'" data-id="'+e(o?o.id:t.id)+'">'+
+ '<strong>'+e(t.name)+'</strong><small>'+e(sec?.name||"")+'</small><br><small>'+
+ (o?"● Occupied — resume order":"○ Available — click to rename")+'</small></button>';}).join("")+'</div></div>';
 }
 function floorView(){}
 function renderAdvancedBill(b){
@@ -311,7 +341,7 @@ function saveBranchSettings(){
 settings=function(){
  var cfg=branchCfg();
  var settingsFields=[["legalName","Legal business name"],["address","Restaurant address"],["phone","Phone number"],["gstin","GSTIN (optional for demo)"],["fssai","FSSAI number (optional for demo)"],["invoicePrefix","Invoice prefix (max 5 characters)"],["footer","Receipt footer"]];
- return header("Restaurant Settings","Business information, invoice preferences and data backup.")+'<div class="notice">Protected cloud demo with browser drafts. No MFA, tested automated backups or production audit ledger. Do not use demo receipts for tax filing.</div><div class="grid2"><div class="panel"><h2 class="panel-title">'+e(selectedName())+' · Invoice Configuration</h2><p class="panel-sub">Changes apply to this restaurant only and do not alter saved invoice snapshots.</p><div class="grid2">'+settingsFields.map(function(x){return'<div class="field"><label>'+e(x[1])+'</label><input class="input" id="setting_'+x[0]+'" value="'+e(cfg[x[0]]||"")+'"></div>';}).join("")+'</div><div class="gap"></div><div class="detail-grid"><div class="field"><label>GST rate for all items</label>'+formSelect("setting_gstRateBP",[{value:"0",label:"0% (not configured)"},{value:"500",label:"5% · CGST 2.5% + SGST 2.5%"},{value:"1200",label:"12% · CGST 6% + SGST 6%"},{value:"1800",label:"18% · CGST 9% + SGST 9%"},{value:"2800",label:"28% · CGST 14% + SGST 14%"}],String(cfg.gstRateBP||0))+'</div><div class="field"><label>Receipt paper</label>'+formSelect("setting_receiptWidth",[{value:"80",label:"80mm"},{value:"58",label:"58mm"}],String(cfg.receiptWidth||80))+'</div><label class="checkline"><input id="setting_roundRupee" type="checkbox" '+(cfg.roundRupee?"checked":"")+'> Round invoices to nearest ₹1</label></div><div class="gap"></div><button class="btn primary" data-ad="branchsave">Save Settings</button></div><div class="panel"><h2 class="panel-title">Restaurants</h2>'+data.restaurants.filter(function(r){return r.active!==false;}).map(function(r){return'<div class="metric-row"><span>'+e(r.id.toUpperCase())+' · '+e(r.name)+'</span><button class="btn small" data-action="rename" data-id="'+e(r.id)+'">Rename</button></div>';}).join("")+'<div class="divider"></div><h2 class="panel-title">Backups</h2><p class="sub">Download or restore a JSON snapshot of browser-local preview data.</p><div class="quick"><button class="btn primary" data-action="backup">↓ Backup JSON</button><button class="btn" data-action="restore">↑ Restore JSON</button></div><div class="gap"></div><button class="btn danger" data-action="reset">Reset Demo</button></div></div>';
+ return header("Restaurant Settings","Business information, invoice preferences and data backup.")+'<div class="notice">Protected cloud demo with browser drafts. No MFA, tested automated backups or production audit ledger. Do not use demo receipts for tax filing.</div><div class="grid2"><div class="panel"><h2 class="panel-title">'+e(selectedName())+' · Invoice Configuration</h2><p class="panel-sub">Changes apply to this restaurant only and do not alter saved invoice snapshots.</p><div class="grid2">'+settingsFields.map(function(x){return'<div class="field"><label>'+e(x[1])+'</label><input class="input" id="setting_'+x[0]+'" value="'+e(cfg[x[0]]||"")+'"></div>';}).join("")+'</div><div class="gap"></div><div class="detail-grid"><div class="field"><label>GST rate for all items</label>'+formSelect("setting_gstRateBP",[{value:"0",label:"0% (not configured)"},{value:"500",label:"5% · CGST 2.5% + SGST 2.5%"},{value:"1200",label:"12% · CGST 6% + SGST 6%"},{value:"1800",label:"18% · CGST 9% + SGST 9%"},{value:"2800",label:"28% · CGST 14% + SGST 14%"}],String(cfg.gstRateBP||0))+'</div><div class="field"><label>Receipt paper</label>'+formSelect("setting_receiptWidth",[{value:"80",label:"80mm"},{value:"58",label:"58mm"}],String(cfg.receiptWidth||80))+'</div><label class="checkline"><input id="setting_roundRupee" type="checkbox" '+(cfg.roundRupee?"checked":"")+'> Round invoices to nearest ₹1</label></div><div class="gap"></div><button class="btn primary" data-ad="branchsave">Save Settings</button></div><div class="panel"><h2 class="panel-title">Restaurants</h2>'+data.restaurants.filter(function(r){return r.active!==false;}).map(function(r){return'<div class="metric-row"><span>'+e(r.id.toUpperCase())+' · '+e(r.name)+'</span><button class="btn small" data-action="rename" data-id="'+e(r.id)+'">Rename</button></div>';}).join("")+'<div class="divider"></div><h2 class="panel-title">Sections & Tables</h2><p class="sub">Manage pricing sections and tables for this restaurant.</p><button class="btn" data-route="sections">Manage Sections & Tables</button>'+'<div class="divider"></div><h2 class="panel-title">Backups</h2><p class="sub">Download or restore a JSON snapshot of browser-local preview data.</p><div class="quick"><button class="btn primary" data-action="backup">↓ Backup JSON</button><button class="btn" data-action="restore">↑ Restore JSON</button></div><div class="gap"></div><button class="btn danger" data-action="reset">Reset Demo</button></div></div>';
 };
 
 function customerView(){}
@@ -365,6 +395,35 @@ document.addEventListener("click",async function(evt){
    if(data.sections[selected].some(function(s){return s.name.toLowerCase()===name.trim().toLowerCase();}))throw Error("Section name already exists");
    var sec={id:selected+"s"+data.seq++,name:name.trim().slice(0,50),kind:kind,active:true};
    data.sections[selected].push(sec);(data.menus[selected]||[]).forEach(function(m){m.sectionPrices[sec.id]=m.price;});persist();draw();return;
+  }
+  if(a==="deleteSection"){
+   var section=(data.sections[selected]||[]).find(function(x){return x.id===id&&x.active!==false;});
+   if(!section)return;
+   if(sectionList().length<=1)throw Error("Keep at least one active section in this restaurant.");
+   if(data.orders.some(function(o){return o.restaurantId===selected&&o.sectionId===id&&o.status==="open";}))
+     throw Error("Complete or void open orders in "+section.name+" before deleting this section.");
+   if(sectionId===id&&(cart.length||activeOrderId))
+     throw Error("Finish or clear the current bill in "+section.name+" before deleting this section.");
+   var linked=(data.tables[selected]||[]).filter(function(t){return t.sectionId===id&&t.active!==false;});
+   if(!await uxConfirm('Delete section "'+section.name+'" and hide its '+linked.length+' linked tables? Historical invoices and section prices will be preserved. You can restore the section later.'))return;
+   var backup=JSON.stringify(data);
+   section.active=false;section.archivedAt=new Date().toISOString();
+   linked.forEach(function(t){t.active=false;t.archivedWithSection=true;});
+   data.audit.push({action:"section_deleted",restaurantId:selected,sectionId:id,sectionName:section.name,at:section.archivedAt});
+   if(!saveTheData(backup))return;
+   if(sectionId===id){sectionId=sectionList()[0].id;tableId="";cart=[];activeOrderId="";}
+   draw();showToast("Section deleted. Past bills were preserved.");return;
+  }
+  if(a==="restoreSection"){
+   var hidden=(data.sections[selected]||[]).find(function(x){return x.id===id&&x.active===false;});
+   if(!hidden)return;
+   var old=JSON.stringify(data);
+   hidden.active=true;delete hidden.archivedAt;
+   (data.tables[selected]||[]).filter(function(t){return t.sectionId===id&&t.archivedWithSection===true;})
+     .forEach(function(t){t.active=true;delete t.archivedWithSection;});
+   data.audit.push({action:"section_restored",restaurantId:selected,sectionId:id,at:new Date().toISOString()});
+   if(!saveTheData(old))return;
+   draw();showToast("Section restored.");return;
   }
   if(a==="renameSection"){
    var sec2=data.sections[selected].find(function(x){return x.id===id;});if(!sec2)return;

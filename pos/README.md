@@ -71,6 +71,15 @@ Payroll is a **browser-local demonstration** (no shared database or production p
 - The main Payment Sheets page also uses these numeric monthly IDs and the same ascending ordering for CASH and CHEQUE separately.
 - Deleting an employee hides them from active Payroll/Attendance without erasing earlier monthly data; Restore is available under Deleted Employees.
 
+### Payroll designation shortcuts
+
+The **Payroll → Designations** tab lets restaurant owners maintain reusable full designations and short codes (for example `ek ch` → `Chinese Helper`, `kh` → `Kitchen Helper`, `hc` → `Head Chef`). The defaults are supplied with fresh demo data and imported into saved browser payroll data that predates this feature.
+
+- Add, edit or delete a shortcut; codes are case-insensitive and duplicates are blocked. Removing a shortcut does not change existing employee designations.
+- In **Payroll → Employees → Add/Edit**, enter the shortcut in the **Designation** field and press **Tab** or **Enter**, or use **Quick select designation**. Full designations are saved on the employee record.
+- When the employee type is **Parcel Boy**, the Designation field and shortcut picker are hidden and disabled. New Parcel Boys automatically receive the **Parcel Boy** designation; editing a pre-existing Parcel Boy preserves their existing saved designation.
+- Designation shortcuts are browser-local along with the rest of the payroll demo.
+
 ### Salaried employees and Parcel Boys (commission)
 
 Under **Payroll → Employees → Add Employee**, choose **Salaried employee** (default) or **Parcel Boy (commission)**. Salaried employees keep the existing 30-day working salary, earned leave, advance, and fines calculation. Parcel Boys have no fixed salary or leave pay: the only amount subtracted from their commission is the GST percentage shown in their profile (default **5%**, editable when adding/editing the employee or in that month's commission editor). Employee type is locked after creation to protect prior monthly records.
@@ -118,3 +127,9 @@ On the POS floor screen the red **+ Zomato** button runs the existing New Parcel
 
 Delete Full Menu appears next to the Categories filter in Menu Management. It is red, restaurant-scoped, protected by confirmation, and does not delete historical invoices.
 
+
+## Sections & Tables
+
+The **Sections & Tables** shortcut remains absent from the Workspace sidebar. To access this page, open **Settings & Backup → Manage Sections & Tables**.
+
+Each section has a confirmed **Delete** action alongside Rename. Deletion archives the section and hides its linked tables rather than erasing historical bills or menu prices; **Deleted Sections → Restore** reactivates them. Deleting the final active section, a section with an open order, or a section containing an unsaved bill is blocked. The section changes continue using POS cloud sync.
