@@ -67,7 +67,7 @@ function selectedName(){return data.restaurants.find(function(r){return r.id===s
 function billRows(scope){return data.bills.filter(function(b){return scope==="all"||b.restaurantId===scope;});}
 function dayBills(scope,date){return billRows(scope).filter(function(b){return b.day===date;});}
 function stats(){return '';}
-function closed(id,day){return data.closings.some(function(c){return c.restaurantId===id&&c.day===day;});}
+function closed(id,day){return data.closings.some(function(c){return c.restaurantId===id&&c.day===day&&!c.automatic;});}
 function showToast(msg){var x=document.getElementById("toast");x.textContent=msg;x.classList.add("show");window.clearTimeout(showToast.t);showToast.t=setTimeout(function(){x.classList.remove("show")},3400);}
 function header(title,desc,actions){return '<div class="heading"><div><div class="eyebrow">'+e(selectedName())+' • '+e(today())+'</div><h1>'+e(title)+'</h1><div class="sub">'+e(desc)+'</div></div><div class="quick">'+(actions||"")+'</div></div>';}
 function metric(label,value,foot,ico){return '<div class="card"><div class="card-ico">'+ico+'</div><div class="card-label">'+e(label)+'</div><div class="card-value">'+value+'</div><div class="card-foot">'+e(foot)+'</div></div>';}
@@ -241,12 +241,12 @@ function sectionsView(){
 }
 function floorView(){}
 function renderAdvancedBill(b){
- return '<tr><td><strong>'+e(pretty(b.businessDate||b.day))+'</strong><div class="sub">'+e((b.time||"").slice(11,16))+'</div></td><td>'+e(b.sectionName||b.type)+(b.tableName?' · '+e(b.tableName):'')+'</td><td><strong>'+money(b.total)+'</strong></td><td>'+statusPill(b)+'</td><td><button class="btn small" data-ad="print" data-id="'+e(b.id)+'">Print</button> '+(b.status==="paid"&&!isLockedBill(b)?'<button class="btn small danger" data-ad="cancel" data-id="'+e(b.id)+'">Cancel</button>':"")+'</td></tr>';
+ return '<tr><td><strong>'+e(pretty(b.businessDate||b.day))+'</strong><div class="sub">'+e((b.time||"").slice(11,16))+'</div></td><td>'+e(b.sectionName||b.type)+'</td><td><strong>'+money(b.total)+'</strong></td><td>'+statusPill(b)+'</td><td><button class="btn small" data-ad="print" data-id="'+e(b.id)+'">Print</button> '+(b.status==="paid"&&!isLockedBill(b)?'<button class="btn small danger" data-ad="cancel" data-id="'+e(b.id)+'">Cancel</button>':"")+'</td></tr>';
 }
 smallTable=function(bs,limit){
  var rows=bs.slice().sort(function(a,b){return b.time.localeCompare(a.time)}).slice(0,limit||100);
  if(!rows.length)return'<div class="empty"><span class="empty-icon">▤</span>No bills yet. Start a new bill.</div>';
- return'<div class="table-wrap"><table><thead><tr><th>Date</th><th>Section / Table</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'+rows.map(renderAdvancedBill).join("")+'</tbody></table></div>';
+ return'<div class="table-wrap"><table><thead><tr><th>Date</th><th>Section</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'+rows.map(renderAdvancedBill).join("")+'</tbody></table></div>';
 };
 function showBillPreview(){
  try{var p=calculatePreview();return money(p.grand);}catch(err){return "Calculation error";}
@@ -427,7 +427,7 @@ stats=function(rows){
 
 var generatedInvoiceNumber=newInvoiceNumber;
 newInvoiceNumber=function(day){
- var cfg=branchCfg(),fy=fyOf(dateIN(new Date())),key=selected+":"+fy;
+ var cfg=branchCfg(),fy=fyOf(day.date||dateIN(new Date())),key=selected+":"+fy;
  var prefix=(cfg.invoicePrefix||"INV").replace(/[^A-Za-z0-9]/g,"").slice(0,5).toUpperCase();
  var used=new Set(data.bills.filter(function(b){return b.restaurantId===selected;}).map(function(b){return b.number;}));
  var seq=Number(data.invoiceCounters[key]||0);

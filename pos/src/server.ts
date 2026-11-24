@@ -1,4 +1,5 @@
-const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
+import {closeDueBusinessDays} from "./day-end";
+const htmlTemplate = await Bun.file("new URL("./client/index.html", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
 const employeeExtension=Bun.env.EMPLOYEE_EXTENSION_JS;
@@ -64,6 +65,11 @@ const twNoPaymentFields=await Bun.file(new URL("./client/no-payment-type.js",imp
 const twNoPaymentBoot="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(twNoPaymentBoot))throw Error("No-payment UI injection point missing");
 html=html.replace(twNoPaymentBoot,twNoPaymentFields+"\n"+twNoPaymentBoot);
+// GitHub-managed shift Settings UI, bill-save synchronization, and Bills actions.
+const autoDayEndClient=await Bun.file(new URL("./client/auto-day-end.js",import.meta.url)).text();
+const autoDayEndBoot="startupFinished=true;\ncloudStart();\n})();";
+if(!html.includes(autoDayEndBoot))throw Error("Auto day-end insertion point not found");
+html=html.replace(autoDayEndBoot,autoDayEndClient+"\n"+autoDayEndBoot);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
@@ -83,6 +89,34 @@ function same(a,b){let x=Buffer.from(a),y=Buffer.from(b);return x.length===y.len
 function auth(req){let str=(req.headers.get("cookie")||"").split(";").map(x=>x.trim()).find(x=>x.startsWith(cookie+"="))?.slice(cookie.length+1)||"";let [exp,sig]=str.split(".");return !!exp&&!!sig&&/^\d{13}$/.test(exp)&&Number(exp)>Date.now()&&same(sig,sign(exp));}
 function origin(req){try{return new URL(req.headers.get("origin")||"").host===(req.headers.get("host")||new URL(req.url).host)}catch{return false;}}
 function res(body,status=200,extra={}){return new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json","cache-control":"no-store",...extra}})}
+
+/* Time-driven automatic close of configured business days.
+   Uses optimistic version-checked snapshot updates to protect concurrent edits. */
+async function runAutomaticDayEnd() {
+  await ready();
+  for (let attempt=0;attempt<5;attempt++) {
+    const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");
+    if (!rows.length) return;
+    const current=rows[0],state=JSON.parse(current.payload);
+    const due=closeDueBusinessDays(state,new Date());
+    if (!due.length) return;
+    const saved=await db.unsafe(
+      "UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",
+      [JSON.stringify(state),Number(current.version)]
+    );
+    if (saved.length) {
+      console.log("Auto business day ended for "+due.join(", "));
+      return;
+    }
+  }
+  throw Error("Automatic day-end postponed due to concurrent updates.");
+}
+const automaticDayEndTimer=setInterval(() => {
+  runAutomaticDayEnd().catch(err => console.error("Auto day-end retry pending:",err.message));
+},30000);
+automaticDayEndTimer.unref?.();
+runAutomaticDayEnd().catch(err => console.error("Auto day-end startup:",err.message));
+
 const failures=new Map();
 Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  const path=new URL(req.url).pathname;
@@ -102,14 +136,14 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  }
  if(!auth(req))return res({error:"Authentication required"},401);
  if(path==="/api/logout"&&req.method==="POST"){if(!origin(req))return res({error:"Origin rejected"},403);return res({ok:true},200,{"set-cookie":cookie+"=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"});}
- if(path==="/api/state"&&req.method==="GET"){try{await ready();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");return res(rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
+ if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");return res(rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
  if(path==="/api/state"&&req.method==="PUT"){
   if(!origin(req))return res({error:"Origin rejected"},403);
   const text=await req.text();if(text.length>2500000)return res({error:"Payload too large"},413);
   let b;try{b=JSON.parse(text)}catch{return res({error:"Invalid JSON"},400)}
   let v=b?.version,state=b?.state;
   if(!Number.isSafeInteger(v)||v<0||state?.schema!==1||!Array.isArray(state.restaurants)||state.restaurants.length!==5||!Array.isArray(state.bills)||!Array.isArray(state.employees)||!Array.isArray(state.closings)||!state.menus||!Number.isSafeInteger(state.seq))return res({error:"Invalid demo schema"},422);
-  try{await ready();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
+  try{await ready();await runAutomaticDayEnd();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
   else rows=await db.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",[JSON.stringify(state),v]);
   return rows.length?res({ok:true,version:Number(rows[0].version)}):res({error:"Concurrent update detected. Reload cloud data.",code:"VERSION_CONFLICT"},409)
   }catch(e){console.error("write",e.message);return res({error:"Database save failed"},503)}
