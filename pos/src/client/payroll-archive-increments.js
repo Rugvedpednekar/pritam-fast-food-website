@@ -278,6 +278,36 @@ function tpArcIncrementPage(){
 var tpArcSettings=tpSettings;
 tpSettings=function(){return tpArcSettings();};
 document.addEventListener("submit",function(ev){
+ if(!ev.target||ev.target.id!=="tp-profile-salary-form")return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target,emp=tpEmp(form.dataset.id),today=tpToday(),month=today.slice(0,7),
+  input=form.querySelector("#tp-profile-new-salary"),nextSalary=input&&parsePaise(String(input.value).trim());
+ if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left||tpIsParcel(emp))
+  return uxAlert("Choose an active salaried employee in the selected restaurant.");
+ if(today<emp.joined)return uxAlert("Salary changes must be on or after the employment start date.");
+ if(!Number.isSafeInteger(nextSalary)||nextSalary<=0||nextSalary>1000000000)
+  return uxAlert("Enter a valid new monthly salary (₹0.01 to ₹1,00,00,000).");
+ var previous=tpMonthSalary(emp,month),period=tpGetPeriod(month);
+ if(nextSalary===previous)return uxAlert("Enter an amount different from the current salary.");
+ if(period.finalized===true||period.locked===true)
+  return uxAlert("This payroll month is locked or finalized and salary cannot be changed.");
+ if(!confirm("Change "+emp.name+"'s salary from "+tpMoney(previous)+" to "+tpMoney(nextSalary)+
+  " effective "+today+"? Previous months and salary history will remain unchanged."))return;
+ var backup=JSON.stringify(tpData);
+ try{
+  tpSetMonthSalary(emp,month,nextSalary,"Salary Revision");
+  var change=tpData.salaryChanges[tpData.salaryChanges.length-1];
+  change.effectiveDate=today;change.reason="Updated from Employee Profile";
+  change.employmentPeriodId=emp.id;change.restaurant=emp.restaurant;
+  change.designation=emp.designation;
+  var days=tpInputDays(period.days[emp.id]);
+  if(days!==null){var calc=tpCompute(emp,period,days,month);if(calc)period.snapshots[emp.id]=tpSnapshot(emp,calc,days);}
+  period.updatedAt=tpStamp();
+  if(!tpSave()){tpData=JSON.parse(backup);return;}
+  tpTab="employees";tpViewing=emp.id;draw();showToast("New monthly salary saved in employee profile.");
+ }catch(error){tpData=JSON.parse(backup);uxAlert(error.message||"Could not save salary.");}
+},true);
+document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-increment-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target,emp=tpEmp(form.querySelector("#tp-inc-employee").value),date=form.querySelector("#tp-inc-date").value;
@@ -371,7 +401,7 @@ function tpArcDownloadIncrements(){
  }catch(err){uxAlert("Could not create increment PDF: "+(err.message||"Unknown error"));}
 }
 var arcCSS=document.createElement("style");
-arcCSS.textContent=".tp-archive-form{border-color:#d4c9a0}.tp-archive-form .tp-note{max-width:850px}#tp-increment-settings{scroll-margin-top:20px}#tp-increment-settings .tp-form{margin:15px 0 20px}.tp-arc-pdf-filters{margin-top:22px;border-top:1px solid #e2ebed;padding-top:18px}.tp-archive-form .tp-form-grid{max-width:900px}";
+arcCSS.textContent=".tp-profile-salary{margin:18px 0;padding:15px;background:#f5faf8;border:1px solid #d7e8df;border-radius:12px}.tp-profile-salary .tp-field{max-width:360px}.tp-profile-salary h3{margin:0 0 8px} .tp-archive-form{border-color:#d4c9a0}.tp-archive-form .tp-note{max-width:850px}#tp-increment-settings{scroll-margin-top:20px}#tp-increment-settings .tp-form{margin:15px 0 20px}.tp-arc-pdf-filters{margin-top:22px;border-top:1px solid #e2ebed;padding-top:18px}.tp-archive-form .tp-form-grid{max-width:900px}";
 document.head.appendChild(arcCSS);
 
 /* Departure types and final salary settlements (archived independently from active payroll). */
