@@ -74,7 +74,7 @@ function tpSample(){
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
   emps.forEach(function(emp,i){
-   p.serials[emp.id]=emp.restaurant===second?i-3:i<4?i+1:5;
+   p.serials[emp.id]=i<4?i+1:i<6?i-3:5;
    if(tpIsParcel(emp)){
     if(idx===0)p.commissions[emp.id]={mode:"daily",
      daily:[1000,1500,1300,1200,1202].concat(Array(25).fill(1000)).map(function(x){return x*100;}),
