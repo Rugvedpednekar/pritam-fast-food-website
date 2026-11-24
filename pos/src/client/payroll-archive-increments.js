@@ -94,7 +94,9 @@ tpEmployeeProfile=function(emp){
     '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter the new salary"></div>'+
     '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>');
  }
- html=html.replace(close,extra+close);
+ var actionsEnd=close+'</div>';
+ if(html.includes(actionsEnd))html=html.replace(actionsEnd,actionsEnd+extra);
+ else html=html.replace(close,close+extra);
  var pos=html.lastIndexOf("</section>");
  return pos>=0?html.slice(0,pos)+tpArcHistory(emp)+html.slice(pos):html+tpArcHistory(emp);
 };
