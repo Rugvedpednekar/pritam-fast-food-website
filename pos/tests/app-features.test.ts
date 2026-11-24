@@ -30,9 +30,10 @@ function boot(savedData){
  return {app,storage,handlers,setInputs};
 }
 
-test("All eight payroll sections render without Paid checkboxes or scheduled 5th/15th labels",()=>{
+test("Payroll sections render with Payment Sheets instead of a separate Salary Calculator",()=>{
  const {app}=boot();
- const tabs=["dashboard","employees","attendance","advances","salary","sheets","history","settings"];
+ const tabs=["dashboard","employees","attendance","advances","sheets","history","settings"];
+ expect(source).not.toContain('data-tp-section="salary"');
  for(const tab of tabs){
   app.setPage(tab);
   const page=app.page();
@@ -147,8 +148,10 @@ test("Attendance uses the exact salary days for the selected month, not extra le
  const period=app.data().periods["2026-11"];
  expect(period.days.demo1).toBe("26");
  period.days.demo1="27.5";
- app.setPage("salary");
- expect(app.page()).toContain('value="27.5"');
+ app.setPage("sheets");
+ app.handle({dataset:{tpAction:"view-calculation",id:"demo1"}});
+ expect(app.page()).toContain("27.5");
+ expect(app.page()).toContain("View Calculation");
  expect(app.rows()[0].calc.days).toBe(27.5);
  app.setPage("attendance");
  expect(app.page()).toContain('value="27.5"');
@@ -175,7 +178,7 @@ test("Delete employee removes from active salary and attendance but keeps monthl
  expect(app.data().employees[0].active).toBe(true);
 });
 
-test("Enter on salary/attendance saves monthly days and focuses the next employee",()=>{
+test("Enter on attendance saves monthly days and focuses the next employee",()=>{
  const {app,handlers,setInputs}=boot();
  expect(handlers.keydown).toHaveLength(3);
  expect(handlers.change?.length).toBeGreaterThan(0);
@@ -190,7 +193,7 @@ test("Enter on salary/attendance saves monthly days and focuses the next employe
   scrollIntoView:()=>{scrollId=id;}
  }));
  setInputs(fields);
- for(const section of ["attendance","salary"]){
+ for(const section of ["attendance"]){
   app.setPage(section);focusId=null;selectedId=null;scrollId=null;
   let prevented=false;
   handlers.keydown.find(fn=>fn.toString().includes('nextField="days"'))({
@@ -244,11 +247,11 @@ test("Enter on Advances saves current amount and moves directly to next employee
  expect(focusId).toBe(null);
 });
 
-test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance and Salary",()=>{
+test("Monthly IDs support values over 100 and are unique only within each restaurant",()=>{
  const {app,handlers}=boot();
  const p=app.period("2026-11");
  p.serials.demo1=99;p.serials.demo2=3;p.serials.demo3=2;
- expect(app.rows().slice(0,3).map(r=>r.emp.id)).toEqual(["demo3","demo2","demo4"]);
+ expect(app.rows().slice(0,3).map(r=>r.emp.id)).toEqual(["demo5","demo3","demo6"]);
  app.setPage("attendance");
  const page=app.page();
  expect(page).toContain('id="tp-id-filter"');
@@ -257,7 +260,8 @@ test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance a
  expect(page).toContain('data-tp-field="days"');
  expect(app.serial("1")).toBe(1);
  expect(app.serial("100")).toBe(100);
- expect(app.serial("101")).toBe(null);
+ expect(app.serial("101")).toBe(101);
+ expect(app.serial("10000")).toBe(10000);
  expect(app.serial("0")).toBe(null);
  let warning="";
  const fake={dataset:{tpField:"serial",id:"demo1"},value:"4"};
@@ -268,7 +272,7 @@ test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance a
  expect(p.serials.demo1).toBe(previous);
  // ID 99 in November is not a permanent employee ID or October's serial.
  expect(app.period("2026-10").serials.demo1).toBe(1);
- app.setPage("salary");
+ app.setPage("sheets");
  expect(app.page()).toContain("Monthly ID");
 });
 
@@ -321,7 +325,7 @@ test("Cash and cheque lists remain separated and sorted by monthly ID",()=>{
  const rows=app.rows();
  const cash=rows.filter(r=>r.emp.method==="CASH");
  const cheque=rows.filter(r=>r.emp.method==="CHEQUE");
- expect(cash.map(r=>r.serial)).toEqual([1,5,6,7,98]);
+ expect(cash.map(r=>r.serial)).toEqual([1,2,5,5,98]);
  expect(cheque.map(r=>r.serial)).toEqual([2,4]);
  app.setPage("sheets");
  const html=app.page();
@@ -360,7 +364,7 @@ test("Adding employees defaults to Salaried, with a Parcel Boy and editable GST 
  expect(parcel).toContain('data-employee-type="parcel"');
  expect(parcel).toContain('value="5"');
 });
-test("Salaried attendance and salary Enter sequence excludes parcel boys until explicitly opened",()=>{
+test("Salaried attendance excludes parcel boys until explicitly opened and payment sheets show their breakdown",()=>{
  const {app}=boot();
  app.setPage("attendance");const attendance=app.page();
  expect(attendance).toContain("Parcel Boys · Commission");
@@ -375,9 +379,10 @@ test("Salaried attendance and salary Enter sequence excludes parcel boys until e
  expect(expanded).toContain("Payable amount");
  expect(expanded).toContain('id="tp-commission-mode"');
  expect(expanded).not.toContain('data-tp-field="commissionTotal"');
- app.setPage("salary");
- expect((app.page().match(/data-tp-field="days"/g)||[])).toHaveLength(6);
- expect(app.page()).toContain("Parcel Boy Commissions");
+ app.setPage("sheets");
+ expect((app.page().match(/data-tp-field="days"/g)||[])).toHaveLength(0);
+ expect(app.page()).toContain("Parcel Boy Payment Sheet");
+ expect(app.page()).toContain("View Calculation");
 });
 test("Switching between daily and one-total commission changes only the calculation method",()=>{
  const {app}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh"),p=app.period("2026-11");
@@ -725,4 +730,50 @@ test("Editing a shortcut stays in Settings and saves user-created codes",()=>{
  const page=app.page();
  expect(page).toContain("Veg Hall Assistant");
  expect(page).toContain('id="tp-designation-form"');
+});
+
+
+test("A monthly ID can be shared between restaurants but not duplicated inside one restaurant",()=>{
+ const {app,handlers}=boot();
+ app.setPage("attendance");
+ const p=app.period("2026-11"),change=handlers.change[handlers.change.length-1];
+ // Samples intentionally start each restaurant at monthly ID 1.
+ expect(p.serials.demo1).toBe(1);
+ expect(p.serials.demo5).toBe(1);
+ // Restaurant 1 can use 150; Restaurant 2 may also use 150.
+ change({target:{dataset:{tpField:"serial",id:"demo1"},value:"150"}});
+ change({target:{dataset:{tpField:"serial",id:"demo5"},value:"150"}});
+ expect(p.serials.demo1).toBe(150);
+ expect(p.serials.demo5).toBe(150);
+ // Another employee in Restaurant 1 cannot use the same 150.
+ change({target:{dataset:{tpField:"serial",id:"demo2"},value:"150"}});
+ expect(p.serials.demo2).not.toBe(150);
+ // The parcel boy in Restaurant 1 must follow the same uniqueness rule.
+ change({target:{dataset:{tpField:"parcelSerial",id:"demo7"},value:"150"}});
+ expect(p.serials.demo7).not.toBe(150);
+ change({target:{dataset:{tpField:"parcelSerial",id:"demo7"},value:"101"}});
+ expect(p.serials.demo7).toBe(101);
+});
+
+test("Payment Sheets expand employee salary and commission calculations without a second salary entry",()=>{
+ const {app}=boot();
+ app.setPage("sheets");
+ let html=app.page();
+ expect(html).toContain('data-tp-action="view-calculation"');
+ expect(html).not.toContain('data-tp-field="days"');
+ app.handle({dataset:{tpAction:"view-calculation",id:"demo1"}});
+ html=app.page();
+ expect(html).toContain("Calculation for Aarav Patil");
+ expect(html).toContain("Working salary");
+ expect(html).toContain("Leave pay");
+ expect(html).toContain("Advance deducted");
+ expect(html).toContain("Net salary payable");
+ expect(html).toContain("Hide Calculation");
+ app.handle({dataset:{tpAction:"view-calculation",id:"demo1"}});
+ expect(app.page()).not.toContain("Calculation for Aarav Patil");
+ app.handle({dataset:{tpAction:"view-calculation",id:"demo7"}});
+ html=app.page();
+ expect(html).toContain("Calculation for Mukesh");
+ expect(html).toContain("GST deducted");
+ expect(html).toContain("Net payable");
 });
