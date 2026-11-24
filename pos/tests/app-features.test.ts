@@ -207,6 +207,43 @@ test("Enter on salary/attendance saves monthly days and focuses the next employe
 });
 
 
+test("Enter on Advances saves current amount and moves directly to next employee Advance",()=>{
+ const {app,handlers,setInputs}=boot();
+ app.setPage("advances");
+ const html=app.page();
+ expect(html).toContain('data-tp-field="advance"');
+ expect(html).toContain('enterkeyhint="next"');
+ let focusId=null,selectedId=null,scrollId=null,prevented=false;
+ const inputs=["demo1","demo2","demo3"].map(id=>({
+  value:id==="demo1"?"1234.50":"0.00",
+  dataset:{tpField:"advance",id},
+  matches:selector=>selector.includes('data-tp-field="advance"'),
+  dispatchEvent:function(){handlers.change[handlers.change.length-1]({target:this});return true;},
+  focus:()=>{focusId=id;},select:()=>{selectedId=id;},
+  scrollIntoView:()=>{scrollId=id;}
+ }));
+ setInputs(inputs);
+ const key=handlers.keydown.find(fn=>fn.toString().includes('nextField="days"'));
+ key({target:inputs[0],key:"Enter",isComposing:false,
+  preventDefault:()=>{prevented=true;},stopImmediatePropagation:()=>{}});
+ expect(prevented).toBe(true);
+ expect(app.period("2026-11").advances.demo1.amount).toBe(123450);
+ expect(focusId).toBe("demo2");
+ expect(selectedId).toBe("demo2");
+ expect(scrollId).toBe("demo2");
+ inputs[1].value="250";
+ key({target:inputs[1],key:"Enter",isComposing:false,
+  preventDefault:()=>{},stopImmediatePropagation:()=>{}});
+ expect(app.period("2026-11").advances.demo2.amount).toBe(25000);
+ expect(focusId).toBe("demo3");
+ inputs[2].value="0";
+ focusId=null;
+ key({target:inputs[2],key:"Enter",isComposing:false,
+  preventDefault:()=>{},stopImmediatePropagation:()=>{}});
+ expect(app.period("2026-11").advances.demo3.amount).toBe(0);
+ expect(focusId).toBe(null);
+});
+
 test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance and Salary",()=>{
  const {app,handlers}=boot();
  const p=app.period("2026-11");
@@ -216,7 +253,8 @@ test("Month-specific ID is 1–100, unique, and sorted ascending in Attendance a
  const page=app.page();
  expect(page).toContain('id="tp-id-filter"');
  expect(page).toContain('data-tp-field="serial"');
- expect(page).toContain('data-tp-field="monthlySalary"');
+ expect(page).not.toContain('data-tp-field="monthlySalary"');
+ expect(page).toContain('data-tp-field="days"');
  expect(app.serial("1")).toBe(1);
  expect(app.serial("100")).toBe(100);
  expect(app.serial("101")).toBe(null);
