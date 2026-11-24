@@ -190,7 +190,7 @@ test("Enter on salary/attendance saves monthly days and focuses the next employe
  for(const section of ["attendance","salary"]){
   app.setPage(section);focusId=null;selectedId=null;scrollId=null;
   let prevented=false;
-  handlers.keydown[0]({
+  handlers.keydown.find(fn=>fn.toString().includes('nextField="days"'))({
    target:fields[0],key:"Enter",isComposing:false,
    preventDefault:()=>{prevented=true;},stopImmediatePropagation:()=>{}
   });
@@ -520,6 +520,7 @@ test("Parcel Boy selection hides designation entry and shortcut picker without m
 
 test("New Parcel Boy automatically saves the Parcel Boy designation without typing it",()=>{
  const {app,handlers,storage}=boot();
+ app.handle({dataset:{tpAction:"new-employee"}});
  const submitted={
   id:"tp-employee-form",
   elements:{
