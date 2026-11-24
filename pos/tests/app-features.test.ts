@@ -777,3 +777,51 @@ test("Payment Sheets expand employee salary and commission calculations without 
  expect(html).toContain("GST deducted");
  expect(html).toContain("Net payable");
 });
+
+
+test("Aadhaar identifiers are masked and only last 4 digits persist in browser-local payroll",()=>{
+ const {app,handlers,storage}=boot();
+ expect(app.employeeForm(null)).toContain('id="tp-aadhaar"');
+ app.handle({dataset:{tpAction:"new-employee"}});
+ const fullAadhaar="123456789012";
+ const submitted={id:"tp-employee-form",elements:{
+   name:{value:"Aadhaar Test Employee"},designation:{value:"Cook"},
+   joined:{value:"2026-11-20"},restaurant:{value:"Pritam Fast Food"},
+   method:{value:"CASH"},employeeType:{value:"salaried"},salary:{value:"22000.00"},
+   leaveAllowance:{value:"2"},commissionGstRate:{value:"5"},
+   aadhaar:{value:fullAadhaar}
+ }};
+ handlers.submit[handlers.submit.length-1]({
+  target:submitted,preventDefault:()=>{},stopImmediatePropagation:()=>{}
+ });
+ const employee=app.data().employees.find(e=>e.name==="Aadhaar Test Employee");
+ expect(employee).toBeDefined();
+ expect(employee.aadhaarLast4).toBe("9012");
+ expect(employee.aadhaar).toBeUndefined();
+ expect(storage.get("tablewise-payroll-demo-v3")).not.toContain(fullAadhaar);
+ const edit=app.employeeForm(employee);
+ expect(edit).toContain('value="9012"');
+ expect(edit).not.toContain('id="tp-effective-month"');
+ expect(edit).not.toContain('id="tp-salary"');
+ app.handle({dataset:{tpAction:"view-employee",id:employee.id}});
+ expect(app.page()).toContain("XXXX XXXX 9012");
+ expect(app.page()).not.toContain(fullAadhaar);
+});
+
+test("Monthly IDs can be reused after departure and across distinct restaurant branches",()=>{
+ const {app,handlers}=boot();
+ app.setPage("attendance");
+ const p=app.period("2026-11"),change=handlers.change[handlers.change.length-1];
+ // An inactive employee's historical month ID is retained but does not block an active employee.
+ app.data().employees.find(e=>e.id==="demo2").active=false;
+ change({target:{dataset:{tpField:"serial",id:"demo1"},value:"2"}});
+ expect(p.serials.demo1).toBe(2);
+ expect(p.serials.demo2).toBe(2);
+ // Different branches may use ID 3 even if the display name happens to match.
+ app.data().employees.find(e=>e.id==="demo5").restaurant="Pritam Fast Food";
+ change({target:{dataset:{tpField:"serial",id:"demo5"},value:"3"}});
+ expect(p.serials.demo5).toBe(3);
+ // Two active employees at the SAME branch may not use ID 3.
+ change({target:{dataset:{tpField:"serial",id:"demo4"},value:"3"}});
+ expect(p.serials.demo4).toBe(4);
+});
