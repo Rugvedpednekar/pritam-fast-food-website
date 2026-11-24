@@ -305,7 +305,7 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-employee-type">Employee type *</label><select id="tp-employee-type" name="employeeType" '+(emp?'disabled title="Employee type is fixed after creation to keep past payroll consistent"':'')+'>'+
  '<option value="salaried" '+(!parcel?'selected':'')+'>Salaried employee</option>'+
  '<option value="parcel" '+(parcel?'selected':'')+'>Parcel Boy (commission)</option></select>'+
- (emp?'<small>Type is fixed after creation to protect older monthly payroll records.</small>':'<small>Defaults to Salaried employee.</small>')+'</div>'+
+ (emp?'<small>Type is fixed after creation to protect older monthly payroll records.</small>':'')+'</div>'+
  '<div class="tp-field"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" required maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Chef, cashier, delivery boy..."></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
@@ -315,7 +315,7 @@ function tpEmployeeForm(emp){
  '<div class="tp-field tp-salaried-only"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" '+(!parcel?'required':'disabled')+' value="'+tpEscape(values.leaveAllowance||0)+'"></div>'+
  '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
  '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
- '<div class="tp-note tp-salaried-only">Salaried: salary ÷ 30 × days worked, plus earned leave money, minus advances and deductions.</div>'+
+
  '<div class="tp-note tp-parcel-only">Parcel Boy: no standard salary, leave money or advance deductions. Enter 30 daily commission amounts or one total in Attendance. Only GST is deducted.</div>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(emp?"Save employee":"Add employee")+'</button>'+tpButton("cancel-employee","Cancel","tp-light")+'</div></form></section>';
  return out;

@@ -225,7 +225,6 @@ draw=function(){
  var pages={dashboard:dashboard,pos:pos,menu:menu,bills:bills,reports:reports,employees:employees,payroll:payroll,settings:settings,sections:sectionsView};
  document.getElementById("content").innerHTML=(pages[tab]||dashboard)();
 };
-navnames.sections="Sections & Tables";icons.sections="▦";
 var oldPos=pos;
 pos=function(){
  var sec=selSection(),available=(data.menus[selected]||[]).filter(function(m){var p=sectionPrice(m,sectionId);return m.active&&p!==null&&(!query||(m.name+" "+m.code).toLowerCase().includes(query.toLowerCase()))&&(category==="All"||m.category===category);});

@@ -402,3 +402,20 @@ test("Daily commission, GST and monthly-total fields save through change events 
  app.setMonth("2026-10");
  expect(app.commission(emp,app.period("2026-10"))).toBe(null);
 });
+
+
+test("Add Employee form has no default type helper or salaried formula callout",()=>{
+ const {app}=boot();
+ const form=app.employeeForm(null);
+ expect(form).not.toContain("Defaults to Salaried employee.");
+ expect(form).not.toContain("Salaried: salary ÷ 30 × days worked");
+ expect(form).not.toContain("tp-note tp-salaried-only");
+ expect(form).toContain('<option value="salaried" selected');
+ expect(form).toContain('<option value="parcel"');
+});
+
+test("Sections & Tables shortcut is absent from Workspace sidebar, while section management remains available",()=>{
+ expect(html).not.toContain('navnames.sections="Sections & Tables"');
+ expect(html).toContain('function sectionsView()');
+ expect(html).toContain('sections:sectionsView');
+});
