@@ -59,6 +59,11 @@ const twMobileLayoutModule=await Bun.file(new URL("./client/mobile-billing-layou
 const twMobileBootMarker="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(twMobileBootMarker))throw Error("Mobile layout insertion point missing");
 html=html.replace(twMobileBootMarker,twMobileLayoutModule+"\n"+twMobileBootMarker);
+// GitHub-owned POS module: remove the no-longer-used payment controls from billing.
+const twNoPaymentFields=await Bun.file(new URL("./client/no-payment-type.js",import.meta.url)).text();
+const twNoPaymentBoot="startupFinished=true;\ncloudStart();\n})();";
+if(!html.includes(twNoPaymentBoot))throw Error("No-payment UI injection point missing");
+html=html.replace(twNoPaymentBoot,twNoPaymentFields+"\n"+twNoPaymentBoot);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
