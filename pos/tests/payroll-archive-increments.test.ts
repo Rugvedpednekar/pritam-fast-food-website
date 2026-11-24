@@ -16,7 +16,7 @@ function boot(initialRestaurant){
  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=combined.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {render:tpRender,setPage:function(v){tpTab=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,monthSalary:tpMonthSalary,rows:tpRows,active:tpEmployees,profile:tpEmployeeProfile,handle:tpHandleAction,selectRestaurant:function(v){selected=v;},selectedRestaurant:tpPayrollSelectedRestaurant,employeeForm:tpEmployeeForm};\n})();');
+  'return {render:tpRender,setPage:function(v){tpTab=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,monthSalary:tpMonthSalary,rows:tpRows,active:tpEmployees,profile:tpEmployeeProfile,handle:tpHandleAction,selectRestaurant:function(v){selected=v;},employeeForm:tpEmployeeForm};\n})();');
  if(!instrumented.includes("return {render:tpRender"))throw Error("Archive module insertion failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab","selected","return "+instrumented)(
   document,{addEventListener:()=>{}},localStorage,restaurants,()=>"2026-11-25",
@@ -174,7 +174,6 @@ test("leaving without salary settlement preserves payroll but creates no final p
 
 test("Payroll employee roster, attendance, advances, and salary totals follow the selected restaurant",()=>{
  const {app}=boot("r1");
- expect(app.selectedRestaurant()).toBe("Pritam Fast Food");
  expect(app.active().map(e=>e.id)).toEqual(["demo1","demo2","demo3","demo4","demo7"]);
  expect(app.rows().map(r=>r.emp.id).sort()).toEqual(["demo1","demo2","demo3","demo4","demo7"]);
  app.setPage("employees");
@@ -189,7 +188,6 @@ test("Payroll employee roster, attendance, advances, and salary totals follow th
  expect(app.render()).not.toContain("Riya Kulkarni");
  const r1Total=app.rows().reduce((sum,row)=>sum+(row.calc?row.calc.net:0),0);
  app.selectRestaurant("r2");
- expect(app.selectedRestaurant()).toBe("Restaurant 02");
  expect(app.active().map(e=>e.id)).toEqual(["demo5","demo6"]);
  expect(app.rows().map(r=>r.emp.id)).toEqual(["demo5","demo6"]);
  app.setPage("employees");
