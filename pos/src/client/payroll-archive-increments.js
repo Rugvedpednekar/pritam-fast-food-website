@@ -85,14 +85,14 @@ tpEmployeeProfile=function(emp){
    .replace("Restore employee","Rejoin Employee");
   extra='<div class="tp-note"><strong>Resigned · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+'</strong>. This profile is excluded from active salary processing.</div>';
  }else if(emp.active!==false){
-  extra='<div class="tp-actions">'+
-   tpButton("mark-left","Record Resignation","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+'</div>'+
-   (tpIsParcel(emp)?"":'<form id="tp-profile-salary-form" class="tp-form tp-profile-salary" data-id="'+tpEscape(emp.id)+'">'+
+  html=html.replace('<div class="tp-profile-menu">',
+   '<div class="tp-profile-menu">'+tpButton("mark-left","Record Resignation","tp-light",'data-id="'+tpEscape(emp.id)+'"'));
+  extra=tpIsParcel(emp)?"":'<form id="tp-profile-salary-form" class="tp-form tp-profile-salary" data-id="'+tpEscape(emp.id)+'">'+
     '<h3>Update Monthly Salary</h3><p class="tp-note">Current salary: <strong>'+tpMoney(tpMonthSalary(emp,tpMonth(0)))+
     '</strong>. New salary is effective today ('+tpDate(tpToday())+'); earlier months and salary history are preserved.</p>'+
     '<div class="tp-field"><label for="tp-profile-new-salary">New monthly salary (₹) *</label>'+
     '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter the new salary"></div>'+
-    '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>');
+    '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>';
  }
  var actionsEnd=close+'</div>';
  if(html.includes(actionsEnd))html=html.replace(actionsEnd,actionsEnd+extra);
