@@ -337,7 +337,22 @@ function tpCompute(emp,period,override,month){
  var leavePay=tpRound(monthly*leaveEarned/TP_BASIS);
  var a=period.advances[emp.id]||{},ded=period.deductions[emp.id]||{};
  var paidAdvance=a.kind==="office-loan"?0:Number(a.amount)||0;
- var fine=Number(ded.fine)||0,other=Number(ded.other)||0;
+ var fine=Number(ded.fine)||0;
+  // Recover a configurable loan amount from this month's actual salary,
+  // never from an earlier closed month or more than salary/loan remaining.
+  if(tpData&&emp.active!==false&&(month||tpPeriod)===tpMonth(0)&&!period.finalized&&!period.locked){
+   var earlier=Number(ded.loanRepayment)||0,manualOther=Math.max(0,(Number(ded.other)||0)-earlier);
+   var balanceBefore=tpLoanBalance(emp,tpMonth(0))+earlier;
+   var scheduled=Number(emp.officeLoanMonthlyDeduction)||0;
+   var available=Math.max(0,gross+leavePay-paidAdvance-fine-manualOther);
+   var recovery=Math.min(Math.max(0,scheduled),balanceBefore,available);
+   if(recovery!==earlier){
+    ded.loanRepayment=recovery;ded.other=manualOther+recovery;
+    period.deductions[emp.id]=ded;period.updatedAt=tpStamp();
+    tpSave();
+   }
+  }
+  var other=Number(ded.other)||0;
  var withheld=paidAdvance+fine+other,earned=gross+leavePay;
  return {days:days,monthly:monthly,gross:gross,leaveEarned:leaveEarned,leavePay:leavePay,
   earned:earned,paidAdvance:paidAdvance,fine:fine,other:other,withheld:withheld,
@@ -401,6 +416,36 @@ function tpDashboard(){
  '<div class="tp-step"><span>✓</span><div><strong>Payment Sheets</strong><p>Generate cash and cheque sheets.</p></div>'+tpButton("go-sheets","Open","tp-light")+'</div></section></div>';
  return out;
 }
+function tpOfficeLoanProfile(emp){
+ if(tpIsParcel(emp))return "";
+ var amount=tpLoanBalance(emp),ledger=(tpData.officeLoans||[]).filter(function(item){
+  var employee=tpEmp(item.employeeId);
+  return employee&&tpLoanPersonKey(employee)===tpLoanPersonKey(emp);
+ });
+ var history=ledger.slice().sort(function(a,b){return String(b.issuedAt).localeCompare(String(a.issuedAt));}).map(function(item){
+  return '<tr><td>'+tpDate(item.issuedAt)+'</td><td>'+tpMoney(item.amount)+'</td><td>'+tpEscape(item.note||"—")+'</td></tr>';
+ });
+ var current=tpGetPeriod(tpMonth(0)),ded=current.deductions[emp.id]||{},
+  repaid=Number(ded.loanRepayment)||0;
+ return '<div class="tp-office-loan-profile"><h3>Optional Office Loan</h3>'+
+  '<div class="tp-note"><strong>Loan remaining to repay: '+tpMoney(amount)+'</strong>'+
+  '<p>Interest-free. Unlike a monthly <strong>Advance</strong>, a loan stays attached to this employee until repaid or waived.</p>'+
+  '<p>This month deducted from salary: <strong>'+tpMoney(repaid)+'</strong> through Other deductions. Monthly repayment setting: <strong>'+tpMoney(emp.officeLoanMonthlyDeduction||0)+'</strong>.</p></div>'+
+  (emp.active!==false&&!emp.left?
+   '<div class="tp-form-grid tp-office-loan-forms">'+
+   '<form id="tp-office-loan-issue-form" class="tp-form" data-id="'+tpEscape(emp.id)+'">'+
+   '<h4>Add a loan (optional)</h4><div class="tp-field"><label for="tp-office-loan-amount">Loan amount (₹)</label>'+
+   '<input id="tp-office-loan-amount" type="number" min="1" max="10000000" step="1" inputmode="numeric" required placeholder="e.g. 20000"></div>'+
+   '<div class="tp-field"><label for="tp-office-loan-note">Note</label><input id="tp-office-loan-note" maxlength="120" placeholder="Optional reason"></div>'+
+   '<div class="tp-actions"><button type="submit" class="tp-button tp-primary">Add Office Loan</button></div></form>'+
+   '<form id="tp-office-loan-repayment-form" class="tp-form" data-id="'+tpEscape(emp.id)+'">'+
+   '<h4>Monthly loan deduction</h4><div class="tp-field"><label for="tp-office-loan-deduction">Deduct each month (₹)</label>'+
+   '<input id="tp-office-loan-deduction" type="number" min="0" max="10000000" step="1" inputmode="numeric" required value="'+tpRupees(emp.officeLoanMonthlyDeduction)+'"></div>'+
+   '<small>Set 0 to pause. Repayments automatically reduce salary in each month with attendance, up to the remaining loan and salary payable. Separate from Advance.</small>'+
+   '<div class="tp-actions"><button type="submit" class="tp-button tp-primary">Save Monthly Deduction</button></div></form></div>':'')+
+  (history.length?'<h4>Loans issued</h4>'+tpTable(["Date","Loan amount","Note"],history):'<p class="tp-note">No office loan has been issued.</p>')+
+  '</div>';
+}
 function tpEmployeeProfile(emp){
  var changes=(tpData.salaryChanges||[]).filter(function(c){return c.employeeId===emp.id;}).slice().reverse();
  return'<section class="tp-panel tp-profile"><div class="tp-profile-head">'+tpAvatar(emp,"large")+'<div><span class="tp-eyebrow">EMPLOYEE PROFILE</span><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p></div><button type="button" class="tp-x" data-tp-action="close-profile" aria-label="Close employee profile">×</button></div>'+
@@ -413,6 +458,7 @@ function tpEmployeeProfile(emp){
  '<div class="tp-profile-menu">'+tpButton("delete-employee","Delete Employee","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
  '</div></details>')+
  tpButton("close-profile","Close","tp-light")+'</div>'+
+ tpOfficeLoanProfile(emp)+
  (tpIsParcel(emp)?'':'<div class="tp-salary-log"><h3>Salary Change History</h3>'+
  (changes.length?tpTable(["Effective month","Previous salary","New salary","Change","Entered from"],changes.map(function(c){
   var diff=Number(c.newSalary)-Number(c.previousSalary);
@@ -1265,6 +1311,36 @@ document.addEventListener("submit",function(ev){
  if(!tpSave()){tpData=JSON.parse(previous);return;}
  tpDesignationEditing=null;
  draw();showToast("Designation shortcut saved.");return;
+},true);
+document.addEventListener("submit",function(ev){
+ if(!ev.target||!["tp-office-loan-issue-form","tp-office-loan-repayment-form"].includes(ev.target.id))return;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ var form=ev.target,emp=tpEmp(form.dataset.id),month=tpMonth(0),period=tpGetPeriod(month);
+ if(!emp||tpIsParcel(emp)||emp.active===false||emp.left||!tpPayrollMatchesRestaurant(emp))
+  return uxAlert("Select an active salaried employee in this outlet.");
+ if(period.locked||period.finalized)return uxAlert("This month's payroll is locked; loan changes cannot be made.");
+ var before=JSON.stringify(tpData);
+ if(form.id==="tp-office-loan-issue-form"){
+  var value=parsePaise(form.querySelector("#tp-office-loan-amount")?.value),
+      note=tpTrim(form.querySelector("#tp-office-loan-note")?.value||"",120);
+  if(value===null||value<=0||value>1000000000)return uxAlert("Enter a whole-rupee loan from ₹1 to ₹1,00,00,000.");
+  if(!Array.isArray(tpData.officeLoans))tpData.officeLoans=[];
+  tpData.officeLoans.push({id:tpId(),employeeId:emp.id,personId:tpLoanPersonKey(emp),
+   month:month,issuedAt:tpToday(),amount:value,note:note});
+ }else{
+  var deduction=parsePaise(form.querySelector("#tp-office-loan-deduction")?.value||"0");
+  if(deduction===null||deduction>1000000000)return uxAlert("Enter a whole-rupee monthly repayment between ₹0 and ₹1,00,00,000.");
+  emp.officeLoanMonthlyDeduction=deduction;
+ }
+ // An existing attendance record applies this month's chosen loan recovery.
+ // Without attendance, the setting activates when salary is calculated.
+ var days=tpInputDays(period.days[emp.id]);
+ if(days!==null){
+  var calc=tpCompute(emp,period,undefined,month);
+  if(calc)period.snapshots[emp.id]=tpSnapshot(emp,calc,days);
+ }
+ if(!tpSave()){tpData=JSON.parse(before);return;}
+ draw();showToast(form.id==="tp-office-loan-issue-form"?"Office loan added.":"Monthly loan deduction saved.");
 },true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-employee-form")return;
