@@ -396,10 +396,8 @@ function tpArcDownloadIncrements(){
    tpPdfText(ctx,"Generated "+tpDate(tpToday())+" · Filtered report · Historical entries are retained",40,733,9,false,"#627b7b",510);
    tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
   }
-  var file=tpPdfBuild(pages),url=URL.createObjectURL(file),a=document.createElement("a");
-  a.href=url;a.download="restaurant-salary-increment-report-"+tpToday()+".pdf";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  var file=tpPdfBuild(pages);
+  tpDeliverPdf(file,"restaurant-salary-increment-report-"+tpToday()+".pdf");
  }catch(err){uxAlert("Could not create increment PDF: "+(err.message||"Unknown error"));}
 }
 var arcCSS=document.createElement("style");
@@ -638,10 +636,8 @@ function tpDepartureDownloadPDF(emp){
    tpPdfText(ctx,row[1],230,y,10,i===10||i===11,"#234353",317);
   });
   tpPdfFooter(ctx,1);
-  var file=tpPdfBuild([tpPdfImage(page)]),url=URL.createObjectURL(file),link=document.createElement("a");
-  link.href=url;link.download="final-salary-settlement-"+String(emp.name).replace(/[^a-z0-9_-]+/gi,"-")+"-"+s.month+".pdf";
-  document.body.appendChild(link);link.click();link.remove();
-  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  var file=tpPdfBuild([tpPdfImage(page)]);
+  tpDeliverPdf(file,"final-salary-settlement-"+String(emp.name).replace(/[^a-z0-9_-]+/gi,"-")+"-"+s.month+".pdf");
  }catch(error){uxAlert("Could not create final salary PDF: "+(error&&error.message||"Unknown error"));}
 }
 var depCSS=document.createElement("style");
