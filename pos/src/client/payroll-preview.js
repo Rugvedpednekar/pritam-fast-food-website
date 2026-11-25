@@ -152,6 +152,56 @@ function tpRead(){
  return tpSample();
 }
 var tpData=tpRead(),tpPeriod=tpMonth(0);
+var tpPhotoChanged={},tpPhotoQueue=Promise.resolve();
+function tpPhotoNetworkReady(){
+ return typeof fetch==="function"&&typeof window!=="undefined"&&!!window.location&&
+  /^https?:$/.test(window.location.protocol)&&typeof cloudReady!=="undefined"&&cloudReady;
+}
+function tpPublishPhoto(id,photo){
+ if(!tpPhotoNetworkReady())return Promise.resolve(false);
+ tpPhotoQueue=tpPhotoQueue.catch(function(){}).then(async function(){
+  var response=await fetch("/api/payroll/photo",{
+   method:"PUT",credentials:"same-origin",cache:"no-store",
+   headers:{"content-type":"application/json"},
+   body:JSON.stringify({employeeId:id,photo:photo})
+  });
+  if(!response.ok)throw Error("Photo sync HTTP "+response.status);
+  return true;
+ }).catch(function(error){
+  console.warn("Employee photo upload:",error);
+  showToast("Photo saved locally but not online. Reconnect and refresh to retry.");
+  return false;
+ });
+ return tpPhotoQueue;
+}
+async function tpPullPhotos(){
+ if(!tpPhotoNetworkReady())return;
+ try{
+  var response=await fetch("/api/payroll/photos",{credentials:"same-origin",cache:"no-store"});
+  if(!response.ok)throw Error("Photo lookup HTTP "+response.status);
+  var result=await response.json(),remote={},dirty=false;
+  (result.photos||[]).forEach(function(item){
+   if(item&&typeof item.employeeId==="string"&&typeof item.photo==="string")
+    remote[item.employeeId]=item.photo;
+  });
+  tpData.employees.forEach(function(emp){
+   if(tpPhotoChanged[emp.id])return;
+   if(Object.prototype.hasOwnProperty.call(remote,emp.id)){
+    if(emp.photo!==remote[emp.id]){emp.photo=remote[emp.id];dirty=true;}
+   }else if(emp.photo)tpPublishPhoto(emp.id,emp.photo);
+  });
+  if(dirty){tpSave();if(typeof tab!=="undefined"&&tab==="payroll")draw();}
+ }catch(error){console.warn("Employee photos unavailable:",error);}
+}
+// The existing owner login gate is reused; no public photo URLs are exposed.
+if(typeof cloudLoad==="function"){
+ var tpOriginalCloudLoad=cloudLoad;
+ cloudLoad=async function(){
+  var result=await tpOriginalCloudLoad.apply(this,arguments);
+  await tpPullPhotos();return result;
+ };
+}
+
 function tpSave(){
  try{localStorage.setItem(TP_KEY,JSON.stringify(tpData));return true;}
  catch(err){uxAlert("Payroll demo could not save on this device. Free browser storage or use a smaller photo.");return false;}
@@ -246,7 +296,28 @@ function tpEmployees(includeInactive){return tpData.employees.filter(function(x)
 function tpEmp(id){return tpData.employees.find(function(x){return x.id===id;});}
 function tpAvatar(emp,size){
  var cls="tp-avatar"+(size?" tp-avatar-"+size:"");
- return emp.photo?'<span class="'+cls+'"><img alt="" src="'+tpEscape(emp.photo)+'"></span>':'<span class="'+cls+'">'+tpEscape(String(emp.name||"Employee").split(/\s+/).slice(0,2).map(function(a){return a.charAt(0);}).join("").toUpperCase())+'</span>';
+ if(emp.photo)return '<span class="tp-avatar-holder">'+
+  '<button type="button" class="tp-avatar-tap" data-tp-action="open-employee-photo" data-id="'+tpEscape(emp.id)+'" aria-label="Open photo of '+tpEscape(emp.name)+'">'+
+  '<span class="'+cls+'"><img src="'+tpEscape(emp.photo)+'" alt="" loading="lazy"></span></button>'+
+  '<button type="button" class="tp-avatar-remove" data-tp-action="remove-employee-photo" data-id="'+tpEscape(emp.id)+'" aria-label="Remove photo of '+tpEscape(emp.name)+'" title="Remove photo">×</button></span>';
+ return '<span class="'+cls+'">'+tpEscape(String(emp.name||"Employee").split(/\s+/).slice(0,2).map(function(a){return a.charAt(0);}).join("").toUpperCase())+'</span>';
+}
+function tpPhotoPreviewMarkup(pic){
+ return pic?'<button type="button" class="tp-form-photo-open" data-tp-action="open-photo-preview" aria-label="Open employee photo"><img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo"></button>'+
+  '<button type="button" class="tp-form-photo-remove" data-tp-action="remove-photo-preview" aria-label="Remove employee photo">×</button>':
+  '<div class="tp-photo-placeholder">Photo</div>';
+}
+function tpShowPhoto(src,label){
+ if(!src)return;
+ var prior=document.getElementById("tp-photo-lightbox");if(prior)prior.remove();
+ var layer=document.createElement("div");layer.id="tp-photo-lightbox";layer.className="tp-photo-lightbox";
+ layer.setAttribute("role","dialog");layer.setAttribute("aria-modal","true");layer.setAttribute("aria-label","Employee photo");
+ var close=document.createElement("button");close.type="button";close.className="tp-photo-lightbox-close";
+ close.textContent="×";close.setAttribute("aria-label","Close photo");close.onclick=function(){layer.remove();};
+ var image=document.createElement("img");image.src=src;image.alt=label||"Employee photo";
+ layer.appendChild(close);layer.appendChild(image);
+ layer.onclick=function(ev){if(ev.target===layer)layer.remove();};
+ document.body.appendChild(layer);close.focus();
 }
 function tpIsParcel(emp){return !!emp&&emp.employeeType==="parcel";}
 function tpCommissionRecord(period,employee){
@@ -390,8 +461,8 @@ function tpEmployeeForm(emp){
  '</div>'+
  '<button type="button" class="tp-x" data-tp-action="cancel-employee" aria-label="Close form">×</button></div>'+
  '<form id="tp-employee-form" class="tp-form" data-employee-type="'+(parcel?"parcel":"salaried")+'">'+
- '<div class="tp-photo-box">'+(pic?'<img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo">':'<div class="tp-photo-placeholder">Photo</div>')+
- '<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/*"><small>Choose an image up to 20 MB. It is compressed and saved only on this device.</small><small id="tp-photo-status" role="status" aria-live="polite">No new photo selected.</small></div></div>'+
+ '<div class="tp-photo-box"><span class="tp-photo-preview">'+tpPhotoPreviewMarkup(pic)+'</span>'+
+ '<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/*"><small>Choose an image up to 20 MB. Compressed photos sync privately across signed-in devices.</small><small id="tp-photo-status" role="status" aria-live="polite">No new photo selected.</small></div></div>'+
  '<div class="tp-form-grid">'+
  '<div class="tp-field"><label for="tp-name">Employee name *</label><input id="tp-name" name="name" required maxlength="90" value="'+tpEscape(values.name)+'" placeholder="Full name"></div>'+
  '<div class="tp-field"><label for="tp-employee-type">Employee type *</label><select id="tp-employee-type" name="employeeType" '+(emp?'disabled title="Employee type is fixed after creation to keep past payroll consistent"':'')+'>'+
@@ -1132,11 +1203,34 @@ function tpDoPrint(kind,month){
  window.print();
 }
 window.addEventListener("afterprint",function(){document.body.classList.remove("tp-payroll-printing");});
+document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){var lightbox=document.getElementById("tp-photo-lightbox");if(lightbox)lightbox.remove();}},true);
 function tpNewEmployee(){
  tpEditing="new";tpViewing=null;tpPhoto=null;tpSetTab("employees");tpEditing="new";draw();
 }
 function tpHandleAction(button){
  var act=button.dataset.tpAction,id=button.dataset.id;
+ if(act==="open-employee-photo"){var emp=tpEmp(id);if(emp&&emp.photo)tpShowPhoto(emp.photo,"Photo of "+emp.name);return;}
+ if(act==="open-photo-preview"){
+  var previewSrc=tpPhoto!==null?tpPhoto:tpEditing&&tpEditing!=="new"?tpEmp(tpEditing)?.photo:"";
+  tpShowPhoto(previewSrc,"Employee photo preview");return;
+ }
+ if(act==="remove-photo-preview"){
+  tpPhoto="";tpPhotoPending=false;tpPhotoError=false;
+  var holder=document.querySelector(".tp-photo-preview");
+  if(holder)holder.innerHTML=tpPhotoPreviewMarkup("");
+  var input=document.getElementById("tp-photo");if(input)input.value="";
+  var label=document.getElementById("tp-photo-status");
+  if(label)label.textContent="Photo marked for removal. Save employee to apply.";
+  return;
+ }
+ if(act==="remove-employee-photo"){
+  var emp=tpEmp(id);if(!emp||!emp.photo)return;
+  if(!confirm("Remove the photo of "+emp.name+" on all signed-in devices?"))return;
+  var before=JSON.stringify(tpData);emp.photo="";
+  if(!tpSave()){tpData=JSON.parse(before);return;}
+  tpPhotoChanged[id]=true;tpPublishPhoto(id,"");
+  draw();showToast("Photo removed. Other signed-in devices update after refresh.");return;
+ }
  if(act==="go-salary")return tpSetTab("sheets");
  if(act==="view-calculation"){
   if(!tpRows().some(function(row){return row.emp.id===id;}))return;
@@ -1268,7 +1362,9 @@ document.addEventListener("submit",function(ev){
   if(!parcel)tpGetPeriod(salaryEffectiveMonth).salaries[added.id]=salary;
  }
  if(!tpSave()){tpData=JSON.parse(before);return;}
- tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved to Payroll Demo on this device.");
+ var savedEmp=existing||added;
+ if(tpPhoto!==null){tpPhotoChanged[savedEmp.id]=true;tpPublishPhoto(savedEmp.id,savedEmp.photo||"");}
+ tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved. Photo changes sync to signed-in devices.");
 },true);
 document.addEventListener("change",function(ev){
  var field=ev.target;
@@ -1317,12 +1413,8 @@ document.addEventListener("change",function(ev){
      ctx.drawImage(img,0,0,canvas.width,canvas.height);
      tpPhoto=canvas.toDataURL("image/jpeg",0.8);
      if(!tpPhoto.startsWith("data:image/jpeg"))throw Error("JPEG conversion failed");
-     var holder=document.querySelector(".tp-photo-box");
-     if(holder){
-      var preview=holder.querySelector(".tp-form-photo,.tp-photo-placeholder");
-      if(preview){var el=document.createElement("img");el.className="tp-form-photo";
-       el.alt="Employee photo preview";el.src=tpPhoto;preview.replaceWith(el);}
-     }
+     var preview=document.querySelector(".tp-photo-preview");
+     if(preview)preview.innerHTML=tpPhotoPreviewMarkup(tpPhoto);
      tpPhotoError=false;photoStatus("Photo ready. Save the employee to keep it.");
     }catch(error){
      tpPhotoError=true;photoStatus("Could not process photo.");
@@ -1570,7 +1662,20 @@ css.textContent=String.raw`
 .tp-employee-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .tp-person{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e2ebf0;border-radius:13px;padding:13px;min-width:0;background:#fff}
 .tp-avatar{display:grid;place-items:center;flex:0 0 47px;height:47px;border-radius:13px;background:#e6f3ee;color:#0a795e;font-size:15px;font-weight:900;overflow:hidden}
-.tp-avatar img{width:100%;height:100%;object-fit:cover}.tp-avatar-small{flex-basis:32px;height:32px;border-radius:9px;font-size:10px}.tp-avatar-large{flex-basis:76px;height:76px;border-radius:19px;font-size:23px}
+.tp-avatar img{width:100%;height:100%;object-fit:cover}
+.tp-avatar-holder{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.tp-avatar-tap,.tp-form-photo-open{border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0;margin:0;cursor:zoom-in;border-radius:14px}
+.tp-avatar-tap:focus-visible,.tp-form-photo-open:focus-visible{outline:3px solid #0b8c68;outline-offset:3px}
+.tp-avatar-remove,.tp-form-photo-remove{position:absolute;right:-7px;top:-7px;z-index:2;width:23px;height:23px;display:grid;place-items:center;background:white;color:#9e2331;border:1px solid #cf8b95;border-radius:50%;font-size:17px;font-weight:800;line-height:1;cursor:pointer;box-shadow:0 1px 5px #103e4026}
+.tp-avatar-holder .tp-avatar-small~.tp-avatar-remove{width:18px;height:18px}
+.tp-photo-preview{position:relative;display:inline-flex;flex:0 0 75px;width:75px;height:75px}
+.tp-photo-preview .tp-form-photo-open{width:75px;height:75px;overflow:hidden}
+.tp-photo-preview .tp-form-photo{display:block;cursor:zoom-in}
+.tp-photo-lightbox{position:fixed;inset:0;z-index:150000;background:#0b1721ed;padding:55px 18px 30px;display:flex;align-items:center;justify-content:center;overscroll-behavior:contain}
+.tp-photo-lightbox img{display:block;max-width:min(96vw,1100px);max-height:calc(100dvh - 110px);width:auto;height:auto;object-fit:contain;border-radius:11px;touch-action:pinch-zoom;box-shadow:0 12px 40px #0004}
+.tp-photo-lightbox-close{position:absolute;right:20px;top:14px;z-index:3;border:1px solid #ffffff66;background:#ffffff22;color:#fff;border-radius:10px;width:44px;height:44px;font-size:30px;line-height:1;cursor:pointer}
+@media(max-width:760px){.tp-attendance-compact .tp-avatar-holder{display:none}.tp-photo-lightbox{padding:55px 8px 15px}.tp-photo-lightbox img{max-width:98vw;max-height:calc(100dvh - 90px)}}
+.tp-avatar-small{flex-basis:32px;height:32px;border-radius:9px;font-size:10px}.tp-avatar-large{flex-basis:76px;height:76px;border-radius:19px;font-size:23px}
 .tp-person-main{flex:1;min-width:0}.tp-person-main h3{font-size:13px;margin:0 0 3px}.tp-person-main p{font-size:11px;margin:0 0 2px;color:#738a98}.tp-person-main small{font-size:10px;color:#8195a0}
 .tp-person-extra{display:flex;align-items:flex-start;gap:4px;flex-direction:column}.tp-person-extra strong{font-size:13px}.tp-badge{display:inline-block;padding:4px 7px;font-size:10px;font-weight:800;border-radius:99px}
 .tp-badge-positive{background:#e5f5ed;color:#0e825f}.tp-badge-muted{background:#f1f4f6;color:#61788b}
