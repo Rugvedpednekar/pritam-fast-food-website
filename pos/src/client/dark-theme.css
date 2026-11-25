@@ -1,0 +1,184 @@
+/* Tablewise dark appearance: intentionally consistent across all workspaces. */
+:root,html[data-theme="dark"]{
+ color-scheme:dark;
+ --ink:#e8f2ef;--dark:#0c181d;--green:#17a481;--accent:#e4ad64;
+ --bg:#101b22;--muted:#a2b6bb;--border:#33464e;--red:#ee9599;
+ --shadow:0 10px 34px #02090e45;
+ --surface:#192830;--surface-alt:#22343d;--input-bg:#142129;
+ --tp-ink:#e8f2ef;--tp-muted:#a2b6bb;--tp-line:#33464e;--tp-green:#4bd1ae;--tp-bg:#101b22;
+}
+html[data-theme="dark"],html[data-theme="dark"] body{background:#101b22!important;color:#e8f2ef!important}
+html[data-theme="dark"] body,html[data-theme="dark"] .main,
+html[data-theme="dark"] .content{color:#e8f2ef}
+html[data-theme="dark"] .sidebar{background:#0b151b!important;border-right:1px solid #283b43}
+html[data-theme="dark"] .sidebar .nav{color:#b7ccc9}
+html[data-theme="dark"] .sidebar .nav:hover{background:#243c43;color:#e8f2ef}
+html[data-theme="dark"] .sidebar .nav.on{background:#194b43;color:#75e6c5}
+html[data-theme="dark"] .sidebar .brandicon{background:#164a43;color:#84e4ca}
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .bottom-nav{background:#15242c!important;border-color:#30434b!important}
+html[data-theme="dark"] .bottom-nav button{color:#9eb6bb!important}
+html[data-theme="dark"] .bottom-nav button.active{background:#23483f!important;color:#8be3c4!important}
+html[data-theme="dark"] .menu-toggle{background:#24343c!important;color:#dceee8!important;border-color:#3d545b!important}
+html[data-theme="dark"] .breadcrumbs{color:#a9c4c5}
+html[data-theme="dark"] .owner{background:#26473f;color:#9ce9d0}
+html[data-theme="dark"] .restaurants,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .input,
+html[data-theme="dark"] .search,
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select{
+ background:#142129!important;color:#e8f2ef!important;border-color:#39505a!important;
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder{color:#879da6!important;opacity:1}
+html[data-theme="dark"] select option{background:#16262e;color:#e8f2ef}
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus{outline-color:#52cfae!important;border-color:#52cfae!important}
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .item,
+html[data-theme="dark"] .table-card,
+html[data-theme="dark"] .report-block,
+html[data-theme="dark"] .cloud-box,
+html[data-theme="dark"] .emp-dialog,
+html[data-theme="dark"] dialog,
+html[data-theme="dark"] .tw-owner-modal{
+ background:#192830!important;color:#e8f2ef!important;border-color:#33464e!important;
+ box-shadow:0 10px 35px #020a1052;
+}
+html[data-theme="dark"] .table-card.occupied{background:#433521!important;border-color:#7b6846!important}
+html[data-theme="dark"] .table-card small,
+html[data-theme="dark"] .card-label,
+html[data-theme="dark"] .card-foot,
+html[data-theme="dark"] .panel-sub,
+html[data-theme="dark"] .sub,
+html[data-theme="dark"] .help,
+html[data-theme="dark"] .field label,
+html[data-theme="dark"] .label-mini,
+html[data-theme="dark"] .metric-row span,
+html[data-theme="dark"] .item-tax,
+html[data-theme="dark"] .item .item-code,
+html[data-theme="dark"] .barlabel,
+html[data-theme="dark"] .cartprice,
+html[data-theme="dark"] .totalline,
+html[data-theme="dark"] .mm-sub,
+html[data-theme="dark"] .mm label,
+html[data-theme="dark"] .mm th,
+html[data-theme="dark"] .checkline,
+html[data-theme="dark"] .empty{color:#a6bdc0!important}
+html[data-theme="dark"] .eyebrow,
+html[data-theme="dark"] .item .item-price,
+html[data-theme="dark"] .mm-back{color:#79dcb6!important}
+html[data-theme="dark"] .btn,
+html[data-theme="dark"] .chip,
+html[data-theme="dark"] .qty button,
+html[data-theme="dark"] .seg button.active,
+html[data-theme="dark"] .mm-chips span{
+ background:#263942!important;color:#dcece8!important;border-color:#39535b!important;
+}
+html[data-theme="dark"] .btn.primary,
+html[data-theme="dark"] .mm .btn.primary,
+html[data-theme="dark"] .tp-button.tp-primary{background:#148b72!important;border-color:#168f76!important;color:#fff!important}
+html[data-theme="dark"] .btn.danger,
+html[data-theme="dark"] .tp-danger{background:#482a32!important;border-color:#8b515b!important;color:#ffb7b9!important}
+html[data-theme="dark"] .btn.soft,
+html[data-theme="dark"] .chip.active{background:#23473f!important;border-color:#37685a!important;color:#8ae6c3!important}
+html[data-theme="dark"] .btn:hover:not(:disabled),
+html[data-theme="dark"] .chip:hover:not(:disabled){filter:brightness(1.15)}
+html[data-theme="dark"] .seg{background:#112028!important}
+html[data-theme="dark"] .seg button{color:#a6bdc0!important}
+html[data-theme="dark"] .seg button.active{color:#8fe3c8!important}
+html[data-theme="dark"] .card-ico,
+html[data-theme="dark"] .badgebox,
+html[data-theme="dark"] .pill.neutral,
+html[data-theme="dark"] .notice.info,
+html[data-theme="dark"] .badge-green{background:#23463f!important;color:#a1e9cb!important}
+html[data-theme="dark"] .notice,
+html[data-theme="dark"] .demo-ribbon{background:#41341e!important;border-color:#675334!important;color:#f4d29c!important}
+html[data-theme="dark"] .pill.ok{background:#24453a!important;color:#8aebbc!important}
+html[data-theme="dark"] .pill.bad{background:#492b33!important;color:#f9acb0!important}
+html[data-theme="dark"] table,
+html[data-theme="dark"] .table-wrap{color:#e8f2ef!important}
+html[data-theme="dark"] th{background:#22343d!important;color:#b1c7cc!important}
+html[data-theme="dark"] td,html[data-theme="dark"] th,
+html[data-theme="dark"] .metric-row,
+html[data-theme="dark"] .cart-line,
+html[data-theme="dark"] .divider,
+html[data-theme="dark"] .notice-line{border-color:#334851!important}
+html[data-theme="dark"] .order-line{border-color:#3e545c!important;background:#20313a!important}
+html[data-theme="dark"] .sync-pill{background:#21443b!important;border-color:#356052!important;color:#9ee6c9!important}
+html[data-theme="dark"] .sync-pill.error{background:#482d30!important;color:#ffc3b6!important;border-color:#95545a!important}
+html[data-theme="dark"] .cloud-gate{background:#08171ceF!important}
+html[data-theme="dark"] .cloud-box p{color:#a9bec2!important}
+html[data-theme="dark"] .toast{background:#24473e!important;border:1px solid #3b675b}
+html[data-theme="dark"] .mm{color:#e8f2ef!important}
+html[data-theme="dark"] .mm .panel{background:#192830!important;border-color:#344852!important}
+html[data-theme="dark"] .mm-chips span{background:#2a3d46!important}
+html[data-theme="dark"] .emp-dialog label,
+html[data-theme="dark"] .emp-dialog .emp-sub,
+html[data-theme="dark"] .emp-dialog small{color:#b8ccce!important}
+/* Payroll: its stylesheet is added dynamically, so specificity and important declarations matter. */
+html[data-theme="dark"] .tp-app{--tp-ink:#e8f2ef;--tp-muted:#adc0c8;--tp-line:#3a5058;--tp-green:#58dcb7;--tp-bg:#101b22;color:#e8f2ef!important}
+html[data-theme="dark"] .tp-app .tp-panel,
+html[data-theme="dark"] .tp-app .tp-person,
+html[data-theme="dark"] .tp-app .tp-form-panel,
+html[data-theme="dark"] .tp-app .tp-history-body,
+html[data-theme="dark"] .tp-app .tp-deleted-row,
+html[data-theme="dark"] .tp-app .tp-commission-day,
+html[data-theme="dark"] .tp-app .tp-commission-days,
+html[data-theme="dark"] .tp-app .tp-commission-summary>div{
+ background:#192830!important;color:#e8f2ef!important;border-color:#364c55!important;
+}
+html[data-theme="dark"] .tp-app .tp-hero{background:linear-gradient(115deg,#112c31,#145549 70%,#17674d)!important;color:#fff!important}
+html[data-theme="dark"] .tp-app .tp-button{background:#273a43!important;color:#dcece9!important;border-color:#3d545d!important}
+html[data-theme="dark"] .tp-app .tp-primary{background:#148b72!important;color:#fff!important;border-color:#168f76!important}
+html[data-theme="dark"] .tp-app .tp-danger{background:#442a33!important;color:#ffb3b5!important;border-color:#85535d!important}
+html[data-theme="dark"] .tp-app .tp-note,
+html[data-theme="dark"] .tp-app .tp-summary-row,
+html[data-theme="dark"] .tp-app .tp-grand,
+html[data-theme="dark"] .tp-app .tp-profile-grid>div,
+html[data-theme="dark"] .tp-app .tp-unified-totals,
+html[data-theme="dark"] .tp-app .tp-step>span,
+html[data-theme="dark"] .tp-app .tp-commission-pay,
+html[data-theme="dark"] .tp-app .tp-progress .tp-track{background:#213940!important;color:#cae8e2!important;border-color:#39575d!important}
+html[data-theme="dark"] .tp-app .tp-person-main h3,
+html[data-theme="dark"] .tp-app .tp-table strong,
+html[data-theme="dark"] .tp-app strong,
+html[data-theme="dark"] .tp-app h2,
+html[data-theme="dark"] .tp-app h3{color:#ebf4f1!important}
+html[data-theme="dark"] .tp-app .tp-person-main p,
+html[data-theme="dark"] .tp-app .tp-person-main small,
+html[data-theme="dark"] .tp-app .tp-profile-grid small,
+html[data-theme="dark"] .tp-app .tp-field label,
+html[data-theme="dark"] .tp-app .tp-commission-summary span,
+html[data-theme="dark"] .tp-app .tp-note,
+html[data-theme="dark"] .tp-app .tp-step p,
+html[data-theme="dark"] .tp-app .tp-grand small{color:#a8bfc6!important}
+html[data-theme="dark"] .tp-app .tp-table th,
+html[data-theme="dark"] .tp-app .tp-commission-cols{background:#213740!important;color:#bcd1d4!important;border-color:#37515c!important}
+html[data-theme="dark"] .tp-app .tp-table td{background:#192830!important;color:#dcece9!important;border-color:#30454d!important}
+html[data-theme="dark"] .tp-app input,
+html[data-theme="dark"] .tp-app select,
+html[data-theme="dark"] .tp-app textarea,
+html[data-theme="dark"] .tp-app .tp-cell-input,
+html[data-theme="dark"] .tp-app .tp-days-input,
+html[data-theme="dark"] .tp-app .tp-serial-input{background:#12232b!important;color:#eff6f4!important;border-color:#42606a!important}
+html[data-theme="dark"] .tp-app .tp-avatar,
+html[data-theme="dark"] .tp-app .tp-photo-placeholder{background:#29453e!important;color:#9ee3c9!important}
+html[data-theme="dark"] .tp-app .tp-badge-muted{background:#2b4049!important;color:#c4d4d9!important}
+html[data-theme="dark"] .tp-app .tp-badge-positive{background:#235046!important;color:#b0f4d6!important}
+html[data-theme="dark"] .tp-app .tp-profile-salary,
+html[data-theme="dark"] .tp-app .tp-archive-form{background:#1b3037!important;border-color:#3a555b!important}
+html[data-theme="dark"] .tp-app .tp-photo-lightbox{background:#071116f5!important}
+html[data-theme="dark"] .tp-app .tp-x{background:#29404a!important;color:#dcece8!important}
+html[data-theme="dark"] .tw-owner-modal{background:#192830!important}
+html[data-theme="dark"] .tw-owner-modal label{color:#dceeea}
+/* Keep printed bills and payroll PDFs white with legible dark ink. */
+@media print{
+ html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
+ html[data-theme="dark"] .fl-printing *,html[data-theme="dark"] #tp-payroll-print-root *{color:#111!important;background:#fff!important;border-color:#777!important}
+}
