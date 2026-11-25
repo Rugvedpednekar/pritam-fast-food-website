@@ -6,7 +6,7 @@
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
 var TP_SECTIONS=["dashboard","employees","attendance","advances","sheets","history","settings"];
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null,tpDesignationEditing=null;
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:0,maximumFractionDigits:0}).format((Number(p)||0)/100);}
 function tpRupees(p){return String(Math.round((Number(p)||0)/100));}
@@ -22,40 +22,6 @@ function tpStamp(){return new Date().toISOString();}
 function tpId(){return "emp-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7);}
 function tpTrim(v,n){return String(v==null?"":v).trim().slice(0,n);}
 function tpRound(p){return Math.round(p);}
-function tpDesignationDefaults(){
- return [
-  {code:"ek ch",title:"Chinese Helper"},
-  {code:"hc",title:"Head Chef"},
-  {code:"ch",title:"Chef"},
-  {code:"cc",title:"Chinese Cook"},
-  {code:"kh",title:"Kitchen Helper"},
-  {code:"ca",title:"Cashier"},
-  {code:"wt",title:"Waiter"},
-  {code:"sv",title:"Server"},
-  {code:"sup",title:"Supervisor"},
-  {code:"pb",title:"Parcel Boy"},
-  {code:"dc",title:"Delivery Coordinator"},
-  {code:"cl",title:"Cleaner"}
- ];
-}
-function tpDesignationCode(value){
- return String(value==null?"":value).trim().toLowerCase().replace(/\s+/g," ");
-}
-function tpDesignationList(){
- return Array.isArray(tpData.designations)?tpData.designations:[];
-}
-function tpDesignationFind(value){
- var code=tpDesignationCode(value);
- return tpDesignationList().find(function(item){return tpDesignationCode(item.code)===code;})||null;
-}
-function tpDesignationExpand(value){
- var match=tpDesignationFind(value);
- return match?match.title:tpTrim(value,90);
-}
-function tpDesignationValid(code,title){
- return /^[a-z0-9][a-z0-9 -]{0,19}$/.test(code)&&title.length>0&&title.length<=90;
-}
-
 function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},salaries:{},commissions:{},payments:{},snapshots:{},updatedAt:null};}
 function tpSample(){
  var first=(data.restaurants&&data.restaurants[0]&&data.restaurants[0].name)||"Pritam Fast Food";
@@ -71,7 +37,7 @@ function tpSample(){
  {id:"demo6",name:"Riya Kulkarni",restaurantId:data.restaurants[1]&&data.restaurants[1].id,designation:"Kitchen Assistant",joined:"2025-02-03",restaurant:second,salary:1750000,method:"CASH",photo:"",leaveAllowance:2,active:true},
  {id:"demo7",name:"Mukesh",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Parcel Delivery Boy",joined:"2025-03-01",restaurant:first,salary:0,method:"CASH",photo:"",leaveAllowance:0,employeeType:"parcel",commissionGstRate:5,active:true}
  ];
- var s={version:3,employees:emps,periods:{},salaryChanges:[],designations:tpDesignationDefaults(),settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
+ var s={version:3,employees:emps,periods:{},salaryChanges:[],settings:{leaveEarnEveryDays:7},createdAt:tpStamp()};
  var months=[tpMonth(0),tpMonth(-1),tpMonth(-2)];
  months.forEach(function(m,idx){
   var p=tpDefaultPeriod();s.periods[m]=p;
@@ -126,7 +92,9 @@ function tpRead(){
    if(!Array.isArray(x.salaryChanges))x.salaryChanges=[];
    if(!Array.isArray(x.officeLoans))x.officeLoans=[];
    var loanMigrated=false;
-   if(!Array.isArray(x.designations))x.designations=tpDesignationDefaults();
+   // Legacy shortcut definitions are no longer used; preserve employee titles.
+    var shortcutsRemoved=Object.prototype.hasOwnProperty.call(x,"designations");
+    if(shortcutsRemoved)delete x.designations;
    x.employees.forEach(function(emp){
     if(!emp.restaurantId){
      var matches=(data.restaurants||[]).filter(function(r){return String(r.name||"").trim().toLowerCase()===String(emp.restaurant||"").trim().toLowerCase();});
@@ -157,7 +125,7 @@ function tpRead(){
       p.salaries[emp.id]=old.monthly;
     });
    });
-   if(tpNormalizeRestaurantNames(x)||loanMigrated){
+   if(tpNormalizeRestaurantNames(x)||loanMigrated||shortcutsRemoved){
     try{localStorage.setItem(TP_KEY,JSON.stringify(x));}catch(err){}
    }
    return x;
@@ -486,15 +454,7 @@ function tpEmployeeForm(emp){
  '<option value="salaried" '+(!parcel?'selected':'')+'>Salaried employee</option>'+
  '<option value="parcel" '+(parcel?'selected':'')+'>Parcel Boy (commission)</option></select>'+
  ''+'</div>'+
- '<div class="tp-field tp-salaried-only"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" list="tp-role-suggestions" autocomplete="off" '+(!parcel?'required':'disabled')+' maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Type ek ch or a designation">'+
- '<small>Enter a shortcut such as <strong>ek ch</strong>, then press Enter or Tab.</small>'+
- '<datalist id="tp-role-suggestions">'+tpDesignationList().map(function(item){return'<option value="'+tpEscape(item.code)+'" label="'+tpEscape(item.title)+'"></option>';}).join("")+'</datalist></div>'+
- '<div class="tp-field tp-salaried-only"><label for="tp-role-pick">Quick select designation</label>'+
- '<select id="tp-role-pick" '+(parcel?'disabled':'')+'><option value="">Select a saved designation (optional)</option>'+
- tpDesignationList().slice().sort(function(a,b){return a.title.localeCompare(b.title);}).map(function(item){
-  return'<option value="'+tpEscape(item.code)+'">'+tpEscape(item.code)+' — '+tpEscape(item.title)+'</option>';
- }).join("")+'</select>'+
- '<small>Create or change shortcuts in Payroll → Settings → Designation Shortcuts.</small></div>'+
+ '<div class="tp-field tp-salaried-only"><label for="tp-role">Designation *</label><input id="tp-role" name="designation" autocomplete="off" '+(!parcel?'required':'disabled')+' maxlength="90" value="'+tpEscape(values.designation)+'" placeholder="Enter designation manually"></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
  (emp?'<div class="tp-field"><label>Current outlet</label><strong>'+tpEscape(values.restaurant)+'</strong><input type="hidden" name="restaurant" value="'+tpEscape(values.restaurant)+'"><small>Use Transfer Employee on the profile to change outlets and preserve transfer history.</small></div>':
  '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>')+
@@ -508,27 +468,6 @@ function tpEmployeeForm(emp){
 
  
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(emp?"Save employee":"Add employee")+'</button>'+tpButton("cancel-employee","Cancel","tp-light")+'</div></form></section>';
- return out;
-}
-function tpDesignationsPage(){
- var rows=tpDesignationList().slice().sort(function(a,b){return a.code.localeCompare(b.code);});
- var editing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
- var out='<section class="tp-panel" id="tp-designation-settings">'+tpToolbar("Designation Shortcuts",
-  'Add, edit, or delete your own codes for employee designations.',tpButton("go-employees","Open Employees","tp-light"))+
- '<form id="tp-designation-form" class="tp-designation-form">'+
- '<div class="tp-field"><label for="tp-designation-code">Shortcut code *</label>'+
- '<input id="tp-designation-code" name="shortcut" maxlength="20" required autocomplete="off" placeholder="e.g. ek ch" value="'+tpEscape(editing?editing.code:"")+'">'+
- '</div>'+
- '<div class="tp-field"><label for="tp-designation-title">Full designation *</label>'+
- '<input id="tp-designation-title" name="title" maxlength="90" required autocomplete="off" placeholder="e.g. Chinese Helper" value="'+tpEscape(editing?editing.title:"")+'"></div>'+
- '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(editing?"Save Changes":"+ Add Designation")+'</button>'+
- (editing?tpButton("cancel-designation","Cancel","tp-light"):"")+'</div></form>'+
- '<div class="tp-designation-count">'+rows.length+' saved shortcuts · Your changes are saved on this device</div>'+
- tpTable(["Shortcut","Full designation","Actions"],rows.map(function(item){
-  return'<tr><td><code class="tp-shortcode">'+tpEscape(item.code)+'</code></td><td><strong>'+tpEscape(item.title)+'</strong></td>'+
-  '<td><div class="tp-actions">'+tpButton("edit-designation","Edit","tp-light",'data-code="'+tpEscape(item.code)+'"')+
-  tpButton("delete-designation","Delete","tp-danger",'data-code="'+tpEscape(item.code)+'"')+'</div></td></tr>';
- }))+'</section>';
  return out;
 }
 function tpEmployeesPage(){
@@ -802,7 +741,7 @@ function tpSettings(){
  '<div class="tp-actions" style="margin-top:16px">'+tpButton("save-leave-settings","Save Leave Settings","tp-primary")+tpButton("go-employees","Edit Employee Allowances","tp-light")+'</div>'+
  '<div class="tp-note">Example: for 27 worked days, a 4-day allowance gives '+example+' paid leave days, and a 2-day allowance gives '+cap2+'. Leave pay = monthly salary ÷ 30 × earned leave days.</div>'+
  '<p class="sub">Changing the rule recalculates unfinalized demo monthly figures, including Payroll History. No real payroll is paid or submitted.</p></section>';
- return out+tpDesignationsPage();
+ return out;
 }
 function tpRender(){
  var out=tpTop();
@@ -825,7 +764,7 @@ function tpTouch(period){
 function tpSetTab(sec){
  if(sec==="salary")sec="sheets";
  if(!TP_SECTIONS.includes(sec))return;
- tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="settings")tpDesignationEditing=null;if(sec!=="attendance")tpCommissionOpen=null;tpCalculationOpenId=null;draw();
+ tpTab=sec;tpEditing=null;tpViewing=null;tpPhoto=null;if(sec!=="attendance")tpCommissionOpen=null;tpCalculationOpenId=null;draw();
  try{document.querySelector(".tp-app")?.scrollIntoView({behavior:"smooth",block:"start"});}catch(err){}
 }
 function tpPrintableTable(title,subtitle,heads,rows,summary,signatures){
@@ -1195,24 +1134,6 @@ function tpHandleAction(button){
  if(act==="go-advances")return tpSetTab("advances");
  if(act==="go-sheets")return tpSetTab("sheets");
  if(act==="go-employees")return tpSetTab("employees");
- if(act==="go-designations")return tpSetTab("settings");
- if(act==="edit-designation"){
-  var existing=tpDesignationFind(button.dataset.code);
-  if(!existing)return;
-  tpDesignationEditing=existing.code;draw();return;
- }
- if(act==="cancel-designation"){tpDesignationEditing=null;draw();return;}
- if(act==="delete-designation"){
-  var code=tpDesignationCode(button.dataset.code),match=tpDesignationFind(code);
-  if(!match)return;
-  if(!confirm('Delete shortcut "'+match.code+' → '+match.title+'"? Employee designations already saved will not change.'))return;
-  var previous=JSON.stringify(tpData);
-  tpData.designations=tpDesignationList().filter(function(item){return tpDesignationCode(item.code)!==code;});
-  if(!tpSave()){tpData=JSON.parse(previous);return;}
-  if(tpDesignationEditing===code)tpDesignationEditing=null;
-  draw();showToast("Designation shortcut deleted.");return;
- }
-
  if(act==="open-commission"){
   var employee=tpEmp(id);
   if(!tpIsParcel(employee)||employee.active===false)return;
@@ -1274,44 +1195,13 @@ document.addEventListener("click",function(ev){
 },true);
 document.addEventListener("change",function(ev){
  var field=ev.target;
- if(field.id==="tp-role-pick"){
-  var matched=tpDesignationFind(field.value);
-  var role=document.getElementById("tp-role");
-  if(role&&matched){role.value=matched.title;role.focus();}return;
- }
- if(field.id==="tp-role"){
-  var resolved=tpDesignationFind(field.value);
-  if(resolved)field.value=resolved.title;
-  return;
- }
  if(field.id!=="tp-employee-type")return;
  var form=ev.target.closest("form");
  if(!form)return;
  var parcel=ev.target.value==="parcel";
  form.dataset.employeeType=parcel?"parcel":"salaried";
  form.querySelectorAll(".tp-salaried-only input").forEach(function(input){input.disabled=parcel;input.required=!parcel;});
- var shortcutPicker=form.querySelector("#tp-role-pick");if(shortcutPicker)shortcutPicker.disabled=parcel;
  form.querySelectorAll(".tp-parcel-only input").forEach(function(input){input.disabled=!parcel;input.required=parcel;});
-},true);
-document.addEventListener("submit",function(ev){
- if(!ev.target||ev.target.id!=="tp-designation-form")return;
- ev.preventDefault();ev.stopImmediatePropagation();
- var form=ev.target;
- var code=tpDesignationCode(form.elements.shortcut.value),title=tpTrim(form.elements.title.value,90);
- if(!tpDesignationValid(code,title)){
-  uxAlert("Enter a shortcut of 1–20 letters/numbers/spaces/hyphens and a designation of up to 90 characters.");return;
- }
- var existing=tpDesignationEditing?tpDesignationFind(tpDesignationEditing):null;
- if(tpDesignationEditing&&!existing){uxAlert("Shortcut no longer exists. Open Payroll Settings again.");return;}
- if(tpDesignationList().some(function(item){return tpDesignationCode(item.code)===code&&(!existing||item!==existing)})){
-  uxAlert('Shortcut "'+code+'" is already used. Choose a different code.');return;
- }
- var previous=JSON.stringify(tpData);
- if(existing){existing.code=code;existing.title=title;}
- else tpData.designations.push({code:code,title:title});
- if(!tpSave()){tpData=JSON.parse(previous);return;}
- tpDesignationEditing=null;
- draw();showToast("Designation shortcut saved.");return;
 },true);
 document.addEventListener("submit",function(ev){
  if(!ev.target||!["tp-office-loan-issue-form","tp-office-loan-repayment-form"].includes(ev.target.id))return;
@@ -1347,7 +1237,7 @@ document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-employee-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target;
- var name=tpTrim(form.elements.name.value,90),designation=tpTrim(tpDesignationExpand(form.elements.designation.value),90),joined=form.elements.joined.value;
+ var name=tpTrim(form.elements.name.value,90),designation=tpTrim(form.elements.designation.value,90),joined=form.elements.joined.value;
  var restaurant=tpTrim(form.elements.restaurant.value,90),method=form.elements.method.value,
  employeeType=form.elements.employeeType.value==="parcel"?"parcel":"salaried",parcel=employeeType==="parcel",
  salary=parcel?0:(tpEditing&&tpEditing!=="new"&&tpEmp(tpEditing)?tpMonthSalary(tpEmp(tpEditing),tpPeriod):parsePaise(form.elements.salary.value)),
@@ -1385,19 +1275,6 @@ document.addEventListener("submit",function(ev){
  }
  if(!tpSave()){tpData=JSON.parse(before);return;}
  tpEditing=null;tpViewing=null;tpPhoto=null;draw();showToast("Employee saved to Payroll Demo on this device.");
-},true);
-document.addEventListener("keydown",function(ev){
- if(tab!=="payroll"||tpTab!=="employees")return;
- if(ev.target&&ev.target.id==="tp-role"&&!ev.isComposing&&(ev.key==="Enter"||ev.key==="Tab")){
-  var match=tpDesignationFind(ev.target.value);
-  if(match){
-   ev.target.value=match.title;
-   if(ev.key==="Enter"){ev.preventDefault();ev.stopImmediatePropagation();
-    var next=document.getElementById("tp-joined");
-    if(next)next.focus();
-   }
-  }
- }
 },true);
 document.addEventListener("change",function(ev){
  var field=ev.target;
@@ -1716,12 +1593,6 @@ css.textContent=String.raw`
 @media(max-width:600px){.tp-commission-summary{grid-template-columns:1fr;gap:7px}.tp-commission-summary>div{display:flex;justify-content:space-between;align-items:center;padding:11px}
 .tp-commission-editor .tp-form-grid{grid-template-columns:1fr}.tp-commission-days{width:100%;max-width:none}}
 
-.tp-designation-form{display:grid;grid-template-columns:minmax(160px,.65fr) minmax(220px,1.4fr) auto;gap:13px;align-items:end;padding:15px;background:#f7faf9;border:1px solid #e1ebe8;border-radius:12px;margin-bottom:17px}
-.tp-designation-form>.tp-actions{padding-bottom:2px}
-.tp-designation-count{font-weight:750;color:#688493;font-size:12px;margin:12px 0}
-.tp-shortcode{display:inline-block;border:1px solid #d7eadf;background:#eaf8f0;color:#0c795e;padding:6px 10px;border-radius:8px;font:800 12px ui-monospace,SFMono-Regular,Consolas,monospace}
-.tp-designation-form input{min-height:43px}
-@media(max-width:800px){.tp-designation-form{grid-template-columns:1fr}}
 .tp-form{display:grid;gap:17px}.tp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
 .tp-field{display:grid;gap:6px;min-width:0}.tp-field label,.tp-photo-box label{font-size:11px;color:#607889;font-weight:800}
 .tp-field input,.tp-field select{width:100%;min-width:0;min-height:43px;border:1px solid #d5e2e8;padding:10px 11px;border-radius:9px;background:white;color:#1e3f4f;font-size:13px}
