@@ -199,7 +199,9 @@ test("Single-page landscape bonus PDF has narrow month columns and employee rows
  expect(pdfCode).toContain("emp.designation");
  expect(pdfCode).toContain("tpMonthSalary");
  expect(pdfCode).toContain("tpBonusOutletCode");
- expect(pdfCode).toContain("person.days");
+ expect(pdfCode).toContain("tpBonusShortMonth");
+ expect(pdfCode).toContain('status="Manual"');
+ expect(pdfCode).not.toContain("tpBonusCreditedMonths");
  expect(pdfCode).toContain("tpBonusShortMonth");
  expect(pdfCode).toContain('landscape');
 });
