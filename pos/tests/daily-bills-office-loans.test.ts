@@ -89,30 +89,62 @@ function payrollApp(){
  return {app,alerts,change,submit};
 }
 
-test("New office advances are interest-free loans and only Other deduction is taken from salary",()=>{
- const {app,change}=payrollApp(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+test("Monthly advance immediately reduces salary; optional profile loan is separate and recovers a custom amount",()=>{
+ const {app,change,submit}=payrollApp(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
  const p=app.period("2026-11");
  change("demo1","advance","5000");
- expect(p.advances.demo1).toMatchObject({kind:"office-loan",amount:500000});
- expect(app.loan(emp)).toBe(500000);
+ expect(p.advances.demo1).toMatchObject({amount:500000});
+ expect(p.advances.demo1.kind).toBeUndefined();
  let calc=app.compute(emp,p);
- expect(calc.paidAdvance).toBe(0);
- change("demo1","other","1200");
+ expect(calc.paidAdvance).toBe(500000);
+ expect(app.loan(emp)).toBe(0);
+ submit("tp-office-loan-issue-form","demo1",{
+  "#tp-office-loan-amount":"20000","#tp-office-loan-note":"Emergency help"
+ });
+ expect(app.data().officeLoans).toHaveLength(1);
+ expect(app.loan(emp)).toBe(2000000);
+ submit("tp-office-loan-repayment-form","demo1",{"#tp-office-loan-deduction":"1200"});
  calc=app.compute(emp,p);
- expect(p.deductions.demo1).toMatchObject({other:120000,loanRepayment:120000});
- expect(calc.other).toBe(120000);
- expect(app.loan(emp)).toBe(380000);
+ expect(emp.officeLoanMonthlyDeduction).toBe(120000);
+ expect(p.deductions.demo1.loanRepayment).toBe(120000);
+ expect(p.deductions.demo1.other).toBe(120000);
+ expect(calc.paidAdvance).toBe(500000);
+ expect(app.loan(emp)).toBe(1880000);
+ change("demo1","other","300");
+ expect(p.deductions.demo1.other).toBe(150000);
+ expect(p.deductions.demo1.loanRepayment).toBe(120000);
+ expect(app.loan(emp)).toBe(1880000);
  app.setPage("advances");
- const h=app.render();
- expect(h).toContain("Monthly ID");
- expect(h).toContain("Other deduction / loan recovery");
- expect(h).toContain("interest-free");
+ const html=app.render();
+ expect(html).toContain("Monthly ID");
+ expect(html).toContain("Advance (₹)");
+ expect(html).toContain("Other deduction (₹)");
+ expect(html).toContain("Office loan remaining");
+ expect(html).toContain("₹18,800");
 });
 
-test("Resigning employee with office advance must choose salary deduction or waiver",()=>{
+test("Employee profile keeps a visible balance note and optional loan/repayment controls",()=>{
+ const {app,submit}=payrollApp(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ let html=app.render();
+ expect(html).toContain("Restaurant Payroll");
+ app.setPage("employees");
+ // The profile renderer is exposed through Employee Management after viewing.
+ app.handle({dataset:{tpAction:"view-employee",id:emp.id}});
+ html=app.render();
+ expect(html).toContain("Optional Office Loan");
+ expect(html).toContain('id="tp-office-loan-issue-form"');
+ expect(html).toContain('id="tp-office-loan-repayment-form"');
+ expect(html).toContain("Loan remaining to repay:");
+ submit("tp-office-loan-issue-form","demo1",{"#tp-office-loan-amount":"7000","#tp-office-loan-note":"No interest"});
+ html=app.render();
+ expect(html).toContain("₹7,000");
+ expect(html).toContain("No interest");
+});
+
+test("Resigning employee with office loan must deduct outstanding balance or waive it",()=>{
  const {app,submit,alerts}=payrollApp(),p=app.period("2026-11"),emp=app.data().employees.find((e:any)=>e.id==="demo1");
- p.advances.demo1={amount:500000,kind:"office-loan"};
- p.deductions.demo1={fine:0,other:0};
+ p.advances.demo1={amount:0};p.deductions.demo1={fine:0,other:0};
+ submit("tp-office-loan-issue-form","demo1",{"#tp-office-loan-amount":"5000","#tp-office-loan-note":""});
  app.handle({dataset:{tpAction:"mark-left",id:"demo1"}});
  expect(app.render()).toContain("OFFICE ADVANCE PENDING");
  const fields={
@@ -124,7 +156,7 @@ test("Resigning employee with office advance must choose salary deduction or wai
   "#tp-departure-notes":""
  };
  submit("tp-departure-form","demo1",fields);
- expect(alerts.some(s=>s.includes("Office advance pending"))).toBe(true);
+ expect(alerts.some(v=>v.includes("Office advance pending"))).toBe(true);
  expect(emp.active).toBe(true);
  submit("tp-departure-form","demo1",{...fields,"#tp-departure-loan-choice":"deduct"});
  expect(emp.active).toBe(false);
@@ -134,10 +166,10 @@ test("Resigning employee with office advance must choose salary deduction or wai
  expect(app.loan(emp)).toBe(0);
 });
 
-test("Waived office loan is recorded but does not reduce final salary",()=>{
+test("Waived optional loan is recorded without reducing final salary",()=>{
  const {app,submit}=payrollApp(),p=app.period("2026-11"),emp=app.data().employees.find((e:any)=>e.id==="demo1");
- p.advances.demo1={amount:200000,kind:"office-loan"};
- p.deductions.demo1={fine:0,other:0};
+ p.advances.demo1={amount:0};p.deductions.demo1={fine:0,other:0};
+ submit("tp-office-loan-issue-form","demo1",{"#tp-office-loan-amount":"2000","#tp-office-loan-note":"Waivable"});
  app.handle({dataset:{tpAction:"mark-left",id:"demo1"}});
  submit("tp-departure-form","demo1",{
   "#tp-departure-date":"2026-11-20","#tp-departure-days":"18",
