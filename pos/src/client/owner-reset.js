@@ -66,6 +66,11 @@
    '<label>Owner PIN<input id="tw-reset-pin" type="password" inputmode="numeric" minlength="6" maxlength="8" required autocomplete="off"></label>'+
    '<div class="tw-owner-actions"><button class="btn danger" type="submit">Permanently Reset Everything</button><button type="button" class="btn" data-tw-owner-close="1">Cancel</button></div><p class="tw-owner-feedback" id="tw-owner-feedback" role="alert"></p></form>');
  }
+ // Never repopulate a freshly reset restaurant with sample/demo records on reload.
+ if(typeof seedPritamData==="function"){
+  const originalSeedPritamData=seedPritamData;
+  seedPritamData=function(){if(data&&data.factoryReset)return false;return originalSeedPritamData.apply(this,arguments);};
+ }
  const previousSettings=settings;
  settings=function(){
   let output=previousSettings.apply(this,arguments);
