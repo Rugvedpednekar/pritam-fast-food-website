@@ -99,6 +99,11 @@ html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension3+"\n
 const twExtension4=await Bun.file(new URL("./client/mobile-back.js",import.meta.url)).text();
 if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("mobile-back.js insertion point missing");
 html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension4+"\n"+"startupFinished=true;\ncloudStart();\n})();");
+const dailyBillsModule=await Bun.file(new URL("./client/daily-bills-mobile.js",import.meta.url)).text();
+if(!dailyBillsModule.includes("newInvoiceNumber=function(day)"))throw Error("Daily bill workflow asset missing");
+if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("Daily bill insertion point missing");
+html=html.replace("startupFinished=true;\ncloudStart();\n})();",
+ dailyBillsModule+"\n"+"startupFinished=true;\ncloudStart();\n})();");
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
