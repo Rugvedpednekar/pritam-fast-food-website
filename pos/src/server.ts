@@ -1,5 +1,6 @@
 import {closeDueBusinessDays} from "./day-end";
 import {normalizeRestaurantNames} from "./restaurant-name";
+import {createOwnerResetController} from "./owner-reset";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
@@ -119,8 +120,10 @@ let init;
 function ready(){if(!init)init=db.unsafe("CREATE TABLE IF NOT EXISTS demo_snapshots(account_key text PRIMARY KEY,version bigint NOT NULL,payload jsonb NOT NULL,updated_at timestamptz DEFAULT now())").catch(e=>{init=null;throw e});return init;}
 let photoInit;
 function photosReady(){
- if(!photoInit)photoInit=db.unsafe("CREATE TABLE IF NOT EXISTS demo_employee_photos(account_key text NOT NULL,employee_id text NOT NULL,photo text NOT NULL DEFAULT '',updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(account_key,employee_id))")
-  .catch(e=>{photoInit=null;throw e});
+ if(!photoInit)photoInit=(async()=>{
+  await db.unsafe("CREATE TABLE IF NOT EXISTS demo_employee_photos(account_key text NOT NULL,employee_id text NOT NULL,photo text NOT NULL DEFAULT '',updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(account_key,employee_id))");
+  await db.unsafe("ALTER TABLE demo_employee_photos ADD COLUMN IF NOT EXISTS restaurant_id text");
+ })().catch(e=>{photoInit=null;throw e});
  return photoInit;
 }
 const cookie="tw_demo_session";
@@ -159,6 +162,7 @@ const automaticDayEndTimer=setInterval(() => {
 automaticDayEndTimer.unref?.();
 runAutomaticDayEnd().catch(err => console.error("Auto day-end startup:",err.message));
 
+const ownerReset=createOwnerResetController({db,ready,photosReady,checkOwnerPassword:p=>checkLogin(user,p)});
 const failures=new Map();
 Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  const path=new URL(req.url).pathname;
@@ -178,10 +182,24 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  }
  if(!auth(req))return res({error:"Authentication required"},401);
  if(path==="/api/logout"&&req.method==="POST"){if(!origin(req))return res({error:"Origin rejected"},403);return res({ok:true},200,{"set-cookie":cookie+"=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"});}
+ if(path==="/api/owner/status"&&req.method==="GET"){
+  try{return res(await ownerReset.status());}
+  catch(err){console.error("Owner status:",err.message);return res({error:"Could not load owner security status"},503)}
+ }
+ if((path==="/api/owner/pin"||path==="/api/owner/reset"||path==="/api/restaurants/delete")&&req.method==="POST"){
+  if(!origin(req))return res({error:"Origin rejected"},403);
+  const raw=await req.text();if(raw.length>2000)return res({error:"Request too large"},413);
+  let body;try{body=JSON.parse(raw)}catch{return res({error:"Invalid JSON"},400)}
+  try{
+   const result=path==="/api/owner/pin"?await ownerReset.setPin(body):
+    path==="/api/owner/reset"?await ownerReset.resetEverything(body):await ownerReset.deleteRestaurant(body);
+   return res(result);
+  }catch(err){console.error("Protected owner action:",err.status||500,err.message);return res({error:err.message||"Request failed"},err.status||503);}
+ }
  if(path==="/api/payroll/photos"&&req.method==="GET"){
   try{
    await photosReady();
-   const rows=await db.unsafe("SELECT employee_id AS \"employeeId\",photo FROM demo_employee_photos WHERE account_key='owner' ORDER BY updated_at DESC LIMIT 300");
+   const rows=await db.unsafe("SELECT employee_id AS \"employeeId\",photo,restaurant_id AS \"restaurantId\" FROM demo_employee_photos WHERE account_key='owner' ORDER BY updated_at DESC LIMIT 300");
    return res({photos:rows});
   }catch(err){console.error("Payroll photo read:",err.message);return res({error:"Employee photos unavailable"},503);}
  }
@@ -190,18 +208,23 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
   const raw=await req.text();
   if(raw.length>190000)return res({error:"Employee photo too large"},413);
   let body;try{body=JSON.parse(raw)}catch{return res({error:"Invalid JSON"},400)}
-  const employeeId=body?.employeeId,photo=body?.photo;
+  const employeeId=body?.employeeId,photo=body?.photo,restaurantId=body?.restaurantId??null;
   if(typeof employeeId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(employeeId)||
+     (restaurantId!==null&&(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)))||
      typeof photo!=="string"||(photo!==""&&(
       photo.length>180000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))))
     return res({error:"Invalid employee photo"},422);
   try{
    await photosReady();
-   await db.unsafe("INSERT INTO demo_employee_photos(account_key,employee_id,photo,updated_at) VALUES('owner',$1,$2,now()) ON CONFLICT(account_key,employee_id) DO UPDATE SET photo=excluded.photo,updated_at=now()",[employeeId,photo]);
+   if(restaurantId){
+    const security=await ownerReset.status();
+    if(security.deletedRestaurants.some(r=>r.id===restaurantId))return res({error:"This restaurant was permanently deleted"},410);
+   }
+   await db.unsafe("INSERT INTO demo_employee_photos(account_key,employee_id,photo,restaurant_id,updated_at) VALUES('owner',$1,$2,$3,now()) ON CONFLICT(account_key,employee_id) DO UPDATE SET photo=excluded.photo,restaurant_id=COALESCE(excluded.restaurant_id,demo_employee_photos.restaurant_id),updated_at=now()",[employeeId,photo,restaurantId]);
    return res({ok:true});
   }catch(err){console.error("Payroll photo save:",err.message);return res({error:"Could not store employee photo"},503);}
  }
- if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");return res(rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
+ if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");const security=await ownerReset.status();return res({...rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null},resetGeneration:security.resetGeneration,deletedRestaurants:security.deletedRestaurants})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
  if(path==="/api/state"&&req.method==="PUT"){
   if(!origin(req))return res({error:"Origin rejected"},403);
   const text=await req.text();if(text.length>2500000)return res({error:"Payload too large"},413);
@@ -209,7 +232,9 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
   let v=b?.version,state=b?.state;
   if(!Number.isSafeInteger(v)||v<0||state?.schema!==1||!Array.isArray(state.restaurants)||(state.restaurants.length<1||state.restaurants.length>50||!state.restaurants.some(r=>r&&r.active!==false))||!Array.isArray(state.bills)||!Array.isArray(state.employees)||!Array.isArray(state.closings)||!state.menus||!Number.isSafeInteger(state.seq))return res({error:"Invalid demo schema"},422);
   normalizeRestaurantNames(state);
-  try{await ready();await runAutomaticDayEnd();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
+  try{const status=await ownerReset.status();
+   if(status.deletedRestaurants.some(item=>state.restaurants.some(r=>r.id===item.id)))return res({error:"Backup contains a permanently deleted restaurant. It cannot be restored.",code:"RESTAURANT_DELETED"},410);
+   await ready();await runAutomaticDayEnd();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
   else rows=await db.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",[JSON.stringify(state),v]);
   return rows.length?res({ok:true,version:Number(rows[0].version)}):res({error:"Concurrent update detected. Reload cloud data.",code:"VERSION_CONFLICT"},409)
   }catch(e){console.error("write",e.message);return res({error:"Database save failed"},503)}
