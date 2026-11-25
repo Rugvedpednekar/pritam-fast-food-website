@@ -30,6 +30,45 @@ function boot(savedData){
  return {app,storage,handlers,setInputs};
 }
 
+test("Employee photos have an open button, remove X and a touch-friendly lightbox",()=>{
+ const {app}=boot();
+ app.setPage("employees");
+ let page=app.page();
+ expect(page).not.toContain('id="tp-photo"'); // Edit form is not open yet.
+ const employee=app.data().employees[0];
+ employee.photo="data:image/jpeg;base64,AA==";
+ page=app.page();
+ expect(page).toContain('data-tp-action="open-employee-photo"');
+ expect(page).toContain('data-tp-action="remove-employee-photo"');
+ expect(page).toContain('aria-label="Remove photo of '+employee.name+'"');
+ app.handle({dataset:{tpAction:"edit-employee",id:employee.id}});
+ page=app.page();
+ expect(page).toContain('data-tp-action="open-photo-preview"');
+ expect(page).toContain('data-tp-action="remove-photo-preview"');
+ expect(page).toContain("tp-photo-status");
+ expect(source).toContain("function tpShowPhoto(src,label)");
+ expect(source).toContain('role","dialog"');
+ expect(source).toContain(".tp-photo-lightbox img{display:block");
+ expect(source).toContain('tpPhotoPreviewMarkup(tpPhoto)');
+});
+
+test("Employee photos sync through owner login and never use public photo URLs",()=>{
+ const {app}=boot();
+ app.setPage("employees");
+ expect(app.page()).toContain("Employee Management");
+ expect(source).toContain('"/api/payroll/photos"');
+ expect(source).toContain('"/api/payroll/photo"');
+ expect(source).toContain('credentials:"same-origin"');
+ expect(source).toContain('tpPhotoChanged[savedEmp.id]=true');
+ expect(source).toContain('tpPhotoChanged[id]=true');
+ expect(source).toContain("tpOriginalCloudLoad=cloudLoad");
+ const server=readFileSync(new URL("../src/server.ts",import.meta.url),"utf8");
+ expect(server.indexOf('if(!auth(req))')).toBeLessThan(server.indexOf('if(path==="/api/payroll/photos"'));
+ expect(server).toContain('if(!origin(req))return res({error:"Origin rejected"},403)');
+ expect(server).toContain('demo_employee_photos');
+ expect(server).toContain('photo!==""');
+});
+
 test("Payroll sections render with Payment Sheets instead of a separate Salary Calculator",()=>{
  const {app}=boot();
  const tabs=["dashboard","employees","attendance","advances","sheets","history","settings"];
