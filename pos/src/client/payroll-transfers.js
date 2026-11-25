@@ -61,6 +61,11 @@ var tpTransferPreviousProfile=tpEmployeeProfile;
 tpEmployeeProfile=function(emp){
  var html=tpTransferPreviousProfile(emp);
  if(!emp)return html;
+ if(emp.active!==false&&!emp.left){
+  html=html.replace('<div class="tp-profile-menu">',
+   '<div class="tp-profile-menu">'+
+   tpButton("transfer-employee","Transfer Employee","tp-light",'data-id="'+tpEscape(emp.id)+'"'));
+ }
  var history=tpTransferHistoryFor(emp),rows=history.map(function(t){
   return '<tr><td>'+tpDate(t.date)+'</td><td>'+tpEscape(t.fromRestaurant)+'</td>'+
    '<td>'+tpEscape(t.toRestaurant)+'</td>'+
@@ -71,8 +76,6 @@ tpEmployeeProfile=function(emp){
  var extra='<div class="tp-transfer-history"><h3>Outlet Transfer History</h3>'+
   (rows.length?tpTable(["Transfer date","From outlet","To outlet","Previous monthly ID","New monthly ID","Days at former outlet"],rows):
    '<p class="tp-note">No outlet transfers have been recorded.</p>')+
-  (emp.active!==false&&!emp.left?
-   '<div class="tp-actions">'+tpButton("transfer-employee","Transfer Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div>':"")+
   '</div>'+
    (tpTransferOpenId===emp.id&&emp.active!==false&&!emp.left&&tpPayrollMatchesRestaurant(emp)?tpTransferForm(emp):"");
  var end=html.lastIndexOf("</section>");
