@@ -23,7 +23,7 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,navigate:tpSetTab,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,navigate:tpSetTab,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,money:tpMoney,parseMoney:parsePaise,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
@@ -218,7 +218,7 @@ test("Enter on Advances saves current amount and moves directly to next employee
  expect(html).toContain('enterkeyhint="next"');
  let focusId=null,selectedId=null,scrollId=null,prevented=false;
  const inputs=["demo1","demo2","demo3"].map(id=>({
-  value:id==="demo1"?"1234.50":"0.00",
+  value:id==="demo1"?"1235":"0",
   dataset:{tpField:"advance",id},
   matches:selector=>selector.includes('data-tp-field="advance"'),
   dispatchEvent:function(){handlers.change[handlers.change.length-1]({target:this});return true;},
@@ -230,7 +230,7 @@ test("Enter on Advances saves current amount and moves directly to next employee
  key({target:inputs[0],key:"Enter",isComposing:false,
   preventDefault:()=>{prevented=true;},stopImmediatePropagation:()=>{}});
  expect(prevented).toBe(true);
- expect(app.period("2026-11").advances.demo1.amount).toBe(123450);
+ expect(app.period("2026-11").advances.demo1.amount).toBe(123500);
  expect(focusId).toBe("demo2");
  expect(selectedId).toBe("demo2");
  expect(scrollId).toBe("demo2");
@@ -245,6 +245,41 @@ test("Enter on Advances saves current amount and moves directly to next employee
   preventDefault:()=>{},stopImmediatePropagation:()=>{}});
  expect(app.period("2026-11").advances.demo3.amount).toBe(0);
  expect(focusId).toBe(null);
+});
+
+
+test("Payroll currency and entry fields use whole rupees rather than paise",()=>{
+ const {app}=boot();
+ expect(app.money(2000000)).toContain("20,000");
+ expect(app.money(2000000)).not.toContain(".00");
+ expect(app.money(0)).not.toContain(".00");
+ expect(app.parseMoney("125")).toBe(12500);
+ expect(app.parseMoney("125.00")).toBe(12500); // legacy typed amount is tolerated
+ expect(app.parseMoney("125.50")).toBeNull();  // no paise for employees
+ app.setPage("advances");
+ const page=app.page();
+ expect(page).toContain("Other deduction / loan recovery");
+ expect(page).not.toContain('value="0.00"');
+ expect(page).toContain('value="0"');
+ const salaryForm=app.employeeForm(null);
+ expect(salaryForm).not.toContain('value="0.00"');
+});
+
+test("Empty advance, fine, and Other deduction fields save zero without warnings",()=>{
+ const {app,handlers}=boot();
+ app.setPage("advances");
+ const change=handlers.change[handlers.change.length-1];
+ const fields=["advance","fine","other"];
+ for(const name of fields){
+  const target={id:"",dataset:{tpField:name,id:"demo1"},value:""};
+  change({target});
+  expect(target.value).toBe("0");
+ }
+ const p=app.period("2026-11");
+ expect(p.advances.demo1.amount).toBe(0);
+ expect(p.advances.demo1.kind).toBe("office-loan");
+ expect(p.deductions.demo1.fine).toBe(0);
+ expect(p.deductions.demo1.other).toBe(0);
 });
 
 test("Monthly IDs support values over 100 and are unique only within each restaurant",()=>{
