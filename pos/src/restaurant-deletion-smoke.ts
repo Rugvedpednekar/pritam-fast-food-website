@@ -47,7 +47,10 @@ export async function runRestaurantDeletionSmoke(db){
     "SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key=$1",
     [accountKey]
    );
-   const saved=typeof rows[0]?.payload==="string"?JSON.parse(rows[0].payload):rows[0]?.payload;
+   // Legacy snapshots are JSONB strings containing another JSON document.
+   // Decode both formats exactly as the live app does.
+   let saved=rows[0]?.payload;
+   for(let n=0;n<3&&typeof saved==="string";n++)saved=JSON.parse(saved);
    if(Number(rows[0]?.version)!==2||
       !saved?.restaurants?.some(r=>r.id===retained)||
       saved.restaurants.some(r=>r.id===removable)||
