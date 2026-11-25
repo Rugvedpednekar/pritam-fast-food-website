@@ -210,6 +210,20 @@ test("Enter on attendance saves monthly days and focuses the next employee",()=>
 });
 
 
+test("Attendance uses a compact 3-column table with phone-specific widths",()=>{
+ const {app}=boot();
+ app.setPage("attendance");
+ const html=app.page();
+ expect(html).toContain('class="tp-attendance-compact"');
+ expect(html).toContain("<th>Monthly ID</th><th>Employee / designation</th><th>Days worked</th>");
+ expect(html).toContain('data-tp-field="serial"');
+ expect(html).toContain('data-tp-field="days"');
+ expect(source).toContain(".tp-attendance-compact .tp-table{width:100%;min-width:0;table-layout:fixed}");
+ expect(source).toContain(".tp-attendance-compact .tp-table{min-width:0!important;width:100%!important}");
+ expect(source).toContain(".tp-attendance-compact .tp-avatar-small{display:none}");
+ expect(source).toContain(".tp-attendance-compact .tp-days-hint{display:none}");
+});
+
 test("Attendance does not show the total worked-days summary card",()=>{
  const {app}=boot();
  app.setPage("attendance");
