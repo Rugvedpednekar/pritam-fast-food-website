@@ -4,7 +4,7 @@
 "use strict";
 TP_SECTIONS.splice(TP_SECTIONS.indexOf("sheets")+1,0,"bonus");
 TP_TITLES.bonus="Bonus List";
-var tpBonusOutletFilter="all";
+var tpBonusOutletFilter="all",tpBonusRangeFrom=null,tpBonusRangeThrough=null;
 
 function tpBonusMonthShift(month,diff){
  var parts=String(month||tpPeriod).split("-").map(Number);
@@ -14,14 +14,29 @@ function tpBonusBasis(){
  var value=Number(tpData.settings&&tpData.settings.bonusDaysPerMonth);
  return Number.isSafeInteger(value)&&value>=1&&value<=31?value:null;
 }
+function tpBonusRange(){
+ var to=tpBonusRangeThrough||tpPeriod,from=tpBonusRangeFrom||tpBonusMonthShift(to,-11);
+ return {from:from,through:to};
+}
+function tpBonusMonthCount(from,through){
+ var a=from.split("-").map(Number),b=through.split("-").map(Number);
+ return (b[0]-a[0])*12+b[1]-a[1]+1;
+}
 function tpBonusMonths(){
- // Strictly twelve calendar months, even where attendance is missing.
- return Array.from({length:12},function(_,index){return tpBonusMonthShift(tpPeriod,index-11);});
+ var range=tpBonusRange(),length=tpBonusMonthCount(range.from,range.through);
+ return Array.from({length:Math.max(1,Math.min(12,length))},function(_,index){
+  return tpBonusMonthShift(range.from,index);
+ });
+}
+function tpBonusOutletCode(name){
+ var words=String(name||"").trim().split(/\s+/).filter(Boolean);
+ if(!words.length||name==="Outlet not recorded")return "—";
+ return words.map(function(w){return w[0];}).join("").toUpperCase().slice(0,7);
 }
 function tpBonusCreditedMonths(workdays,basis){
  return basis===null?null:Math.min(12,Math.max(0,Number(workdays)||0)/basis);
 }
-function tpBonusFullRows(){
+function tpBonusRawRows(){
  var entries=[];
  tpBonusMonths().forEach(function(month){
   var period=tpData.periods[month]||{},days=period.days||{},serials=period.serials||{},snapshots=period.snapshots||{};
@@ -67,6 +82,31 @@ function tpBonusFullRows(){
    a.employeeId.localeCompare(b.employeeId);
  });
 }
+function tpBonusFullRows(){
+ var raw=tpBonusRawRows(),grouped=new Map();
+ raw.forEach(function(r){
+  var key=r.personId+"|"+r.month,prior=grouped.get(key);
+  if(!prior){
+   grouped.set(key,Object.assign({},r));
+   return;
+  }
+  // One month, one bonus entry per person, including historic (legacy) splits.
+  // Preserve all actual days but prefer the single documented outlet for
+  // the month; when legacy data has multiple outlets choose the largest
+  // recorded share, using the newer entry to break ties.
+  var newDays=prior.workedDays+r.workedDays;
+  var primary=Number(prior.primaryDays||prior.workedDays);
+  if(r.workedDays>=primary){
+   prior.monthlyId=r.monthlyId;prior.outlet=r.outlet;prior.outletId=r.outletId;
+   prior.employee=r.employee;prior.employeeId=r.employeeId;
+   prior.primaryDays=r.workedDays;
+  }
+  prior.workedDays=newDays;
+ });
+ return Array.from(grouped.values()).sort(function(a,b){
+  return a.employee.name.localeCompare(b.employee.name)||a.month.localeCompare(b.month);
+ });
+}
 function tpBonusPersonSummary(rows){
  var groups=new Map();
  rows.forEach(function(row){
@@ -84,26 +124,24 @@ function tpBonusPersonSummary(rows){
 }
 function tpBonusMatrix(rows,basis){
  var months=tpBonusMonths(),people=tpBonusPersonSummary(rows),grouped=new Map();
- rows.forEach(function(row){
-  var key=row.personId+"|"+row.month,arr=grouped.get(key)||[];
-  arr.push(row);grouped.set(key,arr);
- });
- var headings=["Employee"].concat(months.map(function(month){return tpEscape(tpMonthLabel(month));})).concat(["Total days","Credited months / 12"]);
+ rows.forEach(function(row){grouped.set(row.personId+"|"+row.month,row);});
+ var headings=["Employee"].concat(months.map(function(month){return tpEscape(tpMonthLabel(month));})).concat(["Total","Months / 12"]);
  var body=people.map(function(person){
   var cells=months.map(function(month){
-   var monthRows=grouped.get(person.personId+"|"+month)||[];
-   if(!monthRows.length)return '<td class="tp-bonus-blank">—</td>';
-   return '<td class="tp-bonus-month-cell">'+monthRows.map(function(r){
-    return '<div><strong>ID '+(r.monthlyId===null?"—":r.monthlyId)+'</strong> · '+r.workedDays+' days'+
-     '<small>'+tpEscape(r.outlet)+'</small></div>';
-   }).join("")+'</td>';
+   var entry=grouped.get(person.personId+"|"+month);
+   if(!entry)return '<td class="tp-bonus-blank">—</td>';
+   var code=tpBonusOutletCode(entry.outlet),monthly=entry.monthlyId===null?"—":String(entry.monthlyId);
+   return '<td class="tp-bonus-month-cell"><div class="tp-bonus-mini" title="'+
+     tpEscape(entry.outlet+' · '+tpMonthLabel(month)+' · '+entry.workedDays+' days')+'">'+
+     '<strong>'+tpEscape(monthly)+'</strong><span>'+tpEscape(String(entry.workedDays))+'</span>'+
+     '<small>'+tpEscape(code)+'</small></div></td>';
   }).join("");
-  return '<tr><td><strong>'+tpEscape(person.name)+'</strong></td>'+cells+
+  return '<tr><td class="tp-bonus-employee"><strong>'+tpEscape(person.name)+'</strong></td>'+cells+
    '<td><strong>'+person.days+'</strong></td>'+
-   '<td><strong>'+(basis===null?"Set rule":tpBonusCreditedMonths(person.days,basis).toFixed(2))+
+   '<td><strong>'+(basis===null?"—":tpBonusCreditedMonths(person.days,basis).toFixed(2))+
    '</strong></td></tr>';
  });
- return '<div class="tp-bonus-matrix"><p class="tp-note"><strong>Exactly 12 monthly columns.</strong> Each cell shows that month’s employee ID, days worked, and outlet. Older months remain in historical payroll but never become a 13th bonus month.</p>'+
+ return '<div class="tp-bonus-matrix"><p class="tp-note">One record per employee per month: <strong>monthly number / days / outlet initials</strong>. No repeated entries when changing outlets. Maximum 12 selected months.</p>'+
   tpTable(headings,body)+'</div>';
 }
 function tpBonusDisplayedRows(rows){
@@ -133,24 +171,20 @@ function tpBonusList(){
   '<div class="tp-form-grid">'+
   '<div class="tp-field"><label for="tp-bonus-outlet">Bonus report · Outlet</label>'+
    '<select id="tp-bonus-outlet">'+options+'</select></div>'+
-  '<div class="tp-field"><label>Bonus period</label><div class="tp-bonus-period">'+
-  tpEscape(tpMonthLabel(tpBonusMonthShift(tpPeriod,-11)))+' – '+tpEscape(tpMonthLabel(tpPeriod))+
-  '<small>Rolling 12 months ending in the selected payroll month above</small></div></div></div>'+
+  '</div><form id="tp-bonus-period-form" class="tp-form tp-bonus-period-form">'+
+  '<div class="tp-form-grid">'+
+  '<div class="tp-field"><label for="tp-bonus-period-from">Bonus from month</label>'+
+   '<input id="tp-bonus-period-from" type="month" required value="'+tpEscape(tpBonusRange().from)+'"></div>'+
+  '<div class="tp-field"><label for="tp-bonus-period-through">Bonus through month</label>'+
+   '<input id="tp-bonus-period-through" type="month" required value="'+tpEscape(tpBonusRange().through)+'"></div></div>'+
+  '<div class="tp-actions"><button type="submit" class="tp-button tp-light">Apply Bonus Period</button>'+
+  '<small>Choose any consecutive period of 1–12 months.</small></div></form>'+
   '<form id="tp-bonus-basis-form" class="tp-bonus-settings"><label for="tp-bonus-days-month">Actual workdays equal to one bonus month *</label>'+
   '<div class="tp-actions"><input id="tp-bonus-days-month" type="number" min="1" max="31" step="1" inputmode="numeric" placeholder="e.g. 26 or 30" value="'+
   (basis===null?"":basis)+'">'+
   '<button class="tp-button tp-primary" type="submit">Save Bonus Rule</button></div>'+
   '<p class="tp-note">11 equivalent months qualify for full bonus. <strong>Bonus credit is capped at 12 equivalent months per employee, never 13 or more</strong>, even if actual days ÷ the configured conversion rate exceeds 12. Actual worked days remain in history. No bonus amount is calculated until a payout policy is defined.</p></form>'+
-  '<h3>12-month employee bonus sheet</h3>'+tpBonusMatrix(all,basis)+
-  '<h3>Detailed month-by-month bonus list</h3>'+
-  (rows.length?tpTable(["Employee","Worked month","Restaurant where worked","ID in that month","Days worked","Equivalent months"],rows.map(function(r){
-   return '<tr><td><strong>'+tpEscape(r.employee.name)+'</strong></td>'+
-    '<td>'+tpEscape(tpMonthLabel(r.month))+'</td>'+
-    '<td>'+tpEscape(r.outlet)+'</td>'+
-    '<td><strong>'+(r.monthlyId===null?"Not assigned":r.monthlyId)+'</strong></td>'+
-    '<td><strong>'+r.workedDays+'</strong></td>'+
-    '<td>'+(basis===null?"Set rule":Math.min(12,r.workedDays/basis).toFixed(2))+'</td></tr>';
-  })):'<p class="tp-note">No recorded attendance in this outlet and 12-month period.</p>')+
+  '<h3>Employee bonus sheet</h3>'+tpBonusMatrix(rows,basis)+
   '<h3>Consolidated employee totals · All outlets</h3>'+
   (persons.length?tpTable(["Employee","Recorded months","Total actual days","Equivalent months","Bonus status"],persons.map(function(person){
    var equivalent=basis===null?"Set rule":tpBonusCreditedMonths(person.days,basis).toFixed(2);
@@ -159,7 +193,7 @@ function tpBonusList(){
     '<td>'+person.months.size+'</td><td><strong>'+person.days+'</strong></td>'+
     '<td>'+equivalent+'</td><td>'+tpEscape(status)+'</td></tr>';
   })):'<p class="tp-note">No employee attendance records within this bonus period.</p>')+
-  '<p class="tp-note">The list includes only 12 calendar months per employee, and equivalent bonus months are capped at 12. Mid-month transfers may need explicit outlet-day allocations because standard attendance holds one total per employee per month. No historical split is guessed.</p></section>';
+  '<p class="tp-note">Bonus credit is capped at 12 months per employee. Transfers are made at month boundaries, so each person has one monthly number, attendance total and outlet per month. Earlier unusual attendance is consolidated without adding its days twice.</p></section>';
  return stats+form;
 }
 var tpBonusBeforeRender=tpRender;
@@ -181,6 +215,17 @@ document.addEventListener("change",function(event){
  tpBonusOutletFilter=val;draw();
 },true);
 document.addEventListener("submit",function(event){
+ if(!event.target||event.target.id!=="tp-bonus-period-form")return;
+ event.preventDefault();event.stopImmediatePropagation();
+ var form=event.target,from=form.querySelector("#tp-bonus-period-from")?.value,
+     through=form.querySelector("#tp-bonus-period-through")?.value;
+ if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(from))||
+    !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(through))||
+    from>through||tpBonusMonthCount(from,through)>12)
+    return uxAlert("Choose a valid bonus period from 1 to 12 consecutive months.");
+ tpBonusRangeFrom=from;tpBonusRangeThrough=through;draw();
+},true);
+document.addEventListener("submit",function(event){
  if(!event.target||event.target.id!=="tp-bonus-basis-form")return;
  event.preventDefault();event.stopImmediatePropagation();
  var input=event.target.querySelector("#tp-bonus-days-month"),number=Number(input&&input.value);
@@ -191,53 +236,49 @@ document.addEventListener("submit",function(event){
  draw();showToast("Bonus rule saved: "+number+" workdays = one bonus month; full bonus at "+(number*11)+" days.");
 },true);
 function tpBonusPDF(){
- var all=tpBonusFullRows(),rows=tpBonusDisplayedRows(all),people=tpBonusPersonSummary(all),basis=tpBonusBasis();
- if(!rows.length)return uxAlert("No monthly attendance records exist for this bonus PDF report.");
+ var all=tpBonusFullRows(),rows=tpBonusDisplayedRows(all),basis=tpBonusBasis(),months=tpBonusMonths(),range=tpBonusRange();
+ if(!rows.length)return uxAlert("No attendance records exist for the selected bonus period.");
  try{
-  var pages=[],perPage=20,number=Math.ceil(rows.length/perPage);
-  for(var n=0;n<number;n++){
-   var page=tpPdfCanvas(),ctx=page.ctx,group=rows.slice(n*perPage,(n+1)*perPage);
-   tpPdfHeader(ctx,"BONUS ATTENDANCE LIST",tpPeriod,
-    tpMonthLabel(tpBonusMonthShift(tpPeriod,-11))+" – "+tpMonthLabel(tpPeriod));
-   ctx.fillStyle="#e9f4ef";ctx.fillRect(38,142,519,32);
-   var x=[43,180,280,447,507],names=["EMPLOYEE","MONTH","OUTLET","ID","DAYS"],widths=[126,92,157,48,41];
-   names.forEach(function(name,i){tpPdfText(ctx,name,x[i],162,8,true,"#326657",widths[i]);});
-   group.forEach(function(row,i){
-    var y=199+i*27;
-    if(i%2===0){ctx.fillStyle="#f4f8f7";ctx.fillRect(38,y-18,519,26);}
-    var vals=[row.employee.name,tpMonthLabel(row.month),row.outlet,
-      row.monthlyId===null?"—":String(row.monthlyId),String(row.workedDays)];
-    vals.forEach(function(value,j){tpPdfText(ctx,value,x[j],y,9,j===0||j===4,"#294654",widths[j]);});
-   });
-   tpPdfText(ctx,"Records "+(n*perPage+1)+"–"+(n*perPage+group.length)+" of "+rows.length+
-    " · Days shown: "+rows.reduce(function(t,r){return t+r.workedDays;},0),38,760,9,true,"#4f6a72",519);
-   tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
-  }
-  var totalPages=Math.ceil(people.length/19);
-  for(var i=0;i<totalPages;i++){
-   var page=tpPdfCanvas(),ctx=page.ctx,group=people.slice(i*19,(i+1)*19);
-   tpPdfHeader(ctx,"BONUS SERVICE SUMMARY",tpPeriod,"All restaurants · Linked employment records");
-   ctx.fillStyle="#e9f4ef";ctx.fillRect(38,142,519,32);
-   var x=[43,237,314,395],heads=["EMPLOYEE","DAYS","MONTHS","STATUS"];
-   heads.forEach(function(v,j){tpPdfText(ctx,v,x[j],162,8,true,"#326657");});
-   group.forEach(function(person,j){
-    var y=199+j*27;
-    if(j%2===0){ctx.fillStyle="#f4f8f7";ctx.fillRect(38,y-18,519,26);}
-    var status=basis===null?"Set conversion rule":person.days>=basis*11?"FULL BONUS":"Below 11 months";
-    var vals=[person.name,String(person.days),basis===null?"—":tpBonusCreditedMonths(person.days,basis).toFixed(2),status];
-    vals.forEach(function(v,k){tpPdfText(ctx,v,x[k],y,9,k===0||k===3,"#294654",k===0?184:k===3?155:70);});
-   });
-   tpPdfText(ctx,"11-month full-bonus threshold: "+(basis===null?"Not configured":basis*11+" actual days")+
-    ". Bonus payout amounts require a separate approved policy.",38,757,9,false,"#526875",519);
-   tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
+  var people=tpBonusPersonSummary(rows),byKey=new Map();
+  rows.forEach(function(r){byKey.set(r.personId+"|"+r.month,r);});
+  // Six compact monthly columns fit on each portrait PDF page; the full
+  // 12-month sheet prints across two consecutive PDF page groups.
+  var pages=[],monthsPerPage=6,personsPerPage=18;
+  for(var m=0;m<months.length;m+=monthsPerPage){
+   var half=months.slice(m,m+monthsPerPage);
+   for(var offset=0;offset<people.length;offset+=personsPerPage){
+    var slice=people.slice(offset,offset+personsPerPage);
+    var page=tpPdfCanvas(),ctx=page.ctx;
+    tpPdfHeader(ctx,"BONUS ATTENDANCE SHEET",range.through,
+     tpMonthLabel(range.from)+" – "+tpMonthLabel(range.through));
+    tpPdfText(ctx,"NAME",39,163,9,true,"#326657",125);
+    half.forEach(function(month,i){
+     tpPdfText(ctx,tpMonthLabel(month).slice(0,3).toUpperCase()+" "+month.slice(2,4),
+      165+i*65,163,8,true,"#326657",62);
+    });
+    slice.forEach(function(person,j){
+     var y=196+j*32;
+     if(j%2===0){ctx.fillStyle="#f2f8f5";ctx.fillRect(36,y-19,520,31);}
+     tpPdfText(ctx,person.name,39,y,9,true,"#234653",121);
+     half.forEach(function(month,i){
+      var entry=byKey.get(person.personId+"|"+month),x=165+i*65;
+      if(!entry){tpPdfText(ctx,"—",x,y,9,false,"#9cabb2");return;}
+      var label=(entry.monthlyId===null?"—":entry.monthlyId)+"/"+
+       entry.workedDays+"/"+tpBonusOutletCode(entry.outlet);
+      tpPdfText(ctx,label,x,y,8,false,"#294654",62);
+     });
+    });
+    tpPdfText(ctx,"Monthly cell: employee number / days / outlet initials",39,755,9,false,"#526875",510);
+    tpPdfFooter(ctx,pages.length+1);pages.push(tpPdfImage(page));
+   }
   }
   var pdf=tpPdfBuild(pages),url=URL.createObjectURL(pdf),a=document.createElement("a");
-  a.href=url;a.download="tablewise-bonus-attendance-"+tpPeriod+".pdf";
+  a.href=url;a.download="tablewise-bonus-sheet-"+range.from+"-to-"+range.through+".pdf";
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},1500);
  }catch(error){uxAlert("Could not generate bonus PDF: "+(error&&error.message||"Unknown error"));}
 }
 var bonusCss=document.createElement("style");
-bonusCss.textContent=".tp-bonus-matrix .tp-table-wrap{overflow-x:auto;max-width:100%}.tp-bonus-matrix table{min-width:1900px}.tp-bonus-month-cell{min-width:130px;font-size:12px}.tp-bonus-month-cell>div{padding:4px 0}.tp-bonus-month-cell small{display:block;color:#587377;max-width:160px}.tp-bonus-blank{color:#9aabb1}.tp-bonus-settings{border:1px solid #d9e6e1;background:#f5faf8;border-radius:12px;padding:16px;margin:18px 0 22px}.tp-bonus-settings>label{font-weight:700;display:block;margin-bottom:8px}.tp-bonus-settings input{border:1px solid #cbdce1;border-radius:9px;max-width:180px;min-height:44px;padding:9px 13px}.tp-bonus-period{min-height:48px;border:1px solid #d7e4e7;padding:12px;border-radius:9px}.tp-bonus-period small{display:block;color:#5a717b}.tp-bonus-settings .tp-actions{justify-content:flex-start;flex-wrap:wrap}";
+bonusCss.textContent=".tp-bonus-matrix .tp-table-wrap{overflow-x:auto;max-width:100%}.tp-bonus-matrix table{min-width:0;width:max-content;table-layout:fixed}.tp-bonus-matrix th,.tp-bonus-matrix td{padding:7px 5px!important;text-align:center;vertical-align:middle;white-space:nowrap}.tp-bonus-matrix th{font-size:10px;max-width:82px}.tp-bonus-matrix .tp-bonus-employee{text-align:left;position:sticky;left:0;z-index:1;background:#fff;min-width:145px;max-width:165px}.tp-bonus-month-cell{width:76px;min-width:76px;max-width:76px}.tp-bonus-mini{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1;min-height:43px}.tp-bonus-mini strong{font-size:13px;color:#173e4a}.tp-bonus-mini span{font-size:12px;font-weight:700;color:#385d60}.tp-bonus-mini small{font-size:9px;font-weight:850;color:#528178;letter-spacing:.3px}.tp-bonus-blank{color:#9aabb1}.tp-bonus-period-form{margin:0 0 13px;gap:8px}.tp-bonus-period-form .tp-form-grid{gap:11px}.tp-bonus-period-form .tp-actions{align-items:center;gap:10px}.tp-bonus-period-form small{color:#6a8190}.tp-bonus-settings{border:1px solid #d9e6e1;background:#f5faf8;border-radius:12px;padding:16px;margin:18px 0 22px}.tp-bonus-settings>label{font-weight:700;display:block;margin-bottom:8px}.tp-bonus-settings input{border:1px solid #cbdce1;border-radius:9px;max-width:180px;min-height:44px;padding:9px 13px}.tp-bonus-settings .tp-actions{justify-content:flex-start;flex-wrap:wrap}";
 document.head.appendChild(bonusCss);
 })();
