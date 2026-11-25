@@ -1746,6 +1746,70 @@ css.textContent=String.raw`
 .tp-cell-input,.tp-days-input,.tp-serial-input{border:1px solid #d7e3e8;background:white;color:#264457;padding:9px;border-radius:9px;min-width:90px;width:104px;font-size:12px}
 .tp-days-input{border:2px solid #17a27c;background:#f3faf6;font-weight:900;font-size:15px;width:102px}
 .tp-days-hint{display:block;color:#7794a0;font-size:10px;margin-top:5px;white-space:nowrap}
+ /* Balanced attendance columns: no extreme gap to the Days Worked field on a wide monitor. */
+ #content .tp-app .tp-attendance-compact .tp-table-wrap{
+  width:100%!important;max-width:100%!important;overflow-x:auto;
+ }
+ #content .tp-app .tp-attendance-compact .tp-table{
+  width:100%!important;max-width:1050px!important;min-width:0!important;
+  margin-left:auto!important;margin-right:auto!important;table-layout:fixed!important;
+ }
+ #content .tp-app .tp-attendance-compact .tp-table th:nth-child(1),
+ #content .tp-app .tp-attendance-compact .tp-table td:nth-child(1){width:20%!important;}
+ #content .tp-app .tp-attendance-compact .tp-table th:nth-child(2),
+ #content .tp-app .tp-attendance-compact .tp-table td:nth-child(2){width:50%!important;}
+ #content .tp-app .tp-attendance-compact .tp-table th:nth-child(3),
+ #content .tp-app .tp-attendance-compact .tp-table td:nth-child(3){width:30%!important;}
+ #content .tp-app .tp-attendance-compact .tp-table th,
+ #content .tp-app .tp-attendance-compact .tp-table td{padding:10px 12px!important;}
+ #content .tp-app .tp-attendance-compact .tp-serial-input,
+ #content .tp-app .tp-attendance-compact .tp-days-input{
+  width:100%!important;max-width:126px!important;min-width:0!important;
+  box-sizing:border-box!important;
+ }
+ #content .tp-app .tp-attendance-compact .tp-person-cell{
+  min-width:0!important;max-width:100%!important;gap:9px!important;
+ }
+ #content .tp-app .tp-attendance-compact .tp-person-cell>div{
+  min-width:0;overflow-wrap:anywhere;
+ }
+ @media(max-width:760px){
+  #content .tp-app .tp-attendance-compact .tp-table{
+   width:100%!important;max-width:none!important;min-width:0!important;
+   margin:0!important;table-layout:fixed!important;
+  }
+  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(1),
+  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(1){width:57px!important;}
+  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(2),
+  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(2){width:auto!important;}
+  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(3),
+  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(3){width:83px!important;}
+  #content .tp-app .tp-attendance-compact .tp-table th,
+  #content .tp-app .tp-attendance-compact .tp-table td{padding:8px 4px!important;}
+  #content .tp-app .tp-attendance-compact .tp-serial-input,
+  #content .tp-app .tp-attendance-compact .tp-days-input{
+   width:100%!important;max-width:none!important;min-width:0!important;
+   padding:8px 2px!important;
+  }
+  #content .tp-app .tp-attendance-compact .tp-person-cell{gap:0!important;}
+  #content .tp-app .tp-attendance-compact .tp-avatar-holder,
+  #content .tp-app .tp-attendance-compact .tp-avatar-small{display:none!important;}
+  #content .tp-app .tp-attendance-compact .tp-person-cell strong{
+   display:block;font-size:11px;line-height:1.25;
+  }
+  #content .tp-app .tp-attendance-compact .tp-person-cell small{
+   display:block;font-size:9px;line-height:1.15;overflow-wrap:anywhere;
+  }
+  #content .tp-app .tp-attendance-compact .tp-days-hint{display:none!important;}
+ }
+ @media(max-width:375px){
+  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(1),
+  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(1){width:52px!important;}
+  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(3),
+  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(3){width:72px!important;}
+  #content .tp-app .tp-attendance-compact .tp-person-cell small{display:none!important;}
+ }
+
  /* Keep the three attendance fields adjacent, including on small touchscreens. */
  .tp-attendance-compact .tp-table-wrap{width:100%;max-width:100%;overflow-x:auto}
  .tp-attendance-compact .tp-table{width:100%;min-width:0;table-layout:fixed}
