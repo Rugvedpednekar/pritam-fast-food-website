@@ -346,23 +346,23 @@ test("February and January use fixed 30-day divisor regardless of calendar lengt
  }
 });
 
-test("Old monthly payroll history includes ID, monthly salary and download actions",()=>{
+test("Payroll History has only one combined Print Salary Sheet action per month",()=>{
  const {app}=boot();
  app.setPage("history");
  const h=app.page();
- expect(h).toContain('data-tp-action="pdf-history-cash"');
- expect(h).toContain('data-tp-action="pdf-history-cheque"');
- expect(h).toContain('data-tp-action="pdf-history-advance"');
- expect(h).toContain('data-tp-action="pdf-increments"');
- expect(h).toContain('data-tp-action="pdf-history-attendance"');
- expect(h).toContain('data-tp-action="print-history-cash"');
+ expect(h).toContain('data-tp-action="print-history-salary"');
+ expect(h).toContain("Print Salary Sheet");
+ expect(h).not.toContain('data-tp-action="pdf-history-cash"');
+ expect(h).not.toContain('data-tp-action="print-history-parcel"');
+ expect(h).not.toContain('data-tp-action="pdf-increments"');
  expect(h).toContain("Monthly ID");
  expect(h).toContain("Monthly salary");
  expect(h).toContain("October 2026");
- expect(source).toContain('tpDownloadPDF(kind,m)');
- expect(source).toContain('tpDoPrint(kind,m)');
+ expect(source).toContain("function tpUnifiedSalaryData(");
+ expect(source).toContain("function tpUnifiedSalaryPDF(");
+ expect(source).toContain("function tpUnifiedSalaryHTML(");
+ expect(source).toContain("tpDeliverPdf(tpPdfBuild(tpUnifiedSalaryPDF");
 });
-
 test("Cash and cheque lists remain separated and sorted by monthly ID",()=>{
  const {app}=boot(),p=app.period("2026-11");
  p.serials.demo1=98;p.serials.demo3=1;p.serials.demo5=5;
@@ -453,7 +453,7 @@ test("Parcel commissions ignore advances, fines, worked days and leave money",()
  expect(r.advance).toEqual({});
  expect(r.deductions).toEqual({});
 });
-test("Cash/cheque sheets include parcel boy net pay while historic month offers commission download",()=>{
+test("Cash/cheque sheets include parcel boy net pay and history prints everything together",()=>{
  const {app}=boot();
  app.setPage("sheets");
  const sheet=app.page();
@@ -462,8 +462,8 @@ test("Cash/cheque sheets include parcel boy net pay while historic month offers 
  expect(sheet).toContain("Mukesh");
  app.setPage("history");
  const h=app.page();
- expect(h).toContain('data-tp-action="pdf-history-parcel"');
- expect(h).toContain('data-tp-action="print-history-parcel"');
+ expect(h).toContain('data-tp-action="print-history-salary"');
+ expect(h).not.toContain('data-tp-action="pdf-history-parcel"');
  expect(source).toContain('function tpParcelPdfPages(');
  expect(source).toContain('function tpPdfBuild(');
 });
@@ -624,9 +624,9 @@ test("Every current and historical payroll download uses PDF rather than CSV",()
  }
  app.setPage("history");
  const history=app.page();
- for(const kind of ["cash","cheque","advance","attendance","parcel"]){
-  expect(history).toContain('data-tp-action="pdf-history-'+kind+'"');
- }
+ expect(history).toContain('data-tp-action="print-history-salary"');
+ expect(history).not.toContain('data-tp-action="pdf-history-');
+ expect(history).not.toContain('data-tp-action="print-history-parcel"');
  app.setPage("sheets");
  const sheets=app.page();
  expect(sheets).toContain('data-tp-action="pdf-cash"');
