@@ -1755,9 +1755,9 @@ css.textContent=String.raw`
   margin-left:auto!important;margin-right:auto!important;table-layout:fixed!important;
  }
  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(1),
- #content .tp-app .tp-attendance-compact .tp-table td:nth-child(1){width:20%!important;}
+ #content .tp-app .tp-attendance-compact .tp-table td:nth-child(1){width:30%!important;}
  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(2),
- #content .tp-app .tp-attendance-compact .tp-table td:nth-child(2){width:50%!important;}
+ #content .tp-app .tp-attendance-compact .tp-table td:nth-child(2){width:40%!important;}
  #content .tp-app .tp-attendance-compact .tp-table th:nth-child(3),
  #content .tp-app .tp-attendance-compact .tp-table td:nth-child(3){width:30%!important;}
  #content .tp-app .tp-attendance-compact .tp-table th,
