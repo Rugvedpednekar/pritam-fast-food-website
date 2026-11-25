@@ -14,13 +14,14 @@ function billingApp(){
  };
  const navnames={reports:"Reports & Day-End"};
  const script=billing+"\nreturn {number:newInvoiceNumber,history:bills,navnames,setOutlet:function(r){selected=r;},setDate:function(d){setToday(d);},data};";
- const app=new Function("navnames","data","selected","today","dayBills","header","e","pretty","selectedName","smallTable","newInvoiceNumber","bills","printBill","navigator","receiptPDF","setToday",script)(
+ const app=new Function("navnames","data","selected","today","dayBills","header","e","pretty","selectedName","smallTable","newInvoiceNumber","bills","printBill","navigator","receiptPDF","setToday","document",script)(
   navnames,data,"r1",()=>date,
   (r:string,d:string)=>data.bills.filter(b=>b.restaurantId===r&&b.day===d),
   (title:string,sub:string)=>title+" | "+sub,(s:string)=>String(s),
   (s:string)=>s,()=>data.restaurants?"Restaurant":"Pritam Fast Food",
   (rows:any[])=>"rows="+rows.map(b=>b.number).join(","),
-  ()=>"",()=>"",()=>{}, {userAgent:"Desktop"},undefined,(d:string)=>{date=d;}
+  ()=>"",()=>"",()=>{}, {userAgent:"Desktop"},undefined,(d:string)=>{date=d;},
+  {createElement:()=>({textContent:""}),head:{appendChild:()=>{}}}
  );
  return app as any;
 }
@@ -156,4 +157,12 @@ test("Mobile PDFs use an explicit tap-to-open viewer and salary sheets have rest
  expect(payroll).toContain('share.textContent="Share / Print"');
  expect(payroll).toContain("selectedName()");
  expect(payroll).toContain('label:"MONTH ID"');
+});
+
+test("Mobile receipt print flow shows a tap-to-print receipt rather than opening a popup",()=>{
+ expect(billing).toContain('id="tw-mobile-receipt-preview"');
+ expect(billing).toContain('id="tw-mobile-receipt-print"');
+ expect(billing).toContain("window.print()");
+ expect(billing).toContain("Get Receipt PDF");
+ expect(billing).toContain("tw-mobile-receipt-paper");
 });
