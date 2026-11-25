@@ -640,9 +640,83 @@ function tpSheets(){
  out+='<div class="tp-grand"><span>Combined cash + cheque</span><strong>'+tpMoney(t.grand)+'</strong><small>'+t.ready+' of '+rows.length+' employees calculated</small></div>';
  return out;
 }
+function tpUnifiedSalaryData(month){
+ var m=month||tpPeriod,rows=tpRows(m,!!month);
+ var heads=["TEMP ID","NAME","DESIG","SALARY / COMM","DAYS","LEAVES / GST","ADVANCE","TOTAL","CHQ/CASH"];
+ var totals={cash:0,cheque:0,parcel:0,advance:0,grand:0};
+ var records=rows.map(function(r){
+  var c=r.calc,parcel=tpIsParcel(r.emp),method=r.emp.method==="CHEQUE"?"CHQ":"CASH";
+  var adv=parcel?0:Number(r.advance.amount)||0;totals.advance+=adv;
+  if(c){totals.grand+=c.net;totals[method==="CHQ"?"cheque":"cash"]+=c.net;if(parcel)totals.parcel+=c.net;}
+  return [r.serial===null?"—":String(r.serial),r.emp.name,r.emp.designation,
+   parcel?(c?tpMoney(c.commissionTotal):"—"):tpMoney(r.salary),
+   parcel?"—":(r.worked==null||r.worked===""?"—":String(r.worked)),
+   parcel?(c?"GST "+tpMoney(c.gst):"—"):(c?String(c.leaveEarned):"—"),
+   parcel?"—":tpMoney(adv),c?tpMoney(c.net):"—",method];
+ });
+ return {month:m,rows:rows,heads:heads,records:records,totals:totals};
+}
+function tpUnifiedSalaryHTML(month){
+ var d=tpUnifiedSalaryData(month),t=d.totals;
+ return '<div class="tp-print-page tp-unified-salary-print"><div class="tp-print-head"><h1>'+
+  tpEscape(typeof selectedName==="function"?selectedName():"Restaurant")+'</h1><p>SALARY SHEET · '+
+  tpEscape(tpMonthLabel(d.month))+'</p></div><table><thead><tr>'+
+  d.heads.map(function(h){return '<th>'+tpEscape(h)+'</th>';}).join("")+'</tr></thead><tbody>'+
+  d.records.map(function(row){return '<tr>'+row.map(function(v){return '<td>'+tpEscape(v)+'</td>';}).join("")+'</tr>';}).join("")+
+  '</tbody></table><div class="tp-unified-totals">CASH '+tpMoney(t.cash)+' · CHEQUE '+tpMoney(t.cheque)+
+  ' · PARCEL COMMISSION (NET) '+tpMoney(t.parcel)+' · ADVANCES '+tpMoney(t.advance)+
+  ' · TOTAL '+tpMoney(t.grand)+'</div><p class="tp-print-demo">Verify before payment; parcel commissions are net of GST.</p></div>';
+}
+function tpUnifiedSalaryPDF(month){
+ var d=tpUnifiedSalaryData(month),pages=[],per=24,widths=[63,178,159,136,67,128,115,138,95];
+ for(var from=0;from<d.records.length;from+=per){
+  var canvas=document.createElement("canvas");canvas.width=2382;canvas.height=1684;
+  var ctx=canvas.getContext("2d");if(!ctx)throw Error("Canvas unavailable");
+  ctx.scale(2,2);ctx.fillStyle="#fff";ctx.fillRect(0,0,1191,842);
+  ctx.fillStyle="#12664f";ctx.fillRect(0,0,1191,10);
+  tpPdfText(ctx,typeof selectedName==="function"?selectedName():"Restaurant",36,47,23,true,"#1a4144",1000);
+  tpPdfText(ctx,"SALARY SHEET · "+tpMonthLabel(d.month),36,76,15,true,"#246a53",1000);
+  tpPdfText(ctx,"Page "+(pages.length+1),1147,80,10,false,"#657c7e",100,"right");
+  ctx.fillStyle="#eaf4ef";ctx.fillRect(36,105,1079,35);
+  var x=36;d.heads.forEach(function(h,i){
+   var w=widths[i],right=[3,5,6,7].includes(i),center=[0,4,8].includes(i);
+   tpPdfText(ctx,h,right?x+w-5:center?x+w/2:x+5,128,9,true,"#265b52",w-10,right?"right":center?"center":"left");x+=w;
+  });
+  d.records.slice(from,from+per).forEach(function(row,i){
+   var y=167+i*23;
+   if(i%2===0){ctx.fillStyle="#f4f8f6";ctx.fillRect(36,y-17,1079,23);}
+   ctx.strokeStyle="#dce9e4";ctx.beginPath();ctx.moveTo(36,y+7);ctx.lineTo(1115,y+7);ctx.stroke();
+   var x=36;row.forEach(function(v,j){
+    var w=widths[j],right=[3,5,6,7].includes(j),center=[0,4,8].includes(j);
+    tpPdfText(ctx,v,right?x+w-5:center?x+w/2:x+5,y,10,j===0||j===7,"#26414a",w-9,right?"right":center?"center":"left");x+=w;
+   });
+  });
+  var t=d.totals;ctx.fillStyle="#e6f2ea";ctx.fillRect(36,730,1079,70);
+  tpPdfText(ctx,"CASH "+tpMoney(t.cash)+"     CHEQUE "+tpMoney(t.cheque)+
+   "     PARCEL COMMISSION "+tpMoney(t.parcel)+"     ADVANCES "+tpMoney(t.advance),
+   46,755,11,true,"#205c4a",1050);
+  tpPdfText(ctx,"TOTAL PAYABLE "+tpMoney(t.grand),46,784,16,true,"#0d664d",1030);
+  tpPdfText(ctx,"Verify before payment · Parcel commissions net of GST",36,826,9,false,"#718481",1060);
+  var page=tpPdfImage({canvas:canvas});page.pageWidth=1191;page.pageHeight=842;pages.push(page);
+ }
+ return pages;
+}
+function tpPrintUnifiedSalary(month){
+ var d=tpUnifiedSalaryData(month);
+ if(!d.rows.length)return uxAlert("No employee payroll records exist for this month.");
+ if(typeof navigator!=="undefined"&&/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"")){
+  try{return tpDeliverPdf(tpPdfBuild(tpUnifiedSalaryPDF(d.month)),"salary-sheet-"+d.month+".pdf");}
+  catch(err){return uxAlert("Could not prepare salary sheet PDF: "+(err&&err.message||"Unexpected error"));}
+ }
+ var root=document.getElementById("tp-payroll-print-root");
+ if(!root){root=document.createElement("div");root.id="tp-payroll-print-root";document.body.appendChild(root);}
+ root.innerHTML=tpUnifiedSalaryHTML(d.month);
+ document.body.classList.add("tp-payroll-printing");
+ window.print();
+}
 function tpHistory(){
  var months=Object.keys(tpData.periods).sort().reverse();
- var out='<section class="tp-panel">'+tpToolbar("Payroll History","Inspect monthly attendance IDs, salary changes and calculations. Download PDF sheets for any month.",tpButton("pdf-increments","Download Salary Change PDF","tp-light"))+
+ var out='<section class="tp-panel">'+tpToolbar("Payroll History","One combined salary sheet per month, including cash, cheque, advances and parcel boy commissions.","")+
  '<div class="tp-history-list">'+months.map(function(month){
   var p=tpGetPeriod(month),rows=tpRows(month,true),net=0,advance=0,leaveTotal=0,completed=0;
   var table=rows.map(function(r){
@@ -657,14 +731,7 @@ function tpHistory(){
   });
   var changes=(tpData.salaryChanges||[]).filter(function(c){return c.effectiveMonth===month;});
   var actions='<div class="tp-actions tp-history-actions">'+
-    tpButton("pdf-history-cash","Download CASH PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("pdf-history-cheque","Download CHEQUE PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("pdf-history-advance","Download Advances PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("pdf-history-attendance","Download Attendance PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("pdf-history-parcel","Download Parcel Commissions PDF","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("print-history-cash","Print CASH","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("print-history-cheque","Print CHEQUE","tp-light",'data-month="'+tpEscape(month)+'"')+
-    tpButton("print-history-parcel","Print Parcel Commissions","tp-light",'data-month="'+tpEscape(month)+'"')+'</div>';
+   tpButton("print-history-salary","Print Salary Sheet","tp-primary",'data-month="'+tpEscape(month)+'"')+'</div>';
   var changeLog=changes.length?'<div class="tp-note"><strong>Salary changes effective this month</strong>'+
     changes.map(function(c){return'<div>'+tpEscape(c.employeeName||tpEmp(c.employeeId)?.name||"Employee")+
       ': '+tpMoney(c.previousSalary)+' → '+tpMoney(c.newSalary)+' ('+tpEscape(c.source)+')</div>';}).join("")+'</div>':"";
@@ -1127,6 +1194,12 @@ function tpHandleAction(button){
  if(act==="pdf-cash")return tpDownloadPDF("cash");
  if(act==="pdf-cheque")return tpDownloadPDF("cheque");
  if(act==="pdf-parcel")return tpDownloadPDF("parcel",null,id||null);
+ if(act==="print-history-salary"){
+  var salaryMonth=button.dataset.month;
+  if(!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(salaryMonth)||!tpData.periods[salaryMonth])
+   return uxAlert("Previous payroll month not found.");
+  return tpPrintUnifiedSalary(salaryMonth);
+ }
  if(act.startsWith("pdf-history-")||act.startsWith("print-history-")){
   var m=button.dataset.month,kind=act.replace(/^(pdf|print)-history-/,"");
   if(!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(m)||!tpData.periods[m])return uxAlert("Previous payroll month not found.");
@@ -1570,6 +1643,7 @@ css.textContent=String.raw`
 .tp-sheet-title .tp-eyebrow{font-size:10px}.tp-sheet-title h2{margin-top:7px}.tp-sheet-title p{font-size:11px;color:#8496a1;margin:0}.tp-sheet-symbol{display:grid;place-items:center;height:46px;width:46px;border-radius:12px;background:#e8f5ed;color:#128268;font-size:22px}
 .tp-sheet-actions{margin-bottom:10px}.tp-sheet-total{display:flex;justify-content:space-between;align-items:center;background:#edf8f2;color:#17674d;border-radius:10px;padding:13px 15px;margin:15px 0}.tp-sheet-total strong{font-size:17px}
 .tp-grand{margin-top:15px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-radius:14px;background:#153d43;color:white;padding:18px 23px}.tp-grand span{font-size:13px;color:#c4e6d9}.tp-grand strong{font-size:25px}.tp-grand small{margin-left:auto;color:#afd3c6}
+.tp-unified-totals{display:flex;flex-wrap:wrap;gap:8px;background:#e8f4ec;padding:12px;margin-top:10px;font-size:11px;font-weight:700}
 .tp-history-list{display:grid;gap:10px}.tp-history-entry{border:1px solid #e1ebee;border-radius:11px;overflow:hidden}
 .tp-history-entry>summary{cursor:pointer;padding:14px;display:flex;justify-content:space-between;gap:12px;align-items:center;list-style:none;background:#fbfcfd}
 .tp-history-entry>summary::-webkit-details-marker{display:none}.tp-history-entry>summary>div{display:grid;gap:5px}.tp-history-entry>summary strong{font-size:13px}.tp-history-entry>summary small{font-size:10px;color:#8ca0ab}.tp-chevron{font-size:20px;color:#728a96}
@@ -1604,6 +1678,11 @@ css.textContent=String.raw`
   #tp-payroll-print-root th,#tp-payroll-print-root td{border:1px solid #aaa;padding:9px 8px;text-align:left}
   #tp-payroll-print-root th{background:#eee!important;-webkit-print-color-adjust:exact}
   #tp-payroll-print-root tr{break-inside:avoid}
+  #tp-payroll-print-root .tp-unified-salary-print .tp-print-head{margin-bottom:9px}
+  #tp-payroll-print-root .tp-unified-salary-print table{table-layout:fixed;font-size:10px!important}
+  #tp-payroll-print-root .tp-unified-salary-print th,#tp-payroll-print-root .tp-unified-salary-print td{padding:5px 4px!important;overflow-wrap:anywhere}
+  #tp-payroll-print-root .tp-unified-salary-print th{font-size:8.5px;white-space:normal}
+  #tp-payroll-print-root .tp-unified-salary-print .tp-unified-totals{font-size:10px}
   #tp-payroll-print-root .tp-print-total{text-align:right;font-weight:800;font-size:16px;margin-top:20px}
   #tp-payroll-print-root .tp-print-signs{display:flex;justify-content:space-between;gap:35px;margin:40px 0 24px}
   #tp-payroll-print-root .tp-print-demo{font-size:9px;color:#777;text-align:center;margin-top:30px}
