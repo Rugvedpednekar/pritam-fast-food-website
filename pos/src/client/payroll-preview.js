@@ -345,10 +345,12 @@ function tpEmployeeProfile(emp){
  return'<section class="tp-panel tp-profile"><div class="tp-profile-head">'+tpAvatar(emp,"large")+'<div><span class="tp-eyebrow">EMPLOYEE PROFILE</span><h3>'+tpEscape(emp.name)+'</h3><p>'+tpEscape(emp.designation)+'</p></div><button type="button" class="tp-x" data-tp-action="close-profile" aria-label="Close employee profile">×</button></div>'+
  '<div class="tp-profile-grid"><div><small>Restaurant</small><strong>'+tpEscape(emp.restaurant)+'</strong></div><div><small>Joining date</small><strong>'+tpDate(emp.joined)+'</strong></div><div><small>Employee type</small><strong>'+(tpIsParcel(emp)?'Parcel Boy (commission)':'Salaried')+'</strong></div><div><small>Payment method</small><strong>'+tpEscape(emp.method)+'</strong></div><div><small>'+(tpIsParcel(emp)?'GST on commission':'Monthly salary for '+tpEscape(tpPeriod))+'</small><strong>'+(tpIsParcel(emp)?tpEscape(emp.commissionGstRate??5)+'%':tpMoney(tpMonthSalary(emp,tpPeriod)))+'</strong></div><div><small>Aadhaar (masked)</small><strong>'+(emp.aadhaarLast4?'XXXX XXXX '+tpEscape(emp.aadhaarLast4):'Not provided')+'</strong></div></div>'+
  '<div class="tp-note">'+(tpIsParcel(emp)?'Commission-only employee: enter daily or monthly total in Attendance. GST is the only deduction.':'Earned paid leave: 1 day per '+tpData.settings.leaveEarnEveryDays+' days worked, up to '+emp.leaveAllowance+' paid leave days.')+'</div>'+
- '<div class="tp-actions">'+(emp.active===false?
+ '<div class="tp-actions tp-profile-actions">'+(emp.active===false?
  tpButton("restore-employee","Restore employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"'):
  tpButton("edit-employee","Edit profile","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+
- tpButton("delete-employee","Delete Employee","tp-danger",'data-id="'+tpEscape(emp.id)+'"'))+
+ '<details class="tp-profile-more"><summary>More actions <span aria-hidden="true">⌄</span></summary>'+
+ '<div class="tp-profile-menu">'+tpButton("delete-employee","Delete Employee","tp-danger",'data-id="'+tpEscape(emp.id)+'"')+
+ '</div></details>')+
  tpButton("close-profile","Close","tp-light")+'</div>'+
  (tpIsParcel(emp)?'':'<div class="tp-salary-log"><h3>Salary Change History</h3>'+
  (changes.length?tpTable(["Effective month","Previous salary","New salary","Change","Entered from"],changes.map(function(c){
@@ -1449,6 +1451,18 @@ css.textContent=String.raw`
 .tp-panel p{line-height:1.55}.tp-header-row{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:19px}
 .tp-header-row p{font-size:12px;color:var(--tp-muted);margin:4px 0}
 .tp-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tp-profile-actions{align-items:center;gap:8px}
+.tp-profile-more{position:relative;display:inline-block}
+.tp-profile-more>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;border:1px solid #d9e4e9;background:#f6f9fb;color:#385567;border-radius:9px;min-height:40px;padding:10px 13px;font-size:12px;font-weight:800;white-space:nowrap}
+.tp-profile-more>summary::-webkit-details-marker{display:none}
+.tp-profile-more>summary:hover,.tp-profile-more[open]>summary{background:#e9f2f1;border-color:#c7d9d6}
+.tp-profile-more>summary:focus-visible{outline:3px solid #84b7aa;outline-offset:2px}
+.tp-profile-more>summary span{font-size:15px;line-height:1;transition:transform .15s}
+.tp-profile-more[open]>summary span{transform:rotate(180deg)}
+.tp-profile-menu{position:absolute;z-index:100;left:0;top:calc(100% + 6px);display:grid;gap:5px;min-width:200px;padding:7px;background:white;border:1px solid #d8e3e7;border-radius:11px;box-shadow:0 12px 30px #14374823}
+.tp-profile-menu .tp-button{display:block;width:100%;text-align:left;white-space:normal}
+@media(max-width:480px){.tp-profile-menu{left:auto;right:0;min-width:190px}}
+
 .tp-button{border:1px solid #d9e4e9;background:#fff;color:#385567;border-radius:9px;padding:10px 13px;min-height:40px;font-size:12px;font-weight:800;white-space:nowrap}
 .tp-button:hover{background:#f1f7f7}.tp-button.tp-primary{border-color:#117d64;background:#117d64;color:white}.tp-button.tp-primary:hover{background:#0c6753}.tp-button.tp-light{background:#f6f9fb}
 .tp-two{display:grid;grid-template-columns:1.1fr .9fr;gap:15px}.tp-two>.tp-panel{height:100%}.tp-progress{margin:12px 0 20px}
