@@ -19,7 +19,7 @@ function tpTransferMonthlyState(emp){
 function tpTransferAvailableOutlets(emp){
  var key=emp.restaurantId||tpResolveRestaurantId(emp.restaurant,emp);
  return (data.restaurants||[]).filter(function(outlet){
-  return outlet.active!==false&&outlet.id!==key&&String(outlet.name||"")!==String(emp.restaurant||"");
+  return outlet.active!==false&&(key?outlet.id!==key:String(outlet.name||"")!==String(emp.restaurant||""));
  });
 }
 function tpTransferForm(emp){
