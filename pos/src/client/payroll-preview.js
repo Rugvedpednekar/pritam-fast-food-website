@@ -1317,7 +1317,7 @@ document.addEventListener("submit",function(ev){
  if(!ev.target||!["tp-office-loan-issue-form","tp-office-loan-repayment-form"].includes(ev.target.id))return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target,emp=tpEmp(form.dataset.id),month=tpMonth(0),period=tpGetPeriod(month);
- if(!emp||tpIsParcel(emp)||emp.active===false||emp.left||!tpPayrollMatchesRestaurant(emp))
+ if(!emp||tpIsParcel(emp)||emp.active===false||emp.left||!tpSameRestaurant(emp,(data.restaurants||[]).find(function(r){return r.id===selected;})))
   return uxAlert("Select an active salaried employee in this outlet.");
  if(period.locked||period.finalized)return uxAlert("This month's payroll is locked; loan changes cannot be made.");
  var before=JSON.stringify(tpData);
