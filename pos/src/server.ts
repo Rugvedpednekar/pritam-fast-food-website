@@ -79,7 +79,10 @@ html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension1+"\n
 const payrollBase=await Bun.file(new URL("./client/payroll-preview.js",import.meta.url)).text();
 const payrollArchiveIncrements=await Bun.file(new URL("./client/payroll-archive-increments.js",import.meta.url)).text();
 const payrollBonusList=await Bun.file(new URL("./client/payroll-bonus-list.js",import.meta.url)).text();
-const payrollArchiveWithBonus=payrollArchiveIncrements.replace(/\}\)\(\);\s*$/,payrollBonusList+"\n})();");
+const payrollTransfers=await Bun.file(new URL("./client/payroll-transfers.js",import.meta.url)).text();
+const payrollBonusWithTransfers=payrollBonusList.replace(/\}\)\(\);\s*$/,payrollTransfers+"\n})();");
+if(payrollBonusWithTransfers===payrollBonusList)throw Error("Payroll transfer insertion point missing");
+const payrollArchiveWithBonus=payrollArchiveIncrements.replace(/\}\)\(\);\s*$/,payrollBonusWithTransfers+"\n})();");
 if(payrollArchiveWithBonus===payrollArchiveIncrements)throw Error("Payroll bonus insertion point missing");
 const twExtension2=payrollBase.replace(/\}\)\(\);\s*$/,payrollArchiveWithBonus+"\n})();");
 if(twExtension2===payrollBase)throw Error("Payroll archive insertion point missing");
