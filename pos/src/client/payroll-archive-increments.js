@@ -5,6 +5,7 @@
 TP_SECTIONS.splice(TP_SECTIONS.indexOf("sheets")+1,0,"left");
 TP_TITLES.left="Resigned Employees";
 var tpArcForm=null,tpArcIncrementEmployee="",tpArcOriginalEmployees=tpEmployees;
+function tpArcNextSalaryDate(){return tpMonth(1)+"-01";}
 /* The POS restaurant selector is scoped to the outer application; payroll uses the same selection. */
 function tpPayrollSelectedRestaurant(){
  if(typeof selected==="undefined"||selected===null)return null;
@@ -89,7 +90,7 @@ tpEmployeeProfile=function(emp){
    '<div class="tp-profile-menu">'+tpButton("mark-left","Record Resignation","tp-light",'data-id="'+tpEscape(emp.id)+'"'));
   extra=tpIsParcel(emp)?"":'<form id="tp-profile-salary-form" class="tp-form tp-profile-salary" data-id="'+tpEscape(emp.id)+'">'+
     '<h3>Update Monthly Salary</h3><p class="tp-note">Current salary: <strong>'+tpMoney(tpMonthSalary(emp,tpMonth(0)))+
-    '</strong>. New salary is effective today ('+tpDate(tpToday())+'); earlier months and salary history are preserved.</p>'+
+    '</strong>. Revised salary starts on <strong>'+tpDate(tpArcNextSalaryDate())+'</strong> (1st of next month). The current month stays at its original rate.</p>'+
     '<div class="tp-field"><label for="tp-profile-new-salary">New monthly salary (₹) *</label>'+
     '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="1" max="10000000" step="1" inputmode="numeric" placeholder="Enter whole rupees"></div>'+
     '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>';
@@ -252,10 +253,10 @@ function tpArcIncrementPage(){
  var html='<section class="tp-panel" id="tp-increment-settings">'+tpToolbar("Salary Increases / Increments",
   "Update salaries by revised amount, fixed increment or percentage. Effective dates and complete histories are retained.",
   tpButton("pdf-increments","Download Increment Report PDF","tp-light"))+
- '<p class="tp-note">Only active salaried employees are eligible. Revisions are attached to the current employment period. An effective date within a month prorates pay on the existing 30-day salary basis.</p>'+
+ '<p class="tp-note">Salary increases are effective only from the 1st of the next calendar month, never mid-month.</p>'+
  '<form id="tp-increment-form" class="tp-form"><div class="tp-form-grid">'+
  '<div class="tp-field"><label for="tp-inc-employee">Employee *</label><select id="tp-inc-employee" required>'+options+'</select></div>'+
- '<div class="tp-field"><label for="tp-inc-date">Effective date *</label><input id="tp-inc-date" required type="date" value="'+tpEscape(tpToday())+'"></div>'+
+ '<div class="tp-field"><label for="tp-inc-date">Effective date (fixed)</label><input id="tp-inc-date" required type="date" readonly min="'+tpArcNextSalaryDate()+'" max="'+tpArcNextSalaryDate()+'" value="'+tpArcNextSalaryDate()+'"></div>'+
  '<div class="tp-field"><label for="tp-inc-mode">Increase method *</label><select id="tp-inc-mode"><option value="new">New monthly salary (₹)</option><option value="fixed">Fixed increase (₹)</option><option value="percent">Percentage increase (%)</option></select></div>'+
  '<div class="tp-field"><label for="tp-inc-value">Amount or percentage *</label><input id="tp-inc-value" required type="number" min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter amount"></div>'+
  '<div class="tp-field"><label for="tp-inc-reason">Reason / remarks</label><input id="tp-inc-reason" maxlength="180" placeholder="Annual increment, promotion…"></div></div>'+
@@ -282,31 +283,30 @@ tpSettings=function(){return tpArcSettings();};
 document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-profile-salary-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
- var form=ev.target,emp=tpEmp(form.dataset.id),today=tpToday(),month=today.slice(0,7),
-  input=form.querySelector("#tp-profile-new-salary"),nextSalary=input&&parsePaise(String(input.value).trim());
+ var form=ev.target,emp=tpEmp(form.dataset.id),today=tpToday(),effectiveDate=tpArcNextSalaryDate(),
+  month=effectiveDate.slice(0,7),input=form.querySelector("#tp-profile-new-salary"),
+  nextSalary=input&&parsePaise(String(input.value).trim());
  if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left||tpIsParcel(emp))
   return uxAlert("Choose an active salaried employee in the selected restaurant.");
  if(today<emp.joined)return uxAlert("Salary changes must be on or after the employment start date.");
  if(!Number.isSafeInteger(nextSalary)||nextSalary<=0||nextSalary>1000000000)
-  return uxAlert("Enter a valid new monthly salary (₹0.01 to ₹1,00,00,000).");
+  return uxAlert("Enter a whole-rupee salary from ₹1 to ₹1,00,00,000.");
  var previous=tpMonthSalary(emp,month),period=tpGetPeriod(month);
- if(nextSalary===previous)return uxAlert("Enter an amount different from the current salary.");
+ if(nextSalary===previous)return uxAlert("Enter an amount different from the next month's scheduled salary.");
  if(period.finalized===true||period.locked===true)
-  return uxAlert("This payroll month is locked or finalized and salary cannot be changed.");
+  return uxAlert("Next month's payroll is locked or finalized and salary cannot be scheduled.");
  if(!confirm("Change "+emp.name+"'s salary from "+tpMoney(previous)+" to "+tpMoney(nextSalary)+
-  " effective "+today+"? Previous months and salary history will remain unchanged."))return;
+  " effective "+effectiveDate+"? The current and previous months will not change."))return;
  var backup=JSON.stringify(tpData);
  try{
   tpSetMonthSalary(emp,month,nextSalary,"Salary Revision");
   var change=tpData.salaryChanges[tpData.salaryChanges.length-1];
-  change.effectiveDate=today;change.reason="Updated from Employee Profile";
+  change.effectiveDate=effectiveDate;change.reason="Updated from Employee Profile";
   change.employmentPeriodId=emp.id;change.restaurant=emp.restaurant;
   change.designation=emp.designation;
-  var days=tpInputDays(period.days[emp.id]);
-  if(days!==null){var calc=tpCompute(emp,period,days,month);if(calc)period.snapshots[emp.id]=tpSnapshot(emp,calc,days);}
   period.updatedAt=tpStamp();
   if(!tpSave()){tpData=JSON.parse(backup);return;}
-  tpTab="employees";tpViewing=emp.id;draw();showToast("New monthly salary saved in employee profile.");
+  tpTab="employees";tpViewing=emp.id;draw();showToast("New salary takes effect "+effectiveDate+".");
  }catch(error){tpData=JSON.parse(backup);uxAlert(error.message||"Could not save salary.");}
 },true);
 document.addEventListener("submit",function(ev){
@@ -316,19 +316,19 @@ document.addEventListener("submit",function(ev){
  var mode=form.querySelector("#tp-inc-mode").value,value=Number(form.querySelector("#tp-inc-value").value);
  var reason=tpTrim(form.querySelector("#tp-inc-reason").value,180);
  if(!emp||emp.active===false||emp.left||tpIsParcel(emp))return uxAlert("Choose an active salaried employee.");
- if(!tpArcDate(date)||date<emp.joined)return uxAlert("Effective date must be on or after this employment period's joining date.");
+ if(date!==tpArcNextSalaryDate())return uxAlert("New salary changes start only on "+tpArcNextSalaryDate()+".");
+ if(date<emp.joined)return uxAlert("Effective date must be after the employment start date.");
  var month=date.slice(0,7),old=tpMonthSalary(emp,month),newSalary;
  if(!Number.isFinite(value)||value<=0||!["new","fixed","percent"].includes(mode))return uxAlert("Enter a positive salary amount or percentage.");
  if(mode==="new")newSalary=parsePaise(form.querySelector("#tp-inc-value").value);
  else if(mode==="fixed"){var increment=parsePaise(form.querySelector("#tp-inc-value").value);newSalary=increment===null?null:old+increment;}
  else newSalary=Math.round(old*(1+value/100));
  if(!Number.isSafeInteger(newSalary)||newSalary<=old||newSalary>1000000000)return uxAlert("The revised salary must be higher than the current salary and at most ₹1,00,00,000.");
- if(tpArcRaiseRecords().some(function(c){return c.employeeId===emp.id&&c.effectiveDate===date;}))
+ if((tpData.salaryChanges||[]).some(function(c){return c.employeeId===emp.id&&c.effectiveMonth===date.slice(0,7);}))
   return uxAlert("A salary increment already exists for this employee and effective date. Please choose another date.");
  var targetPeriod=tpGetPeriod(month);
  if(targetPeriod.finalized===true||targetPeriod.locked===true)return uxAlert("This payroll month is finalized or locked and cannot be changed.");
- if(month<tpMonth(0)&&Object.prototype.hasOwnProperty.call(targetPeriod.snapshots,emp.id))
-  return uxAlert("This past payroll month already has recorded pay. Historical payroll cannot be revised here.");
+ if(month<=tpMonth(0))return uxAlert("Salary changes can take effect only next month.");
  if(!confirm("Increase "+emp.name+"'s monthly salary from "+tpMoney(old)+" to "+tpMoney(newSalary)+" effective "+date+"?"))return;
  var before=JSON.stringify(tpData);
  try{
@@ -340,8 +340,8 @@ document.addEventListener("submit",function(ev){
   tpArcIncrementEmployee=emp.id;draw();showToast("Salary increment saved effective "+date+".");
  }catch(err){tpData=JSON.parse(before);uxAlert(err.message||"Could not save salary increment.");}
 },true);
-// Prorate month-midpoint salary increments on the fixed 30-day basis.
-// The full monthly rate remains in the original salary history for future months.
+// Preserve legacy proration only for previously recorded historical mid-month changes.
+ // New changes always take effect on the 1st of next month.
 var tpArcBaseCompute=tpCompute;
 tpCompute=function(emp,period,override,month){
  var result=tpArcBaseCompute(emp,period,override,month);
