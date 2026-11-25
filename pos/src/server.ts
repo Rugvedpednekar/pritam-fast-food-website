@@ -78,7 +78,10 @@ html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension1+"\n
 // Payroll testing UI.
 const payrollBase=await Bun.file(new URL("./client/payroll-preview.js",import.meta.url)).text();
 const payrollArchiveIncrements=await Bun.file(new URL("./client/payroll-archive-increments.js",import.meta.url)).text();
-const twExtension2=payrollBase.replace(/\}\)\(\);\s*$/,payrollArchiveIncrements+"\n})();");
+const payrollBonusList=await Bun.file(new URL("./client/payroll-bonus-list.js",import.meta.url)).text();
+const payrollArchiveWithBonus=payrollArchiveIncrements.replace(/\}\)\(\);\s*$/,payrollBonusList+"\n})();");
+if(payrollArchiveWithBonus===payrollArchiveIncrements)throw Error("Payroll bonus insertion point missing");
+const twExtension2=payrollBase.replace(/\}\)\(\);\s*$/,payrollArchiveWithBonus+"\n})();");
 if(twExtension2===payrollBase)throw Error("Payroll archive insertion point missing");
 if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("payroll-preview.js insertion point missing");
 html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension2+"\n"+"startupFinished=true;\ncloudStart();\n})();");
