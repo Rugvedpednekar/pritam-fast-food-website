@@ -32,16 +32,28 @@ function tpBonusFullRows(){
    var saved=Object.prototype.hasOwnProperty.call(days,id)?days[id]:(snapshots[id]&&snapshots[id].days);
    var worked=tpInputDays(saved);
    if(worked===null)return;
-   var snapshot=snapshots[id]||{};
-   // The snapshot stores the restaurant at the time the attendance was taken.
-   // Never attribute a historical month to a transferred employee's current outlet.
+   var snapshot=snapshots[id]||{},entry=(period.bonusOutlets||{})[id];
+   if(entry&&Array.isArray(entry.segments)&&entry.segments.length){
+    // Fixed earlier-outlet days + dynamic final-outlet remainder must equal
+    // the saved monthly attendance total. No day may be credited twice.
+    var available=worked;
+    entry.segments.forEach(function(segment,index){
+     var amount=index===entry.segments.length-1?available:Math.min(available,Math.max(0,Number(segment.days)||0));
+     available=Math.max(0,available-amount);
+     if(amount<=0)return;
+     entries.push({employee:emp,personId:tpArcPersonId(emp),month:month,
+      employeeId:id,outlet:segment.restaurant||"Outlet not recorded",
+      outletId:segment.restaurantId||"",monthlyId:tpSerialValue(segment.monthlyId),
+      workedDays:amount,source:"Recorded outlet transfer allocation"});
+    });
+    return;
+   }
+   // The snapshot stores the restaurant when attendance was originally saved.
+   // Do not attribute earlier months to the employee's latest outlet.
    var outlet=String(snapshot.restaurant||((period.bonusOutlets||{})[id]&&period.bonusOutlets[id].restaurant)||"");
    var outletId=((period.bonusOutlets||{})[id]&&period.bonusOutlets[id].restaurantId)||"";
-   if(!outlet){
-    // Legacy rows with no location evidence must be flagged, rather than silently
-    // attributing all earlier attendance to today's outlet.
-    outlet="Outlet not recorded";
-   }else if(!outletId){
+   if(!outlet)outlet="Outlet not recorded";
+   else if(!outletId){
     var known=(data.restaurants||[]).filter(function(r){return r.name===outlet;});
     if(known.length===1)outletId=known[0].id;
    }
