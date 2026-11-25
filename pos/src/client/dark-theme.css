@@ -515,6 +515,137 @@ html[data-theme="dark"] body :is(
  }
 }
 
+
+/* Site-wide typography and control contrast — includes dynamically injected UI.
+   Keep legible text on uniformly dark application surfaces, not on print paper. */
+html[data-theme="dark"] body,
+html[data-theme="dark"] body .main,
+html[data-theme="dark"] body #content{
+ --tw-text:#f0f7f4;
+ --tw-secondary:#c2d3d7;
+ --tw-control:#e5f3ef;
+ --tw-link:#8fe9c7;
+}
+html[data-theme="dark"] body #content :is(
+ .panel,.card,.metric-row,.report-block,.table-wrap,.bill-lines,
+ .menu-grid,.section-grid,.cart-panel,.fl-root,.tp-app
+){
+ color:var(--tw-text)!important;
+}
+html[data-theme="dark"] body #content :is(
+ h1,h2,h3,h4,h5,h6,.panel-title,.heading h1,.card-value,.card-title,
+ .item-name,.cartname,.grand,.totalline strong,.card-value,
+ .metric-value,.summary-value,.tp-stat strong,.tp-panel h2,.tp-panel h3,
+ .fl-total,.fl-price,.fl-grand,.fl-order-total
+){
+ color:var(--tw-text)!important;
+}
+html[data-theme="dark"] body #content :is(
+ .panel-sub,.card-label,.card-foot,.sub,.eyebrow,.help,
+ .metric-row span,.label-mini,.field label,.checkline,.item-code,
+ .item-tax,.cartprice,.totalline,.barlabel,.empty,
+ .tp-stat-head,.tp-stat small,.tp-note,.tp-field label,
+ .tp-person-main p,.tp-person-main small,.fl-muted,.fl-label,
+ .fl-hint,.fl-description,.fl-subtitle
+){
+ color:var(--tw-secondary)!important;
+ opacity:1!important;
+}
+html[data-theme="dark"] body #content :is(
+ td,th,.tp-table td,.tp-table th,.mm td,.mm th,
+ .notice-line,.order-line,.order-line span,.cart-line,
+ .tp-person,.tp-history-entry,.fl-line,.fl-row
+){
+ color:var(--tw-text)!important;
+}
+html[data-theme="dark"] body #content :is(
+ a,a:visited,[role="link"]
+){color:var(--tw-link)!important;}
+html[data-theme="dark"] body #content :is(
+ .btn,.chip,.qty button,.nav button,.tp-button,
+ .fl-root button,.tp-app button
+):not(:disabled){opacity:1!important;}
+html[data-theme="dark"] body #content :is(
+ button:disabled,input:disabled,select:disabled,textarea:disabled
+){opacity:.8!important;}
+html[data-theme="dark"] body #content :is(
+ .btn,.chip,.qty button,.tp-button,.fl-root button,
+ .tp-app button,.mm button
+){
+ color:var(--tw-control)!important;
+}
+html[data-theme="dark"] body #content :is(
+ .btn.primary,.tp-button.tp-primary,.fl-primary,.tw-pos-action-btn,
+ button[class*="primary"],button[class*="success"]
+){color:#fff!important;}
+html[data-theme="dark"] body #content :is(
+ .btn.danger,.tp-button.tp-danger,.fl-danger
+){color:#ffbdc2!important;}
+html[data-theme="dark"] body #content :is(
+ input:not([type="checkbox"]):not([type="radio"]),select,textarea
+){
+ color:var(--tw-text)!important;
+ background:#16272f!important;
+ border-color:#45616a!important;
+}
+html[data-theme="dark"] body #content :is(input,textarea)::placeholder{
+ color:#aec3c8!important;
+ opacity:1!important;
+}
+html[data-theme="dark"] body #content :is(
+ .tw-bill-history-filter label,.tw-bill-history-panel .panel-sub,
+ .tw-rest-rows,.tw-rest-rows span
+){color:var(--tw-secondary)!important;}
+html[data-theme="dark"] body #content .tw-rest-rows .metric-row span{
+ color:#d8e7e4!important;
+}
+/* Full-screen dialogs, including legacy prompt containers, must not inherit
+   dark title colors from the old light theme. */
+html[data-theme="dark"] body :is(
+ [role="dialog"],[aria-modal="true"],dialog,
+ .ux-dialog,.ux-modal,.tw-owner-modal,.cloud-box,.emp-dialog
+){
+ color:#f1faf7!important;
+}
+html[data-theme="dark"] body :is(
+ [role="dialog"],[aria-modal="true"],dialog,
+ .ux-dialog,.ux-modal,.tw-owner-modal,.cloud-box,.emp-dialog
+) :is(h1,h2,h3,h4,h5,h6,label,p,small,strong,span,legend){
+ color:#eaf5f1!important;
+}
+html[data-theme="dark"] body :is(
+ [role="dialog"],[aria-modal="true"],dialog,
+ .ux-dialog,.ux-modal,.tw-owner-modal,.cloud-box,.emp-dialog
+) :is(input,select,textarea){
+ color:#f2faf7!important;
+ background:#142730!important;
+ border-color:#66858a!important;
+}
+html[data-theme="dark"] body .tw-owner-modal .tw-owner-feedback,
+html[data-theme="dark"] body [role="alert"]{
+ color:#ffc2c8!important;
+}
+/* Status labels retain meaning with high-contrast text. */
+html[data-theme="dark"] body #content .pill.ok{
+ background:#194638!important;color:#b8f8d9!important;
+}
+html[data-theme="dark"] body #content .pill.bad{
+ background:#512f36!important;color:#ffc4c4!important;
+}
+html[data-theme="dark"] body #content .pill.neutral{
+ background:#29404a!important;color:#d7e6eb!important;
+}
+/* Keep print-only receipts and reports black on white. */
+@media print{
+ html[data-theme="dark"] body #tp-payroll-print-root,
+ html[data-theme="dark"] body #tp-payroll-print-root *,
+ html[data-theme="dark"] body .tw-mobile-receipt-paper,
+ html[data-theme="dark"] body .tw-mobile-receipt-paper *{
+  color:#111!important;
+  background:#fff!important;
+ }
+}
+
 /* Keep printed bills and payroll PDFs white with legible dark ink. */
 @media print{
  html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
