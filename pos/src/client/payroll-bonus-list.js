@@ -112,10 +112,10 @@ function tpBonusPersonSummary(rows){
  rows.forEach(function(row){
   var person=groups.get(row.personId);
   if(!person){
-   person={personId:row.personId,name:row.employee.name,days:0,months:new Set(),outlets:new Set(),records:0};
+   person={personId:row.personId,name:row.employee.name,employee:row.employee,days:0,months:new Set(),outlets:new Set(),records:0};
    groups.set(row.personId,person);
   }
-  person.name=row.employee.name;person.days+=row.workedDays;
+  person.name=row.employee.name;person.employee=row.employee;person.days+=row.workedDays;
   person.months.add(row.month);
   if(row.outlet!=="Outlet not recorded")person.outlets.add(row.outlet);
   person.records++;
@@ -272,7 +272,7 @@ function tpBonusPDF(){
    {name:"SALARY",x:startX+idWidth+nameWidth+designationWidth,w:salaryWidth},
    {name:"BONUS",x:startX+idWidth+nameWidth+designationWidth+salaryWidth,w:bonusWidth}
   ];
-  ctx.fillStyle="#edf5f2";ctx.fillRect(startX,98,Math.min(1140,statusX+statusWidth-startX),36);
+  ctx.fillStyle="#edf5f2";ctx.fillRect(startX,98,(statusX+statusWidth-startX),36);
   cols.forEach(function(c){
    tpPdfText(ctx,c.name,c.x+3,117,9,true,"#245d55",c.w-6);
   });
@@ -286,7 +286,7 @@ function tpBonusPDF(){
   var top=140,available=640,rowHeight=Math.min(28,available/Math.max(people.length,1));
   people.forEach(function(person,index){
    var y=top+index*rowHeight,mid=y+rowHeight*.60,emp=person.employee;
-   if(index%2===0){ctx.fillStyle="#f3f8f6";ctx.fillRect(startX,y,Math.min(1140,statusX+statusWidth-startX),rowHeight);}
+   if(index%2===0){ctx.fillStyle="#f3f8f6";ctx.fillRect(startX,y,(statusX+statusWidth-startX),rowHeight);}
    ctx.strokeStyle="#e4eeeb";ctx.lineWidth=.5;ctx.beginPath();
    ctx.moveTo(startX,y+rowHeight);ctx.lineTo(statusX+statusWidth,y+rowHeight);ctx.stroke();
    var baseSize=Math.min(10.2,Math.max(6.7,rowHeight*.42));
@@ -324,7 +324,7 @@ function tpBonusPDF(){
     status==="FULL"?"#0b7050":"#63757b",statusWidth-4,"center");
   });
   var bottom=Math.min(806,top+people.length*rowHeight+14),totalDays=people.reduce(function(v,r){return v+r.days;},0);
-  ctx.fillStyle="#f0f7f4";ctx.fillRect(startX,bottom,Math.min(1140,statusX+statusWidth-startX),25);
+  ctx.fillStyle="#f0f7f4";ctx.fillRect(startX,bottom,(statusX+statusWidth-startX),25);
   tpPdfText(ctx,"TOTAL   "+people.length+" employees",startX+6,bottom+17,10,true,"#194e48",260);
   tpPdfText(ctx,"Actual worked days: "+totalDays,520,bottom+17,10,true,"#194e48",280);
   tpPdfText(ctx,"11-month threshold: "+(basis===null?"not set":basis*11+" days"),1161,bottom+17,10,true,"#194e48",245,"right");
