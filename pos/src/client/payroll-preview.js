@@ -766,9 +766,13 @@ function tpPdfBuild(jpegPages){
  object(2,"<< /Type /Pages /Kids ["+kids+"] /Count "+jpegPages.length+" >>");
  jpegPages.forEach(function(page,i){
   var pid=3+i*3,cid=pid+1,jid=pid+2;
-  object(pid,"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "+
+  // Permit a single landscape bonus sheet without changing existing
+  // portrait payroll PDFs or their text/image rendering.
+  var pw=Number.isSafeInteger(page.pageWidth)&&page.pageWidth>0?page.pageWidth:595;
+  var ph=Number.isSafeInteger(page.pageHeight)&&page.pageHeight>0?page.pageHeight:842;
+  object(pid,"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pw+" "+ph+"] "+
    "/Resources << /XObject << /Im0 "+jid+" 0 R >> >> /Contents "+cid+" 0 R >>");
-  var stream=encoder.encode("q\n595 0 0 842 0 0 cm\n/Im0 Do\nQ\n");
+  var stream=encoder.encode("q\n"+pw+" 0 0 "+ph+" 0 0 cm\n/Im0 Do\nQ\n");
   offsets[cid]=length;
   push(cid+" 0 obj\n<< /Length "+stream.byteLength+" >>\nstream\n");
   push(stream);push("\nendstream\nendobj\n");
