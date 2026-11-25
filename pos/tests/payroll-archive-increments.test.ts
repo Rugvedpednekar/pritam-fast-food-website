@@ -68,40 +68,48 @@ test("rejoining starts a distinct employment period but keeps one active profile
  expect(app.render()).not.toContain("Aarav Patil</h3>");
 });
 
-test("new salary is entered only in employee profile and prorated from today's date",()=>{
- const {app,submit,alerts}=boot("r1"),emp=app.data().employees.find(e=>e.id==="demo1"),period=app.period("2026-11");
- const original=app.compute(emp,period,27,"2026-11"),oldSalary=app.monthSalary(emp,"2026-11");
+test("Salary changes from employee profile take effect only on the 1st of next month",()=>{
+ const {app,submit,alerts}=boot("r1"),emp=app.data().employees.find(e=>e.id==="demo1"),nov=app.period("2026-11");
+ const initial=app.monthSalary(emp,"2026-11"),calcBefore=app.compute(emp,nov,27,"2026-11");
  app.setPage("settings");
  expect(app.render()).not.toContain("Salary Increases / Increments");
- expect(app.render()).not.toContain('id="tp-increment-form"');
  app.setPage("employees");
  app.handle({dataset:{tpAction:"view-employee",id:emp.id}});
- const profile=app.render();
- expect(profile).toContain('id="tp-profile-salary-form"');
- expect(profile).toContain('id="tp-profile-new-salary"');
- expect(profile).not.toContain("Increase method");
- submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"33000.00"});
- const change=app.data().salaryChanges.find(c=>c.employeeId===emp.id);
- expect(change).toMatchObject({effectiveDate:"2026-11-25",previousSalary:oldSalary,newSalary:oldSalary+100000,
-  source:"Salary Revision",reason:"Updated from Employee Profile"});
- const after=app.compute(emp,period,27,"2026-11");
- expect(after.proratedMonthly).toBe(oldSalary+20000);
- expect(after.gross).toBe(Math.round((oldSalary+20000)*27/30));
- expect(after.gross).toBeGreaterThan(original.gross);
+ const html=app.render();
+ expect(html).toContain('id="tp-profile-salary-form"');
+ expect(html).toContain("01 Dec 2026");
+ expect(html).toContain("1st of next month");
+ submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"33000"});
+ const history=app.data().salaryChanges.find(c=>c.employeeId===emp.id);
+ expect(history).toMatchObject({
+  effectiveMonth:"2026-12",effectiveDate:"2026-12-01",
+  previousSalary:initial,newSalary:initial+100000,
+  source:"Salary Revision",reason:"Updated from Employee Profile"
+ });
+ expect(app.monthSalary(emp,"2026-10")).toBe(initial);
+ expect(app.monthSalary(emp,"2026-11")).toBe(initial);
+ expect(app.monthSalary(emp,"2026-12")).toBe(initial+100000);
+ expect(app.compute(emp,nov,27,"2026-11").gross).toBe(calcBefore.gross);
+ expect(app.compute(emp,nov,27,"2026-11").proratedMonthly).toBeUndefined();
+ const next=app.compute(emp,app.period("2026-12"),27,"2026-12");
+ expect(next.gross).toBe(Math.round((initial+100000)*27/30));
+ expect(next.proratedMonthly).toBeUndefined();
  expect(app.profile(emp)).toContain("Salary Change History");
- expect(app.profile(emp)).toContain("Updated from Employee Profile");
  expect(alerts).toHaveLength(0);
 });
 
-test("salary revisions change current month but retain historical months",()=>{
+test("Future salary revisions never recalculate or overwrite current and historic payroll",()=>{
  const {app,submit,alerts}=boot("r1"),emp=app.data().employees.find(e=>e.id==="demo1");
- const previous=app.monthSalary(emp,"2026-10");
+ const october=app.monthSalary(emp,"2026-10"),november=app.monthSalary(emp,"2026-11");
  const oldSnapshot=JSON.stringify(app.period("2026-10").snapshots[emp.id]);
+ const novemberSnapshot=JSON.stringify(app.period("2026-11").snapshots[emp.id]);
  app.handle({dataset:{tpAction:"view-employee",id:emp.id}});
- submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"31000.00"});
- expect(app.monthSalary(emp,"2026-10")).toBe(previous);
+ submit("tp-profile-salary-form",emp.id,{"#tp-profile-new-salary":"31000"});
+ expect(app.monthSalary(emp,"2026-10")).toBe(october);
+ expect(app.monthSalary(emp,"2026-11")).toBe(november);
+ expect(app.monthSalary(emp,"2026-12")).toBe(3100000);
  expect(JSON.stringify(app.period("2026-10").snapshots[emp.id])).toBe(oldSnapshot);
- expect(app.monthSalary(emp,"2026-11")).toBe(3100000);
+ expect(JSON.stringify(app.period("2026-11").snapshots[emp.id])).toBe(novemberSnapshot);
  expect(app.data().salaryChanges).toHaveLength(1);
  expect(alerts).toHaveLength(0);
 });
