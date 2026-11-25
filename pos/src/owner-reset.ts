@@ -14,6 +14,32 @@ export function freshRestaurantState(){
   factoryReset:true};
 }
 
+
+export function purgeRestaurantState(state,restaurantId){
+ const restaurant=state?.restaurants?.find(r=>r.id===restaurantId);
+ if(!restaurant)throw new Error("Restaurant not found");
+ if(state.restaurants.filter(r=>r.active!==false).length<=1)throw new Error("At least one restaurant must remain");
+ const name=String(restaurant.name||"").trim().toLowerCase();
+ const scoped=(record)=>{
+  if(!record||typeof record!=="object")return false;
+  if(record.restaurantId===restaurantId||record.branchId===restaurantId||record.outletId===restaurantId)return true;
+  return !record.restaurantId&&!record.branchId&&!record.outletId&&name&&String(record.restaurant||record.restaurantName||record.branch||"").trim().toLowerCase()===name;
+ };
+ state.restaurants=state.restaurants.filter(r=>r.id!==restaurantId);
+ for(const key of ["menus","branchSettings","sections","tables","openDays","taxRates"]){
+  if(state[key]&&typeof state[key]==="object")delete state[key][restaurantId];
+ }
+ for(const key of ["invoiceCounters","dayEndSettings"]){
+  if(state[key]&&typeof state[key]==="object"){
+   for(const k of Object.keys(state[key]))if(k===restaurantId||k.startsWith(restaurantId+":"))delete state[key][k];
+  }
+ }
+ for(const key of ["bills","employees","closings","orders","customers","deliveryBoys","deliveries","audit","payments","dayEnds","expenses"]){
+  if(Array.isArray(state[key]))state[key]=state[key].filter(record=>!scoped(record));
+ }
+ return {restaurantId,name:restaurant.name};
+}
+
 function fail(status,message){
  const error=new Error(message);error.status=status;throw error;
 }
@@ -42,13 +68,15 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
   if(!initialized)initialized=(async()=>{
    await db.unsafe("CREATE TABLE IF NOT EXISTS demo_owner_security(account_key text PRIMARY KEY, pin_salt text, pin_digest text, reset_generation bigint NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())");
    await db.unsafe("INSERT INTO demo_owner_security(account_key,reset_generation) VALUES('owner',0) ON CONFLICT DO NOTHING");
+   await db.unsafe("CREATE TABLE IF NOT EXISTS demo_deleted_restaurants(account_key text NOT NULL,restaurant_id text NOT NULL,restaurant_name text NOT NULL,deleted_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(account_key,restaurant_id))");
   })().catch(err=>{initialized=null;throw err;});
   await initialized;
  }
  async function status(){
   await initialize();
   const rows=await db.unsafe("SELECT pin_digest,reset_generation FROM demo_owner_security WHERE account_key='owner'");
-  return {pinConfigured:!!rows[0]?.pin_digest,resetGeneration:Number(rows[0]?.reset_generation||0)};
+  const deleted=await db.unsafe("SELECT restaurant_id AS id,restaurant_name AS name FROM demo_deleted_restaurants WHERE account_key='owner' ORDER BY deleted_at DESC");
+  return {pinConfigured:!!rows[0]?.pin_digest,resetGeneration:Number(rows[0]?.reset_generation||0),deletedRestaurants:deleted};
  }
  async function setPin({ownerPassword,pin,confirmPin}){
   rateCheck();
@@ -77,11 +105,33 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
    const fresh=freshRestaurantState();
    const result=await tx.unsafe("INSERT INTO demo_snapshots(account_key,version,payload,updated_at) VALUES('owner',1,$1::jsonb,now()) ON CONFLICT(account_key) DO UPDATE SET payload=EXCLUDED.payload,version=demo_snapshots.version+1,updated_at=now() RETURNING version",[JSON.stringify(fresh)]);
    await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner'");
+   await tx.unsafe("DELETE FROM demo_deleted_restaurants WHERE account_key='owner'");
    const gen=await tx.unsafe("UPDATE demo_owner_security SET reset_generation=reset_generation+1,updated_at=now() WHERE account_key='owner' RETURNING reset_generation");
    return {ok:true,version:Number(result[0].version),resetGeneration:Number(gen[0].reset_generation)};
   });
   clearAttempts();
   return saved;
  }
- return {status,setPin,resetEverything};
+
+ async function deleteRestaurant({restaurantId,version,confirmation}){
+  await initialize();
+  if(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)||!Number.isSafeInteger(version)||version<1)
+   fail(422,"Invalid restaurant deletion request");
+  return db.begin(async tx=>{
+   const rows=await tx.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner' FOR UPDATE");
+   if(!rows.length)fail(409,"Restaurant database has not been initialized");
+   if(Number(rows[0].version)!==version)fail(409,"Restaurant data changed on another device. Reload before deleting.");
+   const state=JSON.parse(rows[0].payload);
+   const match=state.restaurants.find(r=>r.id===restaurantId);
+   if(!match)fail(404,"Restaurant no longer exists");
+   if(confirmation!=="DELETE "+match.name)fail(422,"Type DELETE followed by the restaurant name exactly.");
+   let info;try{info=purgeRestaurantState(state,restaurantId);}catch(err){fail(409,err.message);}
+   const updated=await tx.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' RETURNING version",[JSON.stringify(state)]);
+   await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND restaurant_id=$1",[restaurantId]);
+   await tx.unsafe("INSERT INTO demo_deleted_restaurants(account_key,restaurant_id,restaurant_name) VALUES('owner',$1,$2) ON CONFLICT DO NOTHING",[restaurantId,info.name]);
+   return {ok:true,version:Number(updated[0].version),state,removed:info};
+  });
+ }
+ return {status,setPin,resetEverything,deleteRestaurant};
+
 }
