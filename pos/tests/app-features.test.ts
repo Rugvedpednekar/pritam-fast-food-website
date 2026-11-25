@@ -802,7 +802,7 @@ test("Payment Sheets expand employee salary and commission calculations without 
  expect(html).toContain("Calculation for Aarav Patil");
  expect(html).toContain("Working salary");
  expect(html).toContain("Leave pay");
- expect(html).toContain("Advance deducted");
+ expect(html).toContain("Salary advance deducted");
  expect(html).toContain("Net salary payable");
  expect(html).toContain("Hide Calculation");
  app.handle({dataset:{tpAction:"view-calculation",id:"demo1"}});
