@@ -42,9 +42,9 @@
   if(selected===restaurant.id&&cart.length)return uxAlert("Finish or discard the current unsaved bill before deleting this restaurant.");
   var name=restaurant.name;
   if(!await uxConfirm('Permanently delete "'+name+'"? ALL its bills, menus, settings, tables, orders, history and employee records will be erased. THIS CANNOT BE UNDONE.'))return;
-  var typed=await uxPrompt('FINAL CONFIRMATION: Type DELETE '+name+' exactly to erase this restaurant and its data:','');
+  var typed=await uxPrompt('FINAL CONFIRMATION: To permanently erase '+name+' and all its data, type DELETE:','');
   if(typed===null)return;
-  if(typed!=="DELETE "+name)return uxAlert("Deletion cancelled because the confirmation did not match.");
+  if(typed!=="DELETE")return uxAlert("Deletion cancelled. Type DELETE in uppercase to confirm.");
   if(!eligible()||!data.restaurants.some(function(r){return r.id===restaurant.id&&r.name===name}))return uxAlert("Restaurant state changed. Reload and try again.");
   btn.disabled=true;
   try{
