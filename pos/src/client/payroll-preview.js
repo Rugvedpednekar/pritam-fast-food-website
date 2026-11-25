@@ -177,6 +177,14 @@ function tpPublishPhoto(id,photo){
 async function tpPullPhotos(){
  if(!tpPhotoNetworkReady())return;
  try{
+  // Prevent stale devices from re-uploading photos after factory reset or restaurant deletion.
+  var securityResponse=await fetch("/api/owner/status",{credentials:"same-origin",cache:"no-store"});
+  if(!securityResponse.ok)return;
+  var securitySnapshot=await securityResponse.json();
+  var currentGeneration=String(securitySnapshot.resetGeneration||0);
+  if(Number(currentGeneration)>0&&localStorage.getItem("tablewise-owner-reset-generation-v1")!==currentGeneration)return;
+  var deletedOutlets=new Set((securitySnapshot.deletedRestaurants||[]).map(function(item){return item.id;}));
+  var deletedNames=new Set((securitySnapshot.deletedRestaurants||[]).map(function(item){return String(item.name||"").trim().toLowerCase();}));
   var response=await fetch("/api/payroll/photos",{credentials:"same-origin",cache:"no-store"});
   if(!response.ok)throw Error("Photo lookup HTTP "+response.status);
   var result=await response.json(),remote={},dirty=false;
@@ -185,6 +193,7 @@ async function tpPullPhotos(){
     remote[item.employeeId]=item.photo;
   });
   tpData.employees.forEach(function(emp){
+   if(deletedOutlets.has(emp.restaurantId)||(!emp.restaurantId&&deletedNames.has(String(emp.restaurant||"").trim().toLowerCase())))return;
    if(tpPhotoChanged[emp.id])return;
    if(Object.prototype.hasOwnProperty.call(remote,emp.id)){
     if(emp.photo!==remote[emp.id]){emp.photo=remote[emp.id];dirty=true;}
