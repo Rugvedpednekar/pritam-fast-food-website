@@ -349,7 +349,8 @@ tpCompute=function(emp,period,override,month){
  var m=month||tpPeriod,changes=(tpData.salaryChanges||[]).filter(function(c){
   return c.employeeId===emp.id&&["Salary Increment","Salary Revision"].includes(c.source)&&c.effectiveDate&&c.effectiveDate.slice(0,7)===m;
  }).sort(function(a,b){return a.effectiveDate.localeCompare(b.effectiveDate)||a.changedAt.localeCompare(b.changedAt);});
- if(!changes.length)return result;
+ if(!changes.length||changes.every(function(c){return c.effectiveDate.slice(8)==="01";}))return result;
+ // Mid-month proration remains only for legacy changes with non-first-day dates.
  var dailyTotal=0,rate=changes[0].previousSalary,idx=0;
  for(var d=1;d<=30;d++){
   while(idx<changes.length&&Math.min(30,Number(changes[idx].effectiveDate.slice(8)))<=d){
