@@ -125,7 +125,7 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
    const state=JSON.parse(rows[0].payload);
    const match=state.restaurants.find(r=>r.id===restaurantId);
    if(!match)fail(404,"Restaurant no longer exists");
-   if(confirmation!=="DELETE "+match.name)fail(422,"Type DELETE followed by the restaurant name exactly.");
+   if(confirmation!=="DELETE")fail(422,"Type DELETE exactly to permanently delete this restaurant.");
    let info;try{info=purgeRestaurantState(state,restaurantId);}catch(err){fail(409,err.message);}
    const updated=await tx.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' RETURNING version",[JSON.stringify(state)]);
    await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND (restaurant_id=$1 OR employee_id=ANY($2::text[]))",[restaurantId,employeeIds]);
