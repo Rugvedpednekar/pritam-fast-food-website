@@ -1,0 +1,87 @@
+/* Owner-controlled factory reset for the single-account restaurant demo.
+   This never runs automatically; it only clears data after a server-side PIN check. */
+import {randomBytes, scryptSync, timingSafeEqual} from "node:crypto";
+
+export function freshRestaurantState(){
+ const restaurants=[], menus={};
+ for(let i=1;i<=5;i++){
+  const id="r"+i;
+  restaurants.push({id,name:i===1?"Pritam Fast Food":"Restaurant "+String(i).padStart(2,"0")});
+  menus[id]=[];
+ }
+ return {schema:1,restaurants,menus,bills:[],employees:[],closings:[],seq:1,
+  orders:[],customers:[],deliveryBoys:[],deliveries:[],invoiceCounters:{},openDays:{},audit:[],
+  factoryReset:true};
+}
+
+function fail(status,message){
+ const error=new Error(message);error.status=status;throw error;
+}
+function pinMatches(pin,salt,digest){
+ if(typeof pin!=="string"||!/^\d{6,8}$/.test(pin)||!salt||!digest)return false;
+ const actual=scryptSync(pin,Buffer.from(salt,"hex"),32);
+ const expected=Buffer.from(digest,"hex");
+ return expected.length===actual.length&&timingSafeEqual(actual,expected);
+}
+
+export function createOwnerResetController({db,ready,photosReady,checkOwnerPassword}){
+ let initialized=null;
+ const attempts={count:0,started:0,lockedUntil:0};
+ function rateCheck(){
+  const now=Date.now();
+  if(now<attempts.lockedUntil)fail(429,"Too many incorrect credentials. Try again in 15 minutes.");
+  if(now-attempts.started>900000){attempts.started=now;attempts.count=0;}
+ }
+ function badAttempt(){
+  attempts.count++;
+  if(attempts.count>=5)attempts.lockedUntil=Date.now()+900000;
+ }
+ function clearAttempts(){attempts.count=0;attempts.lockedUntil=0;attempts.started=Date.now();}
+ async function initialize(){
+  await Promise.all([ready(),photosReady()]);
+  if(!initialized)initialized=(async()=>{
+   await db.unsafe("CREATE TABLE IF NOT EXISTS demo_owner_security(account_key text PRIMARY KEY, pin_salt text, pin_digest text, reset_generation bigint NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now())");
+   await db.unsafe("INSERT INTO demo_owner_security(account_key,reset_generation) VALUES('owner',0) ON CONFLICT DO NOTHING");
+  })().catch(err=>{initialized=null;throw err;});
+  await initialized;
+ }
+ async function status(){
+  await initialize();
+  const rows=await db.unsafe("SELECT pin_digest,reset_generation FROM demo_owner_security WHERE account_key='owner'");
+  return {pinConfigured:!!rows[0]?.pin_digest,resetGeneration:Number(rows[0]?.reset_generation||0)};
+ }
+ async function setPin({ownerPassword,pin,confirmPin}){
+  rateCheck();
+  if(typeof pin!=="string"||!/^\d{6,8}$/.test(pin)||pin!==confirmPin)
+   fail(422,"Enter matching owner PINs containing 6 to 8 digits.");
+  if(typeof ownerPassword!=="string"||!checkOwnerPassword(ownerPassword)){
+   badAttempt();fail(401,"Owner password is incorrect.");
+  }
+  await initialize();
+  const salt=randomBytes(16).toString("hex"),digest=scryptSync(pin,Buffer.from(salt,"hex"),32).toString("hex");
+  await db.unsafe("UPDATE demo_owner_security SET pin_salt=$1,pin_digest=$2,updated_at=now() WHERE account_key='owner'",[salt,digest]);
+  clearAttempts();
+  return {ok:true,pinConfigured:true};
+ }
+ async function resetEverything({pin,confirmation}){
+  rateCheck();
+  if(confirmation!=="RESET EVERYTHING")fail(422,"Type RESET EVERYTHING exactly to confirm permanent deletion.");
+  await initialize();
+  const saved=await db.begin(async tx=>{
+   const rows=await tx.unsafe("SELECT pin_salt,pin_digest,reset_generation FROM demo_owner_security WHERE account_key='owner' FOR UPDATE");
+   const setting=rows[0];
+   if(!setting?.pin_digest)fail(409,"Set up your owner PIN in Settings first.");
+   if(!pinMatches(pin,setting.pin_salt,setting.pin_digest)){
+    badAttempt();fail(401,"Incorrect owner PIN.");
+   }
+   const fresh=freshRestaurantState();
+   const result=await tx.unsafe("INSERT INTO demo_snapshots(account_key,version,payload,updated_at) VALUES('owner',1,$1::jsonb,now()) ON CONFLICT(account_key) DO UPDATE SET payload=EXCLUDED.payload,version=demo_snapshots.version+1,updated_at=now() RETURNING version",[JSON.stringify(fresh)]);
+   await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner'");
+   const gen=await tx.unsafe("UPDATE demo_owner_security SET reset_generation=reset_generation+1,updated_at=now() WHERE account_key='owner' RETURNING reset_generation");
+   return {ok:true,version:Number(result[0].version),resetGeneration:Number(gen[0].reset_generation)};
+  });
+  clearAttempts();
+  return saved;
+ }
+ return {status,setPin,resetEverything};
+}
