@@ -21,7 +21,7 @@
   var dates={};
   (data.bills||[]).forEach(function(b){
    var d=twBillHistoryDateOf(b);
-   if(b.restaurantId===selected&&/^\\d{4}-\\d{2}-\\d{2}$/.test(d)&&d<current)dates[d]=true;
+   if(b.restaurantId===selected&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<current)dates[d]=true;
   });
   return Object.keys(dates).sort().reverse();
  }
