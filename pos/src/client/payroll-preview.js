@@ -59,6 +59,7 @@ function tpDefaultPeriod(){return{advances:{},deductions:{},days:{},serials:{},s
 function tpSample(){
  var first=(data.restaurants&&data.restaurants[0]&&data.restaurants[0].name)||"Pritam Fast Food";
  if(/^Restaurant\s*0*1$/i.test(first))first="Pritam Fast Food";
+ first=tpOfficialRestaurantName(first);
  var second=(data.restaurants&&data.restaurants[1]&&data.restaurants[1].name)||"Restaurant 02";
  var emps=[
  {id:"demo1",name:"Aarav Patil",restaurantId:data.restaurants[0]&&data.restaurants[0].id,designation:"Head Chef",joined:"2023-04-12",restaurant:first,salary:3200000,method:"CASH",photo:"",leaveAllowance:4,active:true},
@@ -94,6 +95,25 @@ function tpSample(){
  });
  return s;
 }
+function tpOfficialRestaurantName(value){
+ if(typeof value!=="string")return value;
+ return /^\s*pritam\s+fast\s+food(?:\s*[·•|:,\-–—(]\s*|\s+)goregaon\s+east(?:\s*,\s*mumbai)?\s*\)?\s*$/i.test(value)||
+  /^\s*pritam\s+fast\s+food\s*$/i.test(value)?"Pritam Fast Food":value;
+}
+function tpNormalizeRestaurantNames(record){
+ if(!record||typeof record!=="object")return false;
+ var changed=false;
+ Object.keys(record).forEach(function(key){
+  var item=record[key];
+  if(typeof item==="string"){
+   var renamed=tpOfficialRestaurantName(item);
+   if(renamed!==item){record[key]=renamed;changed=true;}
+  }else if(item&&typeof item==="object"){
+   if(tpNormalizeRestaurantNames(item))changed=true;
+  }
+ });
+ return changed;
+}
 function tpValid(x){return x&&x.version===3&&Array.isArray(x.employees)&&x.periods&&typeof x.periods==="object";}
 function tpRead(){
  try{
@@ -126,6 +146,9 @@ function tpRead(){
       p.salaries[emp.id]=old.monthly;
     });
    });
+   if(tpNormalizeRestaurantNames(x)){
+    try{localStorage.setItem(TP_KEY,JSON.stringify(x));}catch(err){}
+   }
    return x;
   }
  }catch(err){}
