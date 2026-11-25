@@ -226,7 +226,7 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
    const result=path==="/api/owner/pin"?await ownerReset.setPin(body):
     path==="/api/owner/reset"?await ownerReset.resetEverything(body):await ownerReset.deleteRestaurant(body);
    return res(result);
-  }catch(err){console.error("Protected owner action:",err.status||500,err.message);return res({error:err.message||"Request failed"},err.status||503);}
+  }catch(err){console.error("Protected owner action:",err.status||500,err.message);return res({error:err.status?err.message:"Unable to complete this database operation. The transaction was cancelled; no records were deleted. Refresh and try again."},err.status||503);}
  }
  if(path==="/api/payroll/photos"&&req.method==="GET"){
   try{
