@@ -6,7 +6,7 @@
 var TP_KEY="tablewise-payroll-demo-v3", TP_BASIS=30;
 var TP_SECTIONS=["dashboard","employees","attendance","advances","sheets","history","settings"];
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
-var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null;
+var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPhotoPending=false,tpPhotoError=false,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:0,maximumFractionDigits:0}).format((Number(p)||0)/100);}
 function tpRupees(p){return String(Math.round((Number(p)||0)/100));}
@@ -391,7 +391,7 @@ function tpEmployeeForm(emp){
  '<button type="button" class="tp-x" data-tp-action="cancel-employee" aria-label="Close form">×</button></div>'+
  '<form id="tp-employee-form" class="tp-form" data-employee-type="'+(parcel?"parcel":"salaried")+'">'+
  '<div class="tp-photo-box">'+(pic?'<img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo">':'<div class="tp-photo-placeholder">Photo</div>')+
- '<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/jpeg,image/png,image/webp"><small>Stored only on this device.</small></div></div>'+
+ '<div><label for="tp-photo">Employee photo (optional)</label><input type="file" id="tp-photo" accept="image/*"><small>Choose an image up to 20 MB. It is compressed and saved only on this device.</small><small id="tp-photo-status" role="status" aria-live="polite">No new photo selected.</small></div></div>'+
  '<div class="tp-form-grid">'+
  '<div class="tp-field"><label for="tp-name">Employee name *</label><input id="tp-name" name="name" required maxlength="90" value="'+tpEscape(values.name)+'" placeholder="Full name"></div>'+
  '<div class="tp-field"><label for="tp-employee-type">Employee type *</label><select id="tp-employee-type" name="employeeType" '+(emp?'disabled title="Employee type is fixed after creation to keep past payroll consistent"':'')+'>'+
@@ -1155,6 +1155,8 @@ document.addEventListener("submit",function(ev){
  if(!ev.target||ev.target.id!=="tp-employee-form")return;
  ev.preventDefault();ev.stopImmediatePropagation();
  var form=ev.target;
+ if(tpPhotoPending)return uxAlert("Employee photo is still processing. Save once the preview appears.");
+ if(tpPhotoError)return uxAlert("The selected employee photo could not be processed. Choose a different image.");
  var name=tpTrim(form.elements.name.value,90),designation=tpTrim(form.elements.designation.value,90),joined=form.elements.joined.value;
  var restaurant=tpTrim(form.elements.restaurant.value,90),method=form.elements.method.value,
  employeeType=form.elements.employeeType.value==="parcel"?"parcel":"salaried",parcel=employeeType==="parcel",
@@ -1207,27 +1209,59 @@ document.addEventListener("change",function(ev){
   tpPeriod=field.value;tpIdRange="all";tpCommissionOpen=null;tpCalculationOpenId=null;draw();return;
  }
  if(field.id==="tp-photo"){
-  var file=field.files&&field.files[0];if(!file)return;
-  if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>2500000){
-   field.value="";return uxAlert("Choose a JPG, PNG or WebP under 2.5 MB.");
+  var file=field.files&&field.files[0];
+  if(!file)return;
+  var status=document.getElementById("tp-photo-status");
+  function photoStatus(message){if(status)status.textContent=message;}
+  tpPhotoPending=true;tpPhotoError=false;
+  if(!String(file.type||"").startsWith("image/")||file.size>20000000){
+   tpPhotoPending=false;tpPhotoError=true;field.value="";
+   photoStatus("Image not accepted. Choose a photo under 20 MB.");
+   return uxAlert("Choose an image smaller than 20 MB.");
   }
-  var url=URL.createObjectURL(file),img=new Image();
-  img.onload=function(){
-   try{
-    var canvas=document.createElement("canvas"),size=160,scale=Math.min(size/img.width,size/img.height);
-    canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
-    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-    tpPhoto=canvas.toDataURL("image/jpeg",0.76);
-    var holder=document.querySelector(".tp-photo-box");
-    if(holder){var preview=holder.querySelector(".tp-form-photo,.tp-photo-placeholder");
-      if(preview){var el=document.createElement("img");el.className="tp-form-photo";el.alt="Employee photo preview";el.src=tpPhoto;preview.replaceWith(el);}}
-   }catch(err){uxAlert("Could not process the employee photo.");}
-   finally{URL.revokeObjectURL(url);}
+  photoStatus("Processing photo…");
+  var reader=new FileReader();
+  reader.onerror=function(){
+   tpPhotoPending=false;tpPhotoError=true;photoStatus("Could not read photo.");
+   uxAlert("Could not read this photo. Please choose another image.");
   };
-  img.onerror=function(){URL.revokeObjectURL(url);uxAlert("Could not load that image.");};
-  img.src=url;return;
+  reader.onload=function(){
+   var img=new Image();
+   img.onerror=function(){
+    tpPhotoPending=false;tpPhotoError=true;photoStatus("Unsupported image format.");
+    uxAlert("Could not open the image. Please try JPG, PNG or WebP.");
+   };
+   img.onload=function(){
+    try{
+     var canvas=document.createElement("canvas");
+     // Resize to a small portrait-safe image, retaining the whole face.
+     var size=256,scale=Math.min(size/img.naturalWidth,size/img.naturalHeight,1);
+     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+     canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+     var ctx=canvas.getContext("2d");
+     if(!ctx)throw Error("Canvas unavailable");
+     ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     tpPhoto=canvas.toDataURL("image/jpeg",0.8);
+     if(!tpPhoto.startsWith("data:image/jpeg"))throw Error("JPEG conversion failed");
+     var holder=document.querySelector(".tp-photo-box");
+     if(holder){
+      var preview=holder.querySelector(".tp-form-photo,.tp-photo-placeholder");
+      if(preview){var el=document.createElement("img");el.className="tp-form-photo";
+       el.alt="Employee photo preview";el.src=tpPhoto;preview.replaceWith(el);}
+     }
+     tpPhotoError=false;photoStatus("Photo ready. Save the employee to keep it.");
+    }catch(error){
+     tpPhotoError=true;photoStatus("Could not process photo.");
+     uxAlert("Could not process this photo. Please try a different image.");
+    }finally{tpPhotoPending=false;}
+   };
+   img.src=String(reader.result||"");
+  };
+  try{reader.readAsDataURL(file);}
+  catch(error){tpPhotoPending=false;tpPhotoError=true;photoStatus("Could not read photo.");uxAlert("Could not read this image.");}
+  return;
  }
- var name=field.dataset.tpField,id=field.dataset.id;
+  var name=field.dataset.tpField,id=field.dataset.id;
  if(!name||!id)return;
  var emp=tpEmp(id),p=tpGetPeriod();
  if(!emp)return;
