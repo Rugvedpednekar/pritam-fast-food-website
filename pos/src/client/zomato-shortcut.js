@@ -3,7 +3,18 @@
 "use strict";
 var pending=null,orderTagging=false;
 var css=document.createElement("style");css.id="tw-zomato-button-style";
-css.textContent='.tw-new-zomato{background:#d62836!important;color:#fff!important;border:1px solid #b81928!important;border-radius:9px!important;padding:9px 14px!important;min-height:43px!important;font-weight:800!important;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;white-space:nowrap}.tw-new-zomato:hover{background:#a91c2a!important}.tw-new-zomato:focus-visible{outline:3px solid #ef8490;outline-offset:2px}@media(max-width:760px){.tw-new-zomato{font-size:13px!important;padding:10px 12px!important}}';
+css.textContent=[
+ ".tw-new-zomato{background:#d62836!important;color:#fff!important;border:1px solid #b81928!important;cursor:pointer}",
+ ".tw-new-zomato:hover{background:#a91c2a!important}",
+ ".tw-new-zomato:focus-visible{outline:3px solid #ef8490;outline-offset:2px}",
+ "/* Both actions sit beside the table/parcel counters, not in the page heading. */",
+ "#content .fl-stats{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:12px!important}",
+ "#content .tw-pos-quick-actions{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;margin-left:22px;min-width:0}",
+ "#content .tw-pos-quick-actions .tw-pos-action-btn{box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;width:200px!important;min-width:200px!important;max-width:200px!important;height:56px!important;min-height:56px!important;flex:0 0 200px!important;padding:10px 15px!important;border-radius:11px!important;font-size:16px!important;font-weight:800!important;line-height:1.2!important;white-space:nowrap!important}",
+ "@media(max-width:1150px){#content .tw-pos-quick-actions{margin-left:0}}",
+ "@media(max-width:760px){#content .tw-pos-quick-actions{margin:4px 0 0;width:100%;gap:10px;flex-wrap:nowrap}#content .tw-pos-quick-actions .tw-pos-action-btn{width:calc(50% - 5px)!important;min-width:0!important;max-width:none!important;flex:1 1 calc(50% - 5px)!important;height:52px!important;min-height:52px!important;padding:8px 9px!important;font-size:13px!important}}",
+ "@media(max-width:360px){#content .tw-pos-quick-actions{flex-wrap:wrap}#content .tw-pos-quick-actions .tw-pos-action-btn{flex:1 1 100%!important;width:100%!important}}"
+].join("");
 document.head.appendChild(css);
 function findNewParcel(){
  return Array.from(document.querySelectorAll("#content button")).find(function(el){
@@ -36,16 +47,36 @@ function markZomato(){
   showToast("Zomato order created. Add items and complete its bill normally.");
  }finally{orderTagging=false;}
 }
+function arrangeActions(parcel,zomato){
+ // Keep both original clickable elements: this preserves Parcel's existing
+ // handlers and the Zomato handler that programmatically clicks Parcel.
+ var floor=document.querySelector("#content .fl-root:not(.fl-billing)");
+ var stats=floor&&floor.querySelector(".fl-stats");
+ if(!stats||!floor.contains(parcel))return;
+ var row=stats.querySelector(".tw-pos-quick-actions");
+ if(!row){
+  row=document.createElement("div");
+  row.className="tw-pos-quick-actions";
+  stats.appendChild(row);
+ }
+ parcel.classList.add("tw-pos-action-btn");
+ zomato.classList.add("tw-pos-action-btn");
+ if(parcel.parentElement!==row)row.appendChild(parcel);
+ if(zomato.parentElement!==row)row.appendChild(zomato);
+}
 function install(){
  if(tab!=="pos")return;
- var existing=document.getElementById("tw-new-zomato");
- if(existing)return;
- var source=findNewParcel();
- if(!source)return;
- var btn=document.createElement("button");
- btn.type="button";btn.id="tw-new-zomato";btn.className="tw-new-zomato";btn.textContent="+ Zomato";
- btn.title="Open a new Zomato-tagged parcel order";
- source.insertAdjacentElement("afterend",btn);
+ var parcel=findNewParcel();
+ if(!parcel)return;
+ var zomato=document.getElementById("tw-new-zomato");
+ if(!zomato){
+  zomato=document.createElement("button");
+  zomato.type="button";zomato.id="tw-new-zomato";zomato.className="tw-new-zomato";
+  zomato.textContent="+ Zomato";
+  zomato.title="Open a new Zomato-tagged parcel order";
+  parcel.insertAdjacentElement("afterend",zomato);
+ }
+ arrangeActions(parcel,zomato);
 }
 document.addEventListener("click",function(ev){
  var button=ev.target.closest&&ev.target.closest("#tw-new-zomato");
