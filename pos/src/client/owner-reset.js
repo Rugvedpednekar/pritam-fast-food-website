@@ -14,6 +14,7 @@
   }catch(e){return[];}
  }
  window.twLocalRestaurantPayrollIds=payrollIds;
+ window.twRestoreRejectsPermanentlyDeletedRestaurant=function(state){return !!state&&Array.isArray(state.restaurants)&&security.deletedRestaurants.some(x=>state.restaurants.some(r=>r.id===x.id));};
  function purgeLocalRestaurant(entry){
   const id=entry.restaurantId||entry.id,name=entry.name;
   if(!id)return false;
