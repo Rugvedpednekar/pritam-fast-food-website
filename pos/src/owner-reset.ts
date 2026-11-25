@@ -5,7 +5,7 @@ import {randomBytes, scryptSync, timingSafeEqual} from "node:crypto";
 export function freshRestaurantState(){
  const restaurants=[], menus={};
  for(let i=1;i<=5;i++){
-  const id="r"+i;
+  const id="r"+randomBytes(7).toString("hex");
   restaurants.push({id,name:i===1?"Pritam Fast Food":"Restaurant "+String(i).padStart(2,"0")});
   menus[id]=[];
  }
@@ -105,7 +105,7 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
    const fresh=freshRestaurantState();
    const result=await tx.unsafe("INSERT INTO demo_snapshots(account_key,version,payload,updated_at) VALUES('owner',1,$1::jsonb,now()) ON CONFLICT(account_key) DO UPDATE SET payload=EXCLUDED.payload,version=demo_snapshots.version+1,updated_at=now() RETURNING version",[JSON.stringify(fresh)]);
    await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner'");
-   await tx.unsafe("DELETE FROM demo_deleted_restaurants WHERE account_key='owner'");
+   // Preserve deletion tombstones: an old backup must never restore a deleted restaurant.
    const gen=await tx.unsafe("UPDATE demo_owner_security SET reset_generation=reset_generation+1,updated_at=now() WHERE account_key='owner' RETURNING reset_generation");
    return {ok:true,version:Number(result[0].version),resetGeneration:Number(gen[0].reset_generation),state:fresh};
   });
@@ -113,8 +113,9 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
   return saved;
  }
 
- async function deleteRestaurant({restaurantId,version,confirmation}){
+ async function deleteRestaurant({restaurantId,version,confirmation,employeeIds=[]}){
   await initialize();
+  if(!Array.isArray(employeeIds)||employeeIds.length>500||employeeIds.some(x=>typeof x!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(x)))fail(422,"Invalid employee identifiers");
   if(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)||!Number.isSafeInteger(version)||version<1)
    fail(422,"Invalid restaurant deletion request");
   return db.begin(async tx=>{
@@ -127,7 +128,7 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
    if(confirmation!=="DELETE "+match.name)fail(422,"Type DELETE followed by the restaurant name exactly.");
    let info;try{info=purgeRestaurantState(state,restaurantId);}catch(err){fail(409,err.message);}
    const updated=await tx.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' RETURNING version",[JSON.stringify(state)]);
-   await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND restaurant_id=$1",[restaurantId]);
+   await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND (restaurant_id=$1 OR employee_id=ANY($2::text[]))",[restaurantId,employeeIds]);
    await tx.unsafe("INSERT INTO demo_deleted_restaurants(account_key,restaurant_id,restaurant_name) VALUES('owner',$1,$2) ON CONFLICT DO NOTHING",[restaurantId,info.name]);
    return {ok:true,version:Number(updated[0].version),state,removed:info};
   });
