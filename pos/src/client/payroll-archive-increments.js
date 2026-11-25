@@ -581,7 +581,7 @@ document.addEventListener("submit",function(ev){
   tpData.officeLoanWaivers.push({employeeId:emp.id,personId:tpArcPersonId(emp),
     month:month,amount:loanWaiver,reason:"Waived at resignation",recordedAt:tpStamp()});
  }
- if(loanDeduction)calc=tpCompute(emp,period,days,month);
+ if(loanDeduction){period._skipLoanAuto=true;try{calc=tpCompute(emp,period,days,month);}finally{delete period._skipLoanAuto;}}
  emp.active=false;emp.left=true;emp.leftAt=date;emp.lastWorkingDate=date;emp.closedAt=emp.closedAt||tpStamp();
  emp.exitType="resigned";
  if(days!==null&&!oldEntry){
