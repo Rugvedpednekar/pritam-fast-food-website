@@ -111,6 +111,10 @@ const ownerResetClient=await Bun.file(new URL("./client/owner-reset.js",import.m
 const ownerBoot="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(ownerBoot))throw Error("Owner reset insertion point missing");
 html=html.replace(ownerBoot,ownerResetClient+"\n"+ownerBoot);
+// Nest the existing Reports workspace under Settings without replacing report handlers.
+const twReportsSettings=await Bun.file(new URL("./client/reports-settings.js",import.meta.url)).text();
+if(!html.includes(ownerBoot))throw Error("Reports Settings insertion point missing");
+html=html.replace(ownerBoot,twReportsSettings+"\n"+ownerBoot);
 // Dark mode is the default for every workspace, including styles injected at runtime.
 html=html.replace('<html lang="en">','<html lang="en" data-theme="dark">');
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
