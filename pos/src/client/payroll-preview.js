@@ -299,12 +299,12 @@ function tpAvatar(emp,size){
  if(emp.photo)return '<span class="tp-avatar-holder">'+
   '<button type="button" class="tp-avatar-tap" data-tp-action="open-employee-photo" data-id="'+tpEscape(emp.id)+'" aria-label="Open photo of '+tpEscape(emp.name)+'">'+
   '<span class="'+cls+'"><img src="'+tpEscape(emp.photo)+'" alt="" loading="lazy"></span></button>'+
-  '<button type="button" class="tp-avatar-remove" data-tp-action="remove-employee-photo" data-id="'+tpEscape(emp.id)+'" aria-label="Remove photo of '+tpEscape(emp.name)+'" title="Remove photo">×</button></span>';
+  '</span>';
  return '<span class="'+cls+'">'+tpEscape(String(emp.name||"Employee").split(/\s+/).slice(0,2).map(function(a){return a.charAt(0);}).join("").toUpperCase())+'</span>';
 }
 function tpPhotoPreviewMarkup(pic){
  return pic?'<button type="button" class="tp-form-photo-open" data-tp-action="open-photo-preview" aria-label="Open employee photo"><img class="tp-form-photo" src="'+tpEscape(pic)+'" alt="Employee photo"></button>'+
-  '<button type="button" class="tp-form-photo-remove" data-tp-action="remove-photo-preview" aria-label="Remove employee photo">×</button>':
+  (tpEditing&&tpEditing!=="new"?'<button type="button" class="tp-form-photo-remove" data-tp-action="remove-photo-preview" aria-label="Remove employee photo">×</button>':''):
   '<div class="tp-photo-placeholder">Photo</div>';
 }
 function tpShowPhoto(src,label){
@@ -1215,6 +1215,7 @@ function tpHandleAction(button){
   tpShowPhoto(previewSrc,"Employee photo preview");return;
  }
  if(act==="remove-photo-preview"){
+  if(!tpEditing||tpEditing==="new")return; // Only allow photo removal when editing an existing employee.
   tpPhoto="";tpPhotoPending=false;tpPhotoError=false;
   var holder=document.querySelector(".tp-photo-preview");
   if(holder)holder.innerHTML=tpPhotoPreviewMarkup("");
@@ -1223,14 +1224,7 @@ function tpHandleAction(button){
   if(label)label.textContent="Photo marked for removal. Save employee to apply.";
   return;
  }
- if(act==="remove-employee-photo"){
-  var emp=tpEmp(id);if(!emp||!emp.photo)return;
-  if(!confirm("Remove the photo of "+emp.name+" on all signed-in devices?"))return;
-  var before=JSON.stringify(tpData);emp.photo="";
-  if(!tpSave()){tpData=JSON.parse(before);return;}
-  tpPhotoChanged[id]=true;tpPublishPhoto(id,"");
-  draw();showToast("Photo removed. Other signed-in devices update after refresh.");return;
- }
+ if(act==="remove-employee-photo")return; // Existing photo removal is restricted to Edit Employee.
  if(act==="go-salary")return tpSetTab("sheets");
  if(act==="view-calculation"){
   if(!tpRows().some(function(row){return row.emp.id===id;}))return;
