@@ -113,26 +113,50 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
   return saved;
  }
 
+
  async function deleteRestaurant({restaurantId,version,confirmation,employeeIds=[]}){
   await initialize();
-  if(!Array.isArray(employeeIds)||employeeIds.length>500||employeeIds.some(x=>typeof x!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(x)))fail(422,"Invalid employee identifiers");
+  if(!Array.isArray(employeeIds)||employeeIds.length>500||employeeIds.some(x=>typeof x!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(x)))
+   fail(422,"Invalid employee identifiers");
   if(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)||!Number.isSafeInteger(version)||version<1)
    fail(422,"Invalid restaurant deletion request");
-  return db.begin(async tx=>{
-   const rows=await tx.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner' FOR UPDATE");
-   if(!rows.length)fail(409,"Restaurant database has not been initialized");
-   if(Number(rows[0].version)!==version)fail(409,"Restaurant data changed on another device. Reload before deleting.");
-   const state=JSON.parse(rows[0].payload);
-   const match=state.restaurants.find(r=>r.id===restaurantId);
-   if(!match)fail(404,"Restaurant no longer exists");
-   if(confirmation!=="DELETE")fail(422,"Type DELETE exactly to permanently delete this restaurant.");
-   let info;try{info=purgeRestaurantState(state,restaurantId);}catch(err){fail(409,err.message);}
-   const updated=await tx.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' RETURNING version",[JSON.stringify(state)]);
+  if(confirmation!=="DELETE")fail(422,"Type DELETE exactly to permanently delete this restaurant.");
+
+  // Read and validate the exact shared snapshot before attempting any
+  // destructive operation. Bun's transactional SELECT result shape differs
+  // from the normal SQL read on some runtime versions. Avoid using that
+  // result as our snapshot source; the CAS update below protects against
+  // changes between this read and the transaction.
+  const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");
+  if(!Array.isArray(rows)||rows.length!==1)fail(409,"Restaurant database has not been initialized. Reload and try again.");
+  const row=rows[0];
+  if(Number(row.version)!==version)fail(409,"Restaurant data changed on another device. Reload before deleting.");
+  let state;
+  try{state=typeof row.payload==="string"?JSON.parse(row.payload):row.payload;}
+  catch(err){fail(409,"Saved restaurant data could not be read. No records were deleted.");}
+  if(!state||!Array.isArray(state.restaurants)||!state.restaurants.every(r=>r&&typeof r.id==="string")||
+     !state.menus||typeof state.menus!=="object"||!Array.isArray(state.bills))
+   fail(409,"Saved restaurant data has an unexpected format. No records were deleted.");
+  const match=state.restaurants.find(r=>r.id===restaurantId);
+  if(!match)fail(404,"Restaurant no longer exists. Refresh Settings.");
+  let info;try{info=purgeRestaurantState(state,restaurantId);}
+  catch(err){fail(409,err.message);}
+
+  // The version-checked update and both associated deletes are atomic.
+  // If another user saves after the read, zero rows update and the
+  // transaction rolls back without removing photos or saving a tombstone.
+  return await db.begin(async tx=>{
+   const updated=await tx.unsafe(
+    "UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",
+    [JSON.stringify(state),version]
+   );
+   if(!updated?.length)fail(409,"Restaurant data changed on another device. Reload before deleting.");
    await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND (restaurant_id=$1 OR employee_id=ANY($2::text[]))",[restaurantId,employeeIds]);
    await tx.unsafe("INSERT INTO demo_deleted_restaurants(account_key,restaurant_id,restaurant_name) VALUES('owner',$1,$2) ON CONFLICT DO NOTHING",[restaurantId,info.name]);
    return {ok:true,version:Number(updated[0].version),state,removed:info};
   });
  }
+
  return {status,setPin,resetEverything,deleteRestaurant};
 
 }
