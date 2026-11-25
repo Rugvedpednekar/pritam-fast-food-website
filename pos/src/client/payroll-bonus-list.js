@@ -255,16 +255,16 @@ function tpBonusPDF(){
   ctx.fillStyle="#146e60";ctx.fillRect(0,0,1191,10);
   var currentOutlet=tpBonusOutletFilter==="all"?"All outlets":
    ((data.restaurants||[]).find(function(r){return r.id===tpBonusOutletFilter;})||{}).name||"Selected outlet";
-  tpPdfText(ctx,"BONUS ATTENDANCE SHEET",27,43,23,true,"#163f48",780);
-  tpPdfText(ctx,"Landscape · One page · "+tpMonthLabel(range.from)+" – "+tpMonthLabel(range.through),
+  tpPdfText(ctx,typeof selectedName==="function"?selectedName():"RESTAURANT",27,43,23,true,"#163f48",780);
+  tpPdfText(ctx,"BONUS ATTENDANCE SHEET · Landscape · One page · "+tpMonthLabel(range.from)+" – "+tpMonthLabel(range.through),
    28,65,11,false,"#486d72",760);
-  tpPdfText(ctx,currentOutlet,1163,43,12,true,"#1b745e",290,"right");
+  tpPdfText(ctx,currentOutlet,1163,65,12,true,"#1b745e",280,"right");
   tpPdfText(ctx,"Monthly cell: ID / actual days / outlet initials     ·     11 months = full bonus     ·     12 months maximum",
    28,83,10,false,"#5a737b",1128);
   var startX=26,nameWidth=139,designationWidth=86,salaryWidth=69,bonusWidth=59;
-  var idWidth=29,monthWidth=50,totalWidth=56,monthsWidth=51,statusWidth=62;
+  var idWidth=29,monthWidth=50,monthsWidth=54,statusWidth=70;
   var monthlyStart=startX+idWidth+nameWidth+designationWidth+salaryWidth+bonusWidth;
-  var totalX=monthlyStart+monthWidth*months.length,monthsX=totalX+totalWidth,statusX=monthsX+monthsWidth;
+  var monthsX=monthlyStart+monthWidth*months.length,statusX=monthsX+monthsWidth;
   var cols=[
    {name:"#",x:startX,w:idWidth},
    {name:"EMPLOYEE",x:startX+idWidth,w:nameWidth},
@@ -280,7 +280,6 @@ function tpBonusPDF(){
    tpPdfText(ctx,month.slice(5,7)+"/"+month.slice(2,4),
     monthlyStart+i*monthWidth+monthWidth/2,117,9,true,"#245d55",monthWidth-4,"center");
   });
-  tpPdfText(ctx,"DAYS",totalX+totalWidth/2,117,9,true,"#245d55",totalWidth-4,"center");
   tpPdfText(ctx,"MONTHS",monthsX+monthsWidth/2,117,9,true,"#245d55",monthsWidth-4,"center");
   tpPdfText(ctx,"STATUS",statusX+statusWidth/2,117,9,true,"#245d55",statusWidth-4,"center");
   var top=140,available=640,rowHeight=Math.min(28,available/Math.max(people.length,1));
@@ -314,8 +313,6 @@ function tpBonusPDF(){
      tpPdfText(ctx,monthlyId+"/"+days+"/"+outlet,x,mid,Math.max(5.8,rowHeight*.38),true,"#254552",monthWidth-5,"center");
     }
    });
-   tpPdfText(ctx,String(person.days),totalX+totalWidth/2,mid,Math.max(7,baseSize),true,
-    "#28494f",totalWidth-4,"center");
    var credited=basis===null?"—":tpBonusCreditedMonths(person.days,basis).toFixed(2);
    tpPdfText(ctx,credited,monthsX+monthsWidth/2,mid,Math.max(7,baseSize),true,
     "#28494f",monthsWidth-4,"center");
@@ -323,19 +320,17 @@ function tpBonusPDF(){
    tpPdfText(ctx,status,statusX+statusWidth/2,mid,Math.max(7,baseSize-.4),true,
     status==="FULL"?"#0b7050":"#63757b",statusWidth-4,"center");
   });
-  var bottom=Math.min(806,top+people.length*rowHeight+14),totalDays=people.reduce(function(v,r){return v+r.days;},0);
+  var bottom=Math.min(790,top+people.length*rowHeight+14);
   ctx.fillStyle="#f0f7f4";ctx.fillRect(startX,bottom,(statusX+statusWidth-startX),25);
   tpPdfText(ctx,"TOTAL   "+people.length+" employees",startX+6,bottom+17,10,true,"#194e48",260);
-  tpPdfText(ctx,"Actual worked days: "+totalDays,520,bottom+17,10,true,"#194e48",280);
+  tpPdfText(ctx,"Month columns: "+months.length,510,bottom+17,10,true,"#194e48",215);
   tpPdfText(ctx,"11-month threshold: "+(basis===null?"not set":basis*11+" days"),1161,bottom+17,10,true,"#194e48",245,"right");
   tpPdfText(ctx,"Bonus amount not calculated: payout policy has not been configured. Salary is shown for reference only.",
    28,829,9,false,"#73868b",1115);
   var image=tpPdfImage({canvas:canvas});
   image.pageWidth=pdfWidth;image.pageHeight=pdfHeight;
-  var pdf=tpPdfBuild([image]),url=URL.createObjectURL(pdf),a=document.createElement("a");
-  a.href=url;a.download="tablewise-bonus-landscape-"+range.from+"-to-"+range.through+".pdf";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  var pdf=tpPdfBuild([image]);
+  tpDeliverPdf(pdf,"tablewise-bonus-landscape-"+range.from+"-to-"+range.through+".pdf");
  }catch(error){uxAlert("Could not generate landscape bonus PDF: "+(error&&error.message||"Unknown error"));}
 }
 var bonusCss=document.createElement("style");
