@@ -954,11 +954,11 @@ function tpGeneralPdfPages(kind,month){
   footer="TOTAL "+method+" PAYABLE: "+tpMoney(sum);
  }else if(kind==="advance"){
   rows=rows.filter(function(r){return !tpIsParcel(r.emp);});
-  title="ADVANCE DISTRIBUTION SHEET";
+  title="OFFICE ADVANCE & LOAN SHEET";
   detail=rows.length+" salaried employees";
   columns=[
-   {label:"ID",width:38},{label:"EMPLOYEE",width:132},{label:"DESIGNATION",width:139},
-   {label:"ADVANCE",width:70,right:true},{label:"FINE",width:70,right:true},
+   {label:"MONTH ID",width:55},{label:"EMPLOYEE",width:120},{label:"DESIGNATION",width:134},
+   {label:"LOAN",width:70,right:true},{label:"FINE",width:70,right:true},
    {label:"OTHER",width:70,right:true}
   ];
   var advances=0,fines=0,other=0;
@@ -968,7 +968,7 @@ function tpGeneralPdfPages(kind,month){
    return [r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
     tpMoney(adv),tpMoney(fine),tpMoney(ded)];
   });
-  footer="TOTAL ADVANCES: "+tpMoney(advances);
+  footer="TOTAL LOANS / ADVANCES: "+tpMoney(advances);
   detail+="  |  Fines: "+tpMoney(fines)+"  |  Other: "+tpMoney(other);
  }else if(kind==="attendance"){
   rows=rows.filter(function(r){return !tpIsParcel(r.emp);});
@@ -1019,17 +1019,25 @@ function tpGeneralPdfPages(kind,month){
  }
  return pages;
 }
+function tpDeliverPdf(file,filename){
+ var url=URL.createObjectURL(file),link=document.createElement("a");
+ var mobile=typeof navigator!=="undefined"&&/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"");
+ link.href=url;link.style.display="none";
+ if(mobile){link.target="_blank";link.rel="noopener";}
+ else link.download=filename;
+ document.body.appendChild(link);link.click();link.remove();
+ setTimeout(function(){URL.revokeObjectURL(url);},180000);
+ return url;
+}
 function tpDownloadPDF(kind,month,employeeId){
  var m=month||tpPeriod;
  try{
   if(!["cash","cheque","advance","attendance","parcel"].includes(kind))throw Error("Unknown sheet");
   var pages=kind==="parcel"?tpParcelPdfPages(m,employeeId):tpGeneralPdfPages(kind,month);
   if(!pages.length)return uxAlert("No employee records are available for this PDF sheet.");
-  var file=tpPdfBuild(pages),url=URL.createObjectURL(file),link=document.createElement("a");
+  var file=tpPdfBuild(pages);
   var employeeTag=employeeId?"-"+String(employeeId).replace(/[^a-z0-9_-]/gi,""):"";
-  link.href=url;link.download="restaurant-"+kind+"-payment-sheet-"+m+employeeTag+".pdf";
-  link.style.display="none";document.body.appendChild(link);link.click();link.remove();
-  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  tpDeliverPdf(file,"restaurant-"+kind+"-payment-sheet-"+m+employeeTag+".pdf");
  }catch(err){uxAlert("Could not download the payroll PDF: "+(err&&err.message||"Unexpected error"));}
 }
 
