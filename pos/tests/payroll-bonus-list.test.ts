@@ -163,3 +163,37 @@ test("Employee profile has one compact More actions menu with transfer",()=>{
  expect(h.match(/data-tp-action="transfer-employee"/g)).toHaveLength(1);
  expect(h).toContain("Update Monthly Salary");
 });
+
+
+test("Landscape PDF uses one page for all twelve bonus months",async()=>{
+ const start=base.indexOf("function tpPdfBuild(jpegPages){");
+ const end=base.indexOf("function tpPdfCanvas(){",start);
+ expect(start).toBeGreaterThan(-1);
+ expect(end).toBeGreaterThan(start);
+ const builder=base.slice(start,end);
+ const build=new Function("pages",builder+"return tpPdfBuild(pages);") as (pages:any[])=>Blob;
+ const jpg=new Uint8Array([0xff,0xd8,0xff,0xd9]);
+ const result=build([{width:2382,height:1684,bytes:jpg,pageWidth:1191,pageHeight:842}]);
+ const pdf=await result.text();
+ expect(pdf).toContain("/MediaBox [0 0 1191 842]");
+ expect(pdf).toContain("/Count 1");
+ expect(pdf).toContain("1191 0 0 842 0 0 cm");
+ expect(bonus).toContain("tpPdfBuild([image])");
+ expect(bonus).toContain("months.forEach(function(month,i)");
+ expect(bonus).not.toContain("monthsPerPage=6");
+ const portrait=await build([{width:1190,height:1684,bytes:jpg}]).text();
+ expect(portrait).toContain("/MediaBox [0 0 595 842]");
+});
+test("Single-page landscape bonus PDF has narrow month columns and employee rows",()=>{
+ const pdfCode=bonus.slice(bonus.indexOf("function tpBonusPDF(){"),bonus.indexOf('var bonusCss=document.createElement("style");'));
+ expect(pdfCode).toContain("monthWidth=50");
+ expect(pdfCode).toContain("var top=140,available=640");
+ expect(pdfCode).toContain("tpPdfBuild([image])");
+ expect(pdfCode).toContain("person.name");
+ expect(pdfCode).toContain("emp.designation");
+ expect(pdfCode).toContain("tpMonthSalary");
+ expect(pdfCode).toContain("tpBonusOutletCode");
+ expect(pdfCode).toContain("person.days");
+ expect(pdfCode).toContain("tpBonusCreditedMonths");
+ expect(pdfCode).toContain('landscape');
+});
