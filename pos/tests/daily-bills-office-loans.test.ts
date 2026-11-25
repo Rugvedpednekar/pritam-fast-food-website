@@ -7,6 +7,7 @@ const archive=readFileSync(new URL("../src/client/payroll-archive-increments.js"
 
 function billingApp(){
  let date="2026-11-26";
+ const handlers:Record<string,Function[]>={};
  const data={
   invoiceCounters:{"r1:2627":217},
   openDays:{},
@@ -14,16 +15,24 @@ function billingApp(){
  };
  const navnames={reports:"Reports & Day-End"};
  const script=billing+"\nreturn {number:newInvoiceNumber,history:bills,navnames,setOutlet:function(r){selected=r;},setDate:function(d){setToday(d);},data};";
- const app=new Function("navnames","data","selected","today","dayBills","header","e","pretty","selectedName","smallTable","newInvoiceNumber","bills","printBill","navigator","receiptPDF","setToday","document",script)(
+ const app=new Function("navnames","data","selected","today","dayBills","header","e","pretty","selectedName","smallTable","newInvoiceNumber","bills","printBill","navigator","receiptPDF","setToday","document","tab","draw",script)(
   navnames,data,"r1",()=>date,
   (r:string,d:string)=>data.bills.filter(b=>b.restaurantId===r&&b.day===d),
   (title:string,sub:string)=>title+" | "+sub,(s:string)=>String(s),
   (s:string)=>s,()=>data.restaurants?"Restaurant":"Pritam Fast Food",
   (rows:any[])=>"rows="+rows.map(b=>b.number).join(","),
   ()=>"",()=>"",()=>{}, {userAgent:"Desktop"},undefined,(d:string)=>{date=d;},
-  {createElement:()=>({textContent:""}),head:{appendChild:()=>{}}}
+  {createElement:()=>({textContent:""}),head:{appendChild:()=>{}},addEventListener:(type:string,fn:Function)=>{(handlers[type]??=[]).push(fn);}},
+  "bills",()=>{}
  );
- return app as any;
+ function selectHistory(mode:string){
+  const button={getAttribute:()=>mode};
+  (handlers.click||[]).forEach(fn=>fn({target:{closest:()=>button},preventDefault:()=>{},stopImmediatePropagation:()=>{}}));
+ }
+ function selectDate(value:string){
+  (handlers.change||[]).forEach(fn=>fn({target:{id:"tw-bill-history-date",value}}));
+ }
+ return {...app,selectHistory,selectDate} as any;
 }
 
 test("Daily bill numbering starts at 1, increases, resets tomorrow, and is independent per outlet",()=>{
@@ -43,13 +52,33 @@ test("Bill History displays today's records, retaining older invoices for report
  const app=billingApp();
  app.data.bills.push({number:"1",restaurantId:"r1",day:"2026-11-26"});
  let h=app.history();
- expect(h).toContain("Today's");
+ expect(h).toContain("Current Day");
+ expect(h).toContain("Previous Days");
  expect(h).toContain("rows=1");
  expect(h).not.toContain("000217");
  app.setDate("2026-11-27");h=app.history();
  expect(h).toContain("rows=");
  expect(h).not.toContain("rows=1");
  expect(app.data.bills).toHaveLength(2);
+});
+
+test("Previous Days opens a date-filtered archive while current day stays clear",()=>{
+ const app=billingApp();
+ app.data.bills.push({number:"19",restaurantId:"r1",day:"2026-11-24",businessDate:"2026-11-24"});
+ app.data.bills.push({number:"1",restaurantId:"r1",day:"2026-11-26",businessDate:"2026-11-26"});
+ expect(app.history()).toContain("rows=1");
+ expect(app.history()).not.toContain("000217");
+ app.selectHistory("previous");
+ expect(app.history()).toContain("Select previous business day");
+ expect(app.history()).toContain("rows=INV/2627/000217");
+ app.selectDate("2026-11-24");
+ expect(app.history()).toContain("rows=19");
+ expect(app.history()).not.toContain("000217");
+ app.selectHistory("today");
+ expect(app.history()).toContain("rows=1");
+ app.setDate("2026-11-27");
+ expect(app.history()).not.toContain("rows=1");
+ expect(app.data.bills).toHaveLength(3);
 });
 
 function payrollApp(){
