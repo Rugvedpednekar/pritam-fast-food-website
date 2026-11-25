@@ -274,6 +274,202 @@ html[data-theme="dark"] .tp-app .tp-deleted-people>summary{
  html[data-theme="dark"] .tp-app .tp-stat{min-width:0}
 }
 
+
+/* Dark-mode fix: legacy POS floor/table picker and the active billing workspace.
+   The live POS extension uses fl-* classes and formerly rendered its own white UI. */
+html[data-theme="dark"] #content .fl-root{
+ color:#eaf3f2!important;
+ background:#101b22!important;
+ --ink:#eaf3f2;--muted:#b0c5cc;--border:#354b54;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ .fl-billing,.fl-columns,.fl-menu,.fl-order,.fl-payment,.fl-panel,.fl-card,
+ .fl-items,.fl-lines,.fl-bill-head,.fl-bill-body,.fl-order-total,.fl-totals,
+ .fl-complete,.fl-table-grid,.fl-stats,.fl-section,.fl-parcels,.fl-shortcuts,
+ .fl-cart,.fl-floor,.fl-summary,.fl-details,.fl-content,.fl-empty,.fl-header,
+ .fl-toolbar,.fl-sidebar,.fl-checkout
+){
+ color:#eaf3f2!important;
+ background-color:#192830!important;
+ border-color:#354b54!important;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ h1,h2,h3,h4,h5,h6,strong,b,.fl-title,.fl-name,.fl-price,
+ .fl-total,.fl-amount,.fl-grand,.fl-grand-total,.fl-order-name
+){color:#f1f8f5!important;}
+html[data-theme="dark"] #content .fl-root :is(
+ p,small,label,summary,.fl-label,.fl-sub,.fl-subtitle,.fl-caption,
+ .fl-muted,.fl-hint,.fl-meta,.fl-description,.fl-note,.fl-help
+){color:#b8cdd1!important;}
+html[data-theme="dark"] #content .fl-root :is(
+ input,select,textarea,[contenteditable="true"],.fl-input,.fl-search
+){
+ background:#13242c!important;
+ color:#eff8f4!important;
+ border-color:#45606a!important;
+ color-scheme:dark;
+}
+html[data-theme="dark"] #content .fl-root :is(input,textarea)::placeholder{
+ color:#9cb5bf!important;
+ opacity:1;
+}
+html[data-theme="dark"] #content .fl-root :is(input,select,textarea):focus-visible{
+ outline:2px solid #52cdaa!important;
+ outline-offset:1px!important;
+ border-color:#52cdaa!important;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ .fl-item,.fl-menu-item,.fl-item-card,.fl-cart-item,.fl-line,.fl-order-line,
+ .fl-table,.fl-table-card,.fl-table-button,.fl-parcel-card,.fl-parcel,
+ .fl-option,.fl-row,.fl-summary-row,.fl-category
+){
+ background:#20343d!important;
+ color:#edf6f2!important;
+ border-color:#3c535d!important;
+}
+html[data-theme="dark"] #content .fl-root :is(.fl-menu-item,.fl-item,.fl-table,.fl-table-card,.fl-parcel):hover{
+ background:#2a414a!important;
+ border-color:#54877b!important;
+}
+html[data-theme="dark"] #content .fl-root button:not(.tw-new-zomato):not(.tw-pos-action-btn):not(.btn):not(.fl-primary):not(.fl-danger):not(.fl-success):not([class*="primary"]):not([class*="danger"]):not([class*="success"]){
+ background:#263e46!important;
+ color:#e4f2ed!important;
+ border-color:#426068!important;
+}
+html[data-theme="dark"] #content .fl-root button:is(
+ .active,.selected,.on,.fl-active,.fl-selected,[aria-selected="true"]
+){
+ background:#20584b!important;
+ color:#bdf9dc!important;
+ border-color:#348a74!important;
+}
+html[data-theme="dark"] #content .fl-root :is(button,.fl-item):disabled{
+ opacity:.5;
+}
+html[data-theme="dark"] #content .fl-root :is(.fl-primary,.fl-success,button[class*="primary"],button[class*="success"]){
+ background:#148b72!important;
+ color:#ffffff!important;
+ border-color:#159278!important;
+}
+html[data-theme="dark"] #content .fl-root :is(.fl-danger,button[class*="danger"]){
+ background:#4a2a33!important;
+ color:#ffbdc2!important;
+ border-color:#955b64!important;
+}
+html[data-theme="dark"] #content .fl-root .tw-new-zomato{
+ background:#cf3045!important;
+ color:#fff!important;
+ border-color:#b92536!important;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ table,tr,tbody,thead,tfoot,th,td,.fl-table-head,.fl-table-body
+){border-color:#3a525a!important;}
+html[data-theme="dark"] #content .fl-root th{
+ background:#213841!important;
+ color:#b9d2d1!important;
+}
+html[data-theme="dark"] #content .fl-root td,
+html[data-theme="dark"] #content .fl-root tr{
+ background:#1b2c34!important;
+ color:#e5f0ec!important;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ .fl-total,.fl-grand,.fl-total-row,.fl-order-total,.fl-totals
+){color:#ecfaf3!important;}
+html[data-theme="dark"] #content .fl-root .fl-order-total strong,
+html[data-theme="dark"] #content .fl-root .fl-totals strong{
+ color:#f4fffa!important;
+}
+html[data-theme="dark"] #content .fl-root :is(.fl-table.occupied,.fl-table-card.occupied,button[data-status="occupied"]){
+ background:#433723!important;
+ border-color:#8d7045!important;
+}
+html[data-theme="dark"] #content .fl-root :is(.fl-table.free,.fl-table-card.free){
+ background:#1c443e!important;
+ border-color:#39695c!important;
+}
+html[data-theme="dark"] #content .fl-root .tw-mobile-pending-button{
+ background:#205548!important;
+ color:#d8f9e9!important;
+ border-color:#368775!important;
+}
+html[data-theme="dark"] #content .fl-root .tw-parcel-section strong{
+ color:#8be9c4!important;
+}
+/* Popups created by the Railway dialog extension and HTML dialogs.
+   Keep their labels, headings and help text legible on dark backgrounds. */
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+):not(.tw-mobile-receipt-paper){
+ color:#eaf4f0!important;
+ border-color:#3a535d!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+):is(dialog,.ux-dialog,.ux-modal,.tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box){
+ background:#192b34!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) :is(h1,h2,h3,h4,h5,h6,strong,b){
+ color:#f2faf6!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) :is(label,p,small,.sub,.subtitle,.description,.help,.hint){
+ color:#c1d5d9!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) :is(input,textarea,select){
+ color:#f3faf7!important;
+ background:#11232b!important;
+ border:1px solid #4e7279!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) :is(input,textarea)::placeholder{
+ color:#a9bcc5!important;
+ opacity:1;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) button:not(.primary):not(.btn.primary):not([type="submit"]){
+ background:#31464e!important;
+ color:#eaf3ef!important;
+ border-color:#577078!important;
+}
+html[data-theme="dark"] body :is(
+ dialog,[role="dialog"],[aria-modal="true"],.ux-dialog,.ux-modal,
+ .tw-dialog,.tw-modal,.tw-prompt,.modal,.modal-content,.dialog-box
+) button:is(.primary,[type="submit"]){
+ background:#138866!important;
+ color:#fff!important;
+ border-color:#209577!important;
+}
+/* Modal titles can be outside an explicit role=dialog wrapper in legacy prompts. */
+html[data-theme="dark"] :is(.ux-dialog-title,.ux-modal-title,.tw-dialog-title,.tw-modal-title,.dialog-title){
+ color:#f2faf6!important;
+}
+/* Darken the phone receipt MODAL frame, but keep the paper itself white. */
+html[data-theme="dark"] .tw-mobile-receipt-card{
+ background:#192b34!important;
+ color:#eff6f2!important;
+}
+html[data-theme="dark"] .tw-mobile-receipt-card>h3{color:#f3faf7!important;}
+html[data-theme="dark"] .tw-mobile-receipt-paper,
+html[data-theme="dark"] .tw-mobile-receipt-paper *{
+ background:#fff!important;
+ color:#152d29!important;
+}
+
 /* Keep printed bills and payroll PDFs white with legible dark ink. */
 @media print{
  html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
