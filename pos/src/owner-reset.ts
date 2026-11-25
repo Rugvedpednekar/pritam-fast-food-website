@@ -40,6 +40,72 @@ export function purgeRestaurantState(state,restaurantId){
  return {restaurantId,name:restaurant.name};
 }
 
+/**
+ * Delete a single outlet from one account's shared snapshot.
+ * accountKey is supplied by the server, never by the website request.
+ * Uses optimistic version checking and an atomic transaction.
+ */
+export async function deleteRestaurantAccount({db,accountKey,restaurantId,version,confirmation,employeeIds=[]}){
+ if(!accountKey||typeof accountKey!=="string")throw Error("Account key required");
+ if(!Array.isArray(employeeIds)||employeeIds.length>500||employeeIds.some(x=>typeof x!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(x)))
+  fail(422,"Invalid employee identifiers");
+ if(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)||!Number.isSafeInteger(version)||version<1)
+  fail(422,"Invalid restaurant deletion request");
+ if(confirmation!=="DELETE")fail(422,"Type DELETE exactly to permanently delete this restaurant.");
+ // First inspect the stored database row; an unreadable or malformed
+ // snapshot must NEVER lead to partial or guessed deletion.
+ const rows=await db.unsafe(
+  "SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key=$1",
+  [accountKey]
+ );
+ if(!Array.isArray(rows)||rows.length!==1)
+  fail(409,"Restaurant database has not been initialized. Reload and try again.");
+ if(Number(rows[0].version)!==version)
+  fail(409,"Restaurant data changed on another device. Reload before deleting.");
+ let state=rows[0].payload;
+ try{
+  for(let i=0;i<3&&typeof state==="string";i++)state=JSON.parse(state);
+ }catch(err){fail(409,"Could not decode saved restaurant data. No records were deleted.");}
+ if(!state||!Array.isArray(state.restaurants)||
+    !state.restaurants.every(r=>r&&typeof r.id==="string")||
+    !state.menus||typeof state.menus!=="object"||Array.isArray(state.menus)||
+    !Array.isArray(state.bills)){
+  // Safe structural diagnostics only: no restaurant names, bills or other
+  // personally identifying or financial values in the server logs.
+  console.error("restaurant-deletion-data-shape",JSON.stringify({
+   rootType:Array.isArray(state)?"array":typeof state,
+   restaurantType:Array.isArray(state?.restaurants)?"array":typeof state?.restaurants,
+   menusType:Array.isArray(state?.menus)?"array":typeof state?.menus,
+   billsType:Array.isArray(state?.bills)?"array":typeof state?.bills,
+   payloadType:typeof rows[0].payload,
+   hasStateWrapper:!!state?.state
+  }));
+  fail(409,"Saved restaurant data has an unexpected format. No records were deleted.");
+ }
+ if(!state.restaurants.some(r=>r.id===restaurantId))
+  fail(404,"Restaurant no longer exists. Refresh Settings.");
+ let info;
+ try{info=purgeRestaurantState(state,restaurantId);}
+ catch(err){fail(409,err.message);}
+ return db.begin(async tx=>{
+  const updated=await tx.unsafe(
+   "UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key=$3 AND version=$2 RETURNING version",
+   [JSON.stringify(state),version,accountKey]
+  );
+  if(!Array.isArray(updated)||updated.length!==1)
+   fail(409,"Restaurant data changed on another device. Reload before deleting.");
+  await tx.unsafe(
+   "DELETE FROM demo_employee_photos WHERE account_key=$1 AND (restaurant_id=$2 OR employee_id=ANY($3::text[]))",
+   [accountKey,restaurantId,employeeIds]
+  );
+  await tx.unsafe(
+   "INSERT INTO demo_deleted_restaurants(account_key,restaurant_id,restaurant_name) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+   [accountKey,restaurantId,info.name]
+  );
+  return {ok:true,version:Number(updated[0].version),state,removed:info};
+ });
+}
+
 function fail(status,message){
  const error=new Error(message);error.status=status;throw error;
 }
@@ -114,47 +180,9 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
  }
 
 
- async function deleteRestaurant({restaurantId,version,confirmation,employeeIds=[]}){
+ async function deleteRestaurant(args){
   await initialize();
-  if(!Array.isArray(employeeIds)||employeeIds.length>500||employeeIds.some(x=>typeof x!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(x)))
-   fail(422,"Invalid employee identifiers");
-  if(typeof restaurantId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(restaurantId)||!Number.isSafeInteger(version)||version<1)
-   fail(422,"Invalid restaurant deletion request");
-  if(confirmation!=="DELETE")fail(422,"Type DELETE exactly to permanently delete this restaurant.");
-
-  // Read and validate the exact shared snapshot before attempting any
-  // destructive operation. Bun's transactional SELECT result shape differs
-  // from the normal SQL read on some runtime versions. Avoid using that
-  // result as our snapshot source; the CAS update below protects against
-  // changes between this read and the transaction.
-  const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");
-  if(!Array.isArray(rows)||rows.length!==1)fail(409,"Restaurant database has not been initialized. Reload and try again.");
-  const row=rows[0];
-  if(Number(row.version)!==version)fail(409,"Restaurant data changed on another device. Reload before deleting.");
-  let state;
-  try{state=typeof row.payload==="string"?JSON.parse(row.payload):row.payload;}
-  catch(err){fail(409,"Saved restaurant data could not be read. No records were deleted.");}
-  if(!state||!Array.isArray(state.restaurants)||!state.restaurants.every(r=>r&&typeof r.id==="string")||
-     !state.menus||typeof state.menus!=="object"||!Array.isArray(state.bills))
-   fail(409,"Saved restaurant data has an unexpected format. No records were deleted.");
-  const match=state.restaurants.find(r=>r.id===restaurantId);
-  if(!match)fail(404,"Restaurant no longer exists. Refresh Settings.");
-  let info;try{info=purgeRestaurantState(state,restaurantId);}
-  catch(err){fail(409,err.message);}
-
-  // The version-checked update and both associated deletes are atomic.
-  // If another user saves after the read, zero rows update and the
-  // transaction rolls back without removing photos or saving a tombstone.
-  return await db.begin(async tx=>{
-   const updated=await tx.unsafe(
-    "UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",
-    [JSON.stringify(state),version]
-   );
-   if(!updated?.length)fail(409,"Restaurant data changed on another device. Reload before deleting.");
-   await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner' AND (restaurant_id=$1 OR employee_id=ANY($2::text[]))",[restaurantId,employeeIds]);
-   await tx.unsafe("INSERT INTO demo_deleted_restaurants(account_key,restaurant_id,restaurant_name) VALUES('owner',$1,$2) ON CONFLICT DO NOTHING",[restaurantId,info.name]);
-   return {ok:true,version:Number(updated[0].version),state,removed:info};
-  });
+  return deleteRestaurantAccount({db,accountKey:"owner",...args});
  }
 
  return {status,setPin,resetEverything,deleteRestaurant};
