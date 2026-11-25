@@ -23,7 +23,7 @@ function boot(savedData){
  const window={addEventListener:()=>{}};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=source.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,navigate:tpSetTab,handle:tpHandleAction,designationExpand:tpDesignationExpand,designationFind:tpDesignationFind,designationValid:tpDesignationValid,designationsPage:tpDesignationsPage,money:tpMoney,parseMoney:parsePaise,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
+  'return {page:payroll,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,compute:tpCompute,leaveEarned:tpLeaveEarned,monthSalary:tpMonthSalary,changeSalary:tpSetMonthSalary,serial:tpSerialValue,rows:tpRows,totals:tpTotals,employeeForm:tpEmployeeForm,save:tpSave,settings:settings,navigate:tpSetTab,handle:tpHandleAction,money:tpMoney,parseMoney:parsePaise,history:tpHistory,pdfBuild:tpPdfBuild,pdfPages:tpGeneralPdfPages,parcelPdfPages:tpParcelPdfPages,downloadPDF:tpDownloadPDF,doPrint:tpDoPrint,commission:tpCommissionCalculate,commissionEditor:tpCommissionEditor,isParcel:tpIsParcel,openCommission:function(id){tpCommissionOpen=id;}};\n})();');
  if(!instrumented.includes("return {page:payroll"))throw Error("Payroll runtime instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab",
  "return "+instrumented)(document,window,localStorage,restaurants,()=>"2026-11-25",()=>"",()=>"<div>Restaurant Settings</div>",()=>true,()=>{},()=>{},()=>{},"payroll");
@@ -528,59 +528,30 @@ test("Employee forms do not display explanatory salary or type banners",()=>{
   expect(form).not.toContain("tp-note tp-parcel-only");
  }
 });
-test("Designation shortcuts are seeded and expand in the employee form",()=>{
+test("Designation is a plain manually entered field without shortcuts or quick select",()=>{
  const {app}=boot();
- expect(app.data().designations).toEqual(expect.arrayContaining([
-  {code:"ek ch",title:"Chinese Helper"},
-  {code:"hc",title:"Head Chef"},
-  {code:"kh",title:"Kitchen Helper"}
- ]));
- expect(app.designationExpand("EK   CH")).toBe("Chinese Helper");
- expect(app.designationExpand("Custom Role")).toBe("Custom Role");
- expect(app.designationValid("ek ch","Chinese Helper")).toBe(true);
- expect(app.designationValid("@bad","Chinese Helper")).toBe(false);
  const form=app.employeeForm(null);
- expect(form).toContain('id="tp-role-pick"');
- expect(form).toContain('id="tp-role-suggestions"');
- expect(form).toContain('ek ch — Chinese Helper');
+ expect(form).toContain('id="tp-role" name="designation"');
+ expect(form).toContain('placeholder="Enter designation manually"');
+ expect(form).not.toContain("tp-role-pick");
+ expect(form).not.toContain("tp-role-suggestions");
+ expect(form).not.toContain("ek ch");
+ expect(app.data()).not.toHaveProperty("designations");
  app.setPage("settings");
- const page=app.page();
- expect(page).toContain('id="tp-designation-form"');
- expect(page).toContain("Chinese Helper");
- expect(page).toContain('data-tp-action="edit-designation"');
- expect(page).toContain('data-tp-action="delete-designation"');
+ const settings=app.page();
+ expect(settings).toContain('id="tp-leave-interval"');
+ expect(settings).not.toContain('id="tp-designation-settings"');
+ expect(settings).not.toContain("Designation Shortcuts");
 });
-test("Designation shortcuts can be added, edited and deleted, and persist to local storage",()=>{
- const {app,handlers,storage}=boot();
- const save=handlers.submit[0];
- const event=(code,title)=>({
-  target:{id:"tp-designation-form",elements:{shortcut:{value:code},title:{value:title}}},
-  preventDefault:()=>{},stopImmediatePropagation:()=>{}
- });
- save(event("ek nw","New Waiter"));
- expect(app.designationExpand("EK NW")).toBe("New Waiter");
- expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
- app.handle({dataset:{tpAction:"edit-designation",code:"ek nw"}});
- save(event("ek n","Night Waiter"));
- expect(app.designationFind("ek nw")).toBe(null);
- expect(app.designationFind("ek n").title).toBe("Night Waiter");
- app.handle({dataset:{tpAction:"delete-designation",code:"ek n"}});
- expect(app.designationFind("ek n")).toBe(null);
-});
-test("A duplicate designation shortcut cannot overwrite an existing shortcut",()=>{
- const {app,handlers}=boot();
- handlers.submit[0]({
-  target:{id:"tp-designation-form",elements:{shortcut:{value:"EK CH"},title:{value:"Another Role"}}},
-  preventDefault:()=>{},stopImmediatePropagation:()=>{}
- });
- expect(app.designationFind("ek ch").title).toBe("Chinese Helper");
-});
-test("Prior local payroll data migrates to Designations without changing employee titles",()=>{
- const previous={version:3,employees:[{id:"one",name:"Demo",designation:"Chinese Cook",salary:2400000,method:"CASH",active:true}],periods:{}};
- const {app}=boot(previous);
+test("Legacy shortcut definitions are discarded but actual employee titles remain",()=>{
+ const previous={version:3,employees:[{id:"one",name:"Demo",designation:"Chinese Cook",salary:2400000,method:"CASH",active:true}],periods:{},
+  designations:[{code:"ek ch",title:"Chinese Helper"}]};
+ const {app,storage}=boot(previous);
  expect(app.data().employees[0].designation).toBe("Chinese Cook");
- expect(app.designationExpand("ek ch")).toBe("Chinese Helper");
- expect(app.data().designations.length).toBeGreaterThan(5);
+ expect(app.data()).not.toHaveProperty("designations");
+ const written=JSON.parse(storage.get("tablewise-payroll-demo-v3"));
+ expect(written.employees[0].designation).toBe("Chinese Cook");
+ expect(written).not.toHaveProperty("designations");
 });
 test("Sections & Tables has Delete and Restore controls with open-order protection",()=>{
  expect(html).toContain('data-ad="deleteSection"');
@@ -597,7 +568,7 @@ test("Sections & Tables has Delete and Restore controls with open-order protecti
 });
 
 
-test("Parcel Boy selection hides designation entry and shortcut picker without making either required",()=>{
+test("Parcel Boy designation remains automatic and manual salaried designation is required",()=>{
  const {app}=boot();
  const salaried=app.employeeForm(null);
  const parcel=app.employeeForm(app.data().employees.find(e=>e.employeeType==="parcel"));
@@ -607,9 +578,9 @@ test("Parcel Boy selection hides designation entry and shortcut picker without m
  expect(parcel).toContain('data-employee-type="parcel"');
  expect(parcel).toContain('id="tp-role" name="designation"');
  expect(parcel).toContain('autocomplete="off" disabled maxlength="90"');
- expect(parcel).toContain('id="tp-role-pick" disabled');
+ expect(parcel).not.toContain('id="tp-role-pick"');
+ expect(parcel).not.toContain('tp-role-suggestions');
  expect(source).toContain('if(parcel)designation=tpTrim(');
- expect(source).toContain('var shortcutPicker=form.querySelector("#tp-role-pick")');
 });
 
 test("New Parcel Boy automatically saves the Parcel Boy designation without typing it",()=>{
@@ -741,47 +712,27 @@ test("Legacy Employees link is hidden from the Workspace sidebar but Payroll Emp
 });
 
 
-test("Designation shortcuts now appear in Payroll Settings, not as a separate tab",()=>{
- const {app}=boot();
- const all=app.page();
- expect(all).not.toContain('data-tp-section="designations"');
- app.navigate("settings");
- const page=app.page();
- expect(page).toContain('data-tp-section="settings"');
- expect(page).toContain('id="tp-leave-interval"');
- expect(page).toContain('id="tp-designation-settings"');
- expect(page).toContain('id="tp-designation-form"');
- expect(page).toContain('id="tp-designation-code"');
- expect(page).toContain('id="tp-designation-title"');
- expect(page).toContain('data-tp-action="edit-designation"');
- expect(page).toContain('data-tp-action="delete-designation"');
- expect(page).toContain("Add, edit, or delete your own codes");
- expect(source).not.toContain('else if(tpTab==="designations")');
- expect(app.employeeForm(null)).toContain("Payroll → Settings → Designation Shortcuts");
+test("Employee designation is stored exactly as manually entered",()=>{
+ const {app,handlers}=boot();
+ app.handle({dataset:{tpAction:"new-employee"}});
+ const submitted={
+  id:"tp-employee-form",
+  elements:{
+   name:{value:"New Chinese Helper"},designation:{value:"Chinese Helper"},
+   joined:{value:"2026-11-20"},restaurant:{value:"Pritam Fast Food"},
+   method:{value:"CASH"},employeeType:{value:"salaried"},
+   salary:{value:"20000"},leaveAllowance:{value:"2"},
+   salaryEffectiveMonth:{value:""},commissionGstRate:{value:"5"}
+  }
+ };
+ handlers.submit[handlers.submit.length-1]({
+  target:submitted,preventDefault:()=>{},stopImmediatePropagation:()=>{}
+ });
+ const employee=app.data().employees.find(e=>e.name==="New Chinese Helper");
+ expect(employee).toBeDefined();
+ expect(employee.designation).toBe("Chinese Helper");
+ expect(app.employeeForm(employee)).toContain('value="Chinese Helper"');
 });
-
-test("Editing a shortcut stays in Settings and saves user-created codes",()=>{
- const {app,handlers,storage}=boot();
- app.navigate("settings");
- app.handle({dataset:{tpAction:"edit-designation",code:"ek ch"}});
- const edit=app.page();
- expect(edit).toContain("Save Changes");
- expect(edit).toContain('value="ek ch"');
- expect(edit).toContain('value="Chinese Helper"');
- const submit=handlers.submit[0],newCode="veg hl";
- submit({target:{id:"tp-designation-form",elements:{shortcut:{value:newCode},title:{value:"Veg Hall Assistant"}}},
-   preventDefault:()=>{},stopImmediatePropagation:()=>{}});
- // Editing an existing shortcut changes the saved code; no duplicate is created.
- expect(app.designationFind("ek ch")).toBe(null);
- expect(app.designationExpand("VEG HL")).toBe("Veg Hall Assistant");
- expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
- app.navigate("settings");
- const page=app.page();
- expect(page).toContain("Veg Hall Assistant");
- expect(page).toContain('id="tp-designation-form"');
-});
-
-
 test("A monthly ID can be shared between restaurants but not duplicated inside one restaurant",()=>{
  const {app,handlers}=boot();
  app.setPage("attendance");
