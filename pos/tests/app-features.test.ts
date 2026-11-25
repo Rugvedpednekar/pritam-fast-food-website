@@ -219,7 +219,7 @@ test("Delete employee removes from active salary and attendance but keeps monthl
 
 test("Enter on attendance saves monthly days and focuses the next employee",()=>{
  const {app,handlers,setInputs}=boot();
- expect(handlers.keydown).toHaveLength(2);
+ expect(handlers.keydown).toHaveLength(3);
  expect(handlers.change?.length).toBeGreaterThan(0);
  let focusId=null,selectedId=null,scrollId=null;
  const ids=["demo1","demo2","demo3"];
