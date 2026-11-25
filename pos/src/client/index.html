@@ -219,9 +219,9 @@ var oldDraw=draw;
 draw=function(){
  ensureReferenceModel();
  document.title="Tablewise · "+(navnames[tab]||tab);
- document.getElementById("nav").innerHTML=Object.keys(navnames).map(function(k){return'<button class="nav '+(tab===k?"on":"")+'" data-route="'+e(k)+'"><span>'+(icons[k]||"◫")+'</span><span class="navtext">'+e(navnames[k])+'</span></button>';}).join("");
+ document.getElementById("nav").innerHTML=Object.keys(navnames).filter(function(k){return k!=="reports";}).map(function(k){return'<button class="nav '+(tab===k||(tab==="reports"&&k==="settings")?"on":"")+'" data-route="'+e(k)+'"><span>'+(icons[k]||"◫")+'</span><span class="navtext">'+e(navnames[k])+'</span></button>';}).join("");
  document.getElementById("restaurant").innerHTML=data.restaurants.filter(function(r){return r.active!==false;}).map(function(r){return'<option value="'+e(r.id)+'" '+(selected===r.id?"selected":"")+'>'+e(r.name)+'</option>';}).join("");
- document.getElementById("crumb").textContent="Workspace / "+(navnames[tab]||tab);
+ document.getElementById("crumb").textContent=tab==="reports"?"Workspace / Settings / Reports":"Workspace / "+(navnames[tab]||tab);
  var pages={dashboard:dashboard,pos:pos,menu:menu,bills:bills,reports:reports,employees:employees,payroll:payroll,settings:settings,sections:sectionsView};
  document.getElementById("content").innerHTML=(pages[tab]||dashboard)();
 };
