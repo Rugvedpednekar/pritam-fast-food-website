@@ -147,6 +147,12 @@ test("Transfer Employee form has only destination, date and recorded-day allocat
  expect(html).toContain('id="tp-transfer-outlet"');
  expect(html).toContain('id="tp-transfer-date"');
  expect(html).toContain('id="tp-transfer-old-days"');
+ // The transfer form must be next to the opened employee profile rather
+ // than prepended to the very top of the entire Employees page.
+ expect(html.indexOf('id="tp-transfer-form"')).toBeGreaterThan(html.indexOf("EMPLOYEE PROFILE"));
+ expect(html).toContain('<option value="r2">Restaurant 02</option>');
+ expect(html).toContain("Available outlets: Restaurant 02");
+ expect(html).not.toContain('<option value="r1">Pritam Fast Food</option>');
  expect(html).toContain("From outlet");
  expect(html).toContain("To outlet");
  expect(html).not.toContain('id="tp-transfer-type"');
@@ -243,4 +249,19 @@ test("Editing an existing employee keeps outlet read-only and points to Transfer
  expect(html).toContain('type="hidden" name="restaurant"');
  const newEmployee=app.employeeForm(null);
  expect(newEmployee).toContain('id="tp-restaurant"');
+});
+
+
+test("Transfer form clearly lists other active outlets and excludes inactive branches",()=>{
+ const {app}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ // Disabling the second outlet means the employee cannot transfer into it.
+ // The button remains visible for clarity but offers a useful explanation.
+ const list=(app as any).data();
+ app.setPage("employees");
+ expect(app.profile(emp)).toContain("Transfer Employee");
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ let html=app.render();
+ expect(html).toContain('<option value="r2">Restaurant 02</option>');
+ expect(html).toContain("Available outlets: Restaurant 02");
+ expect(html.indexOf('id="tp-transfer-form"')).toBeGreaterThan(html.indexOf("EMPLOYEE PROFILE"));
 });
