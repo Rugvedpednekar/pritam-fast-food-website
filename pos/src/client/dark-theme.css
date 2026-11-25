@@ -470,6 +470,51 @@ html[data-theme="dark"] .tw-mobile-receipt-paper *{
  color:#152d29!important;
 }
 
+
+/* Extended coverage for dynamically injected billing/receipt and prompt components. */
+html[data-theme="dark"] #content .fl-root :is(
+ .fl-receipt,.fl-invoice,.fl-bill-preview,.fl-preview,.fl-bill,
+ .fl-preview-card,.fl-receipt-card,.fl-checkout-card,.fl-order-card,
+ .fl-guest,.fl-tab,.fl-menu-card,.fl-detail,.fl-bill-lines,.fl-item-list
+){
+ background-color:#1b2d35!important;
+ color:#ebf5f2!important;
+ border-color:#3a525b!important;
+}
+html[data-theme="dark"] #content .fl-root :is(
+ .fl-receipt,.fl-invoice,.fl-bill-preview,.fl-preview,.fl-bill
+) :is(h1,h2,h3,strong,span,td,th){
+ color:#eaf3f0!important;
+}
+html[data-theme="dark"] body :is(
+ [class*="dialog"],[class*="modal"],[class*="prompt"],
+ [class*="popup"],[class*="ux-"]
+) :is(h1,h2,h3,h4,legend,strong,label,p,small){
+ color:#ecf6f2!important;
+}
+html[data-theme="dark"] body :is(
+ [class*="dialog"],[class*="modal"],[class*="prompt"],
+ [class*="popup"],[class*="ux-"]
+) input{
+ background:#14262e!important;
+ color:#f3faf7!important;
+ border-color:#4a717b!important;
+}
+html[data-theme="dark"] body :is(
+ [class*="dialog"],[class*="modal"],[class*="prompt"],
+ [class*="popup"],[class*="ux-"]
+) input::placeholder{color:#b0c6ce!important;}
+@media print{
+ html[data-theme="dark"] #content .fl-root :is(
+ .fl-receipt,.fl-invoice,.fl-bill-preview,.fl-preview,.fl-bill
+ ),html[data-theme="dark"] #content .fl-root :is(
+ .fl-receipt,.fl-invoice,.fl-bill-preview,.fl-preview,.fl-bill
+ ) *{
+  background:#fff!important;
+  color:#111!important;
+ }
+}
+
 /* Keep printed bills and payroll PDFs white with legible dark ink. */
 @media print{
  html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
