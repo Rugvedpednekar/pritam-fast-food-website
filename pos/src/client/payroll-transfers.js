@@ -38,7 +38,10 @@ function tpTransferForm(emp){
   '<div class="tp-field"><label>From outlet</label><strong>'+tpEscape(emp.restaurant)+'</strong>'+
   '<small>Current monthly ID: '+(oldCode===null?"Unassigned":oldCode)+'</small></div>'+
   '<div class="tp-field"><label for="tp-transfer-outlet">To outlet *</label><select id="tp-transfer-outlet" required>'+
-  '<option value="">Select destination outlet</option>'+options+'</select></div>'+
+  '<option value="">Select destination outlet</option>'+options+'</select>'+
+    '<small class="tp-transfer-destinations">'+(available.length?
+      'Available outlets: '+available.map(function(outlet){return tpEscape(outlet.name);}).join(" · "):
+      'No other active outlets are configured. Add or activate an outlet to enable transfers.')+'</small></div>'+
   '<div class="tp-field"><label for="tp-transfer-date">Transfer effective date *</label>'+
   '<input id="tp-transfer-date" required type="date" min="'+tpEscape(state.month+"-01")+
   '" max="'+tpEscape(tpToday())+'" value="'+tpEscape(tpToday())+'"></div>'+
@@ -70,17 +73,10 @@ tpEmployeeProfile=function(emp){
    '<p class="tp-note">No outlet transfers have been recorded.</p>')+
   (emp.active!==false&&!emp.left?
    '<div class="tp-actions">'+tpButton("transfer-employee","Transfer Employee","tp-primary",'data-id="'+tpEscape(emp.id)+'"')+'</div>':"")+
-  '</div>';
+  '</div>'+
+   (tpTransferOpenId===emp.id&&emp.active!==false&&!emp.left&&tpPayrollMatchesRestaurant(emp)?tpTransferForm(emp):"");
  var end=html.lastIndexOf("</section>");
  return end>=0?html.slice(0,end)+extra+html.slice(end):html+extra;
-};
-var tpTransferPreviousEmployeesPage=tpEmployeesPage;
-tpEmployeesPage=function(){
- var html=tpTransferPreviousEmployeesPage();
- if(!tpTransferOpenId)return html;
- var emp=tpEmp(tpTransferOpenId);
- if(!emp||!tpPayrollMatchesRestaurant(emp)||emp.active===false||emp.left)return html;
- return tpTransferForm(emp)+html;
 };
 var tpTransferPreviousAction=tpHandleAction;
 tpHandleAction=function(button){
@@ -89,7 +85,10 @@ tpHandleAction=function(button){
   if(!emp||emp.active===false||emp.left||!tpPayrollMatchesRestaurant(emp))
    return uxAlert("Only active employees in the selected outlet may be transferred.");
   if(!tpTransferAvailableOutlets(emp).length)return uxAlert("Create another active restaurant outlet before transferring employees.");
-  tpTransferOpenId=id;tpViewing=id;tpEditing=null;tpTab="employees";draw();return;
+  tpTransferOpenId=id;tpViewing=id;tpEditing=null;tpTab="employees";draw();
+  var panel=document.getElementById("tp-transfer-panel");
+  if(panel&&panel.scrollIntoView)panel.scrollIntoView({behavior:"smooth",block:"center"});
+  return;
  }
  if(action==="cancel-transfer"){tpTransferOpenId=null;draw();return;}
  return tpTransferPreviousAction(button);
@@ -152,6 +151,6 @@ document.addEventListener("submit",function(event){
  showToast(emp.name+" transferred to "+destination.name+" · New monthly ID "+newCode+".");
 },true);
 var tpTransferCss=document.createElement("style");
-tpTransferCss.textContent=".tp-transfer-panel{border-color:#cee5db}.tp-transfer-panel .tp-form-grid{margin-top:15px}.tp-transfer-panel .tp-field strong{display:block;padding:12px;background:#f2f8f5;border-radius:8px}.tp-transfer-history{padding-top:18px;margin-top:18px;border-top:1px solid #e3ebe8}.tp-transfer-history h3{margin-bottom:12px}.tp-transfer-panel .tp-warning{padding:10px 13px;background:#fff5e8;border-radius:8px;color:#915929}";
+tpTransferCss.textContent=".tp-transfer-panel{border-color:#cee5db;margin:18px 0;scroll-margin-top:24px}.tp-transfer-destinations{display:block;margin:7px 0;font-weight:600;color:#1a7161;line-height:1.5}.tp-transfer-panel .tp-form-grid{margin-top:15px}.tp-transfer-panel .tp-field strong{display:block;padding:12px;background:#f2f8f5;border-radius:8px}.tp-transfer-history{padding-top:18px;margin-top:18px;border-top:1px solid #e3ebe8}.tp-transfer-history h3{margin-bottom:12px}.tp-transfer-panel .tp-warning{padding:10px 13px;background:#fff5e8;border-radius:8px;color:#915929}";
 document.head.appendChild(tpTransferCss);
 })();
