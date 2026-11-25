@@ -1022,11 +1022,41 @@ function tpGeneralPdfPages(kind,month){
 function tpDeliverPdf(file,filename){
  var url=URL.createObjectURL(file),link=document.createElement("a");
  var mobile=typeof navigator!=="undefined"&&/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"");
- link.href=url;link.style.display="none";
- if(mobile){link.target="_blank";link.rel="noopener";}
- else link.download=filename;
- document.body.appendChild(link);link.click();link.remove();
- setTimeout(function(){URL.revokeObjectURL(url);},180000);
+ if(mobile){
+  // A real user tap is needed for iOS Safari / in-app browsers. Synthetic
+  // link.click() on a Blob URL can silently do nothing on these devices.
+  var existing=document.getElementById("tp-mobile-pdf");
+  if(existing)existing.remove();
+  var dialog=document.createElement("div");dialog.id="tp-mobile-pdf";
+  dialog.style.cssText="position:fixed;inset:0;background:#122923ba;z-index:99999;display:grid;place-items:center;padding:18px";
+  var panel=document.createElement("div");panel.style.cssText="width:min(100%,440px);background:white;border-radius:15px;padding:22px;display:grid;gap:13px;box-shadow:0 22px 65px #162c3559";
+  var heading=document.createElement("strong");heading.textContent="Your PDF is ready";
+  var message=document.createElement("p");message.textContent="Tap Open PDF to view it. Use the phone's Share menu to Print or Save to Files.";
+  var open=document.createElement("a");
+  open.href=url;open.target="_blank";open.rel="noopener";open.textContent="Open PDF";
+  open.style.cssText="padding:13px;background:#137a5c;color:white;border-radius:9px;text-align:center;font-weight:800;text-decoration:none";
+  var download=document.createElement("a");
+  download.href=url;download.download=filename;download.textContent="Save PDF";
+  download.style.cssText="padding:11px;border:1px solid #ceded9;border-radius:9px;text-align:center;text-decoration:none;color:#194b45";
+  var close=document.createElement("button");close.type="button";close.textContent="Close";
+  close.onclick=function(){dialog.remove();};
+  panel.appendChild(heading);panel.appendChild(message);panel.appendChild(open);
+  panel.appendChild(download);panel.appendChild(close);
+  if(typeof navigator.share==="function"&&typeof File!=="undefined"){
+   var share=document.createElement("button");share.type="button";share.textContent="Share / Print";
+   share.onclick=function(){
+    var attachment=new File([file],filename,{type:"application/pdf"});
+    if(navigator.canShare&&!navigator.canShare({files:[attachment]}))return;
+    navigator.share({files:[attachment],title:filename}).catch(function(){});
+   };
+   panel.insertBefore(share,download);
+  }
+  dialog.appendChild(panel);document.body.appendChild(dialog);
+ }else{
+  link.href=url;link.download=filename;link.style.display="none";
+  document.body.appendChild(link);link.click();link.remove();
+ }
+ setTimeout(function(){URL.revokeObjectURL(url);},300000);
  return url;
 }
 function tpDownloadPDF(kind,month,employeeId){
