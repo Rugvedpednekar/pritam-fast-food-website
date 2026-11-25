@@ -50,7 +50,7 @@
   try{
    var response=await cloudReq("/api/restaurants/delete",{
     method:"POST",headers:{"content-type":"application/json"},
-    body:JSON.stringify({restaurantId:restaurant.id,version:cloudVersion,confirmation:typed})
+    body:JSON.stringify({restaurantId:restaurant.id,version:cloudVersion,confirmation:typed,employeeIds:typeof window.twLocalRestaurantPayrollIds==="function"?window.twLocalRestaurantPayrollIds(restaurant.id,restaurant.name):[]})
    });
    if(!response.ok){
     if(response.status===409){cloudConflict=true;cloudStatus("Sync conflict ⚠",true);}
