@@ -210,6 +210,14 @@ test("Enter on attendance saves monthly days and focuses the next employee",()=>
 });
 
 
+test("Attendance does not show the total worked-days summary card",()=>{
+ const {app}=boot();
+ app.setPage("attendance");
+ const html=app.page();
+ expect(html).not.toContain("Total worked days");
+ expect(html).toContain("Attendance recorded");
+ expect(html).toContain("Days worked");
+});
 test("Enter on Advances saves current amount and moves directly to next employee Advance",()=>{
  const {app,handlers,setInputs}=boot();
  app.setPage("advances");
@@ -258,7 +266,7 @@ test("Payroll currency and entry fields use whole rupees rather than paise",()=>
  expect(app.parseMoney("125.50")).toBeNull();  // no paise for employees
  app.setPage("advances");
  const page=app.page();
- expect(page).toContain("Other deduction / loan recovery");
+ expect(page).toContain("Other deduction (₹)");
  expect(page).not.toContain('value="0.00"');
  expect(page).toContain('value="0"');
  const salaryForm=app.employeeForm(null);
@@ -277,7 +285,7 @@ test("Empty advance, fine, and Other deduction fields save zero without warnings
  }
  const p=app.period("2026-11");
  expect(p.advances.demo1.amount).toBe(0);
- expect(p.advances.demo1.kind).toBe("office-loan");
+ expect(p.advances.demo1.kind).toBeUndefined();
  expect(p.deductions.demo1.fine).toBe(0);
  expect(p.deductions.demo1.other).toBe(0);
 });
@@ -410,11 +418,13 @@ test("Salaried attendance excludes parcel boys until explicitly opened and payme
  const mukesh=app.data().employees.find(e=>e.name==="Mukesh");
  app.openCommission(mukesh.id);
  const expanded=app.page();
- expect((expanded.match(/data-tp-field="commissionDaily"/g)||[])).toHaveLength(30);
+ expect((expanded.match(/data-tp-field="commissionDaily"/g)||[])).toHaveLength(0);
  expect(expanded).toContain("Total commission");
  expect(expanded).toContain("Payable amount");
  expect(expanded).toContain('id="tp-commission-mode"');
- expect(expanded).not.toContain('data-tp-field="commissionTotal"');
+ expect(expanded).toContain('data-tp-field="commissionTotal"');
+ expect(expanded).toContain("Monthly commission total (default)");
+ expect(app.period("2026-11").commissions[mukesh.id].mode).toBe("total");
  app.setPage("sheets");
  expect((app.page().match(/data-tp-field="days"/g)||[])).toHaveLength(0);
  expect(app.page()).toContain("Parcel Boy Payment Sheet");
@@ -472,6 +482,7 @@ test("Daily commission, GST and monthly-total fields save through change events 
  const {app,handlers,storage}=boot(),emp=app.data().employees.find(e=>e.name==="Mukesh");
  const change=handlers.change[handlers.change.length-1];
  app.setPage("attendance");
+ change({target:{id:"",dataset:{tpField:"commissionMode",id:emp.id},value:"daily"}});
  change({target:{id:"",dataset:{tpField:"commissionDaily",id:emp.id,day:"1"},value:"2000.00"}});
  expect(app.period("2026-11").commissions[emp.id].daily[0]).toBe(200000);
  expect(storage.has("tablewise-payroll-demo-v3")).toBe(true);
