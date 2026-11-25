@@ -117,6 +117,12 @@ const [salt,digest]=hash.split(":");
 function checkLogin(u,p){if(typeof u!=="string"||typeof p!=="string"||p.length>128)return false;const d=scryptSync(p,Buffer.from(salt,"hex"),32).toString("hex");return same(u,user)&&same(d,digest);}
 let init;
 function ready(){if(!init)init=db.unsafe("CREATE TABLE IF NOT EXISTS demo_snapshots(account_key text PRIMARY KEY,version bigint NOT NULL,payload jsonb NOT NULL,updated_at timestamptz DEFAULT now())").catch(e=>{init=null;throw e});return init;}
+let photoInit;
+function photosReady(){
+ if(!photoInit)photoInit=db.unsafe("CREATE TABLE IF NOT EXISTS demo_employee_photos(account_key text NOT NULL,employee_id text NOT NULL,photo text NOT NULL DEFAULT '',updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(account_key,employee_id))")
+  .catch(e=>{photoInit=null;throw e});
+ return photoInit;
+}
 const cookie="tw_demo_session";
 function sign(v){return createHmac("sha256",secret).update(v).digest("hex");}
 function same(a,b){let x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
@@ -172,6 +178,29 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  }
  if(!auth(req))return res({error:"Authentication required"},401);
  if(path==="/api/logout"&&req.method==="POST"){if(!origin(req))return res({error:"Origin rejected"},403);return res({ok:true},200,{"set-cookie":cookie+"=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"});}
+ if(path==="/api/payroll/photos"&&req.method==="GET"){
+  try{
+   await photosReady();
+   const rows=await db.unsafe("SELECT employee_id AS \"employeeId\",photo FROM demo_employee_photos WHERE account_key='owner' ORDER BY updated_at DESC LIMIT 300");
+   return res({photos:rows});
+  }catch(err){console.error("Payroll photo read:",err.message);return res({error:"Employee photos unavailable"},503);}
+ }
+ if(path==="/api/payroll/photo"&&req.method==="PUT"){
+  if(!origin(req))return res({error:"Origin rejected"},403);
+  const raw=await req.text();
+  if(raw.length>190000)return res({error:"Employee photo too large"},413);
+  let body;try{body=JSON.parse(raw)}catch{return res({error:"Invalid JSON"},400)}
+  const employeeId=body?.employeeId,photo=body?.photo;
+  if(typeof employeeId!=="string"||!/^[a-zA-Z0-9_-]{1,90}$/.test(employeeId)||
+     typeof photo!=="string"||(photo!==""&&(
+      photo.length>180000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))))
+    return res({error:"Invalid employee photo"},422);
+  try{
+   await photosReady();
+   await db.unsafe("INSERT INTO demo_employee_photos(account_key,employee_id,photo,updated_at) VALUES('owner',$1,$2,now()) ON CONFLICT(account_key,employee_id) DO UPDATE SET photo=excluded.photo,updated_at=now()",[employeeId,photo]);
+   return res({ok:true});
+  }catch(err){console.error("Payroll photo save:",err.message);return res({error:"Could not store employee photo"},503);}
+ }
  if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");return res(rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
  if(path==="/api/state"&&req.method==="PUT"){
   if(!origin(req))return res({error:"Origin rejected"},403);
