@@ -113,11 +113,11 @@ function tpArcRejoinForm(emp){
  '<p class="tp-note">Creates a new employment period with a new payroll record ID. All old employment periods, advances, payment sheets and monthly IDs will remain unchanged.</p>'+
  '<form id="tp-rejoin-form" class="tp-form" data-id="'+tpEscape(emp.id)+'"><div class="tp-form-grid">'+
  '<div class="tp-field"><label for="tp-rejoin-date">New joining date *</label><input id="tp-rejoin-date" required type="date" min="'+tpEscape(emp.leftAt||emp.joined)+'" max="'+tpEscape(now)+'" value="'+tpEscape(now)+'"></div>'+
- '<div class="tp-field"><label for="tp-rejoin-designation">Designation *</label><input id="tp-rejoin-designation" required maxlength="90" list="tp-role-suggestions" value="'+tpEscape(emp.designation)+'"></div>'+
+ '<div class="tp-field"><label for="tp-rejoin-designation">Designation *</label><input id="tp-rejoin-designation" required maxlength="90" placeholder="Enter designation manually" value="'+tpEscape(emp.designation)+'"></div>'+
  '<div class="tp-field"><label for="tp-rejoin-restaurant">Restaurant *</label><select id="tp-rejoin-restaurant">'+tpArcRestaurantOptions(emp.restaurant)+'</select></div>'+
  (tpIsParcel(emp)?'<div class="tp-field"><label>Salary</label><p class="tp-note">Commission-only employee — no fixed salary.</p></div>':
  '<div class="tp-field"><label for="tp-rejoin-salary">New starting monthly salary (₹) *</label><input id="tp-rejoin-salary" required inputmode="decimal" value="'+tpRupees(oldSalary)+'"></div>')+
- '</div><datalist id="tp-role-suggestions">'+tpDesignationList().map(function(item){return '<option value="'+tpEscape(item.code)+'" label="'+tpEscape(item.title)+'"></option>';}).join("")+'</datalist>'+
+ '</div>'+
  '<div class="tp-actions"><button type="submit" class="tp-button tp-primary">Confirm Rejoining</button>'+tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
 }
 var tpArcBaseEmployeesPage=tpEmployeesPage;
@@ -214,7 +214,7 @@ document.addEventListener("submit",function(ev){
  var form=ev.target,old=tpEmp(form.dataset.id);
  if(!old||!tpArcLeft(old))return uxAlert("This archive entry is no longer eligible to rejoin.");
  var joined=form.querySelector("#tp-rejoin-date").value;
- var designation=tpTrim(tpDesignationExpand(form.querySelector("#tp-rejoin-designation").value),90);
+ var designation=tpTrim(form.querySelector("#tp-rejoin-designation").value,90);
  var restaurant=tpTrim(form.querySelector("#tp-rejoin-restaurant").value,90);
  var salary=tpIsParcel(old)?0:parsePaise(form.querySelector("#tp-rejoin-salary").value);
  if(!tpArcDate(joined)||joined<(old.leftAt||old.joined)||joined>tpToday()||!designation||!restaurant||
