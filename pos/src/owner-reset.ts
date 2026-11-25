@@ -18,7 +18,7 @@ export function freshRestaurantState(){
 export function purgeRestaurantState(state,restaurantId){
  const restaurant=state?.restaurants?.find(r=>r.id===restaurantId);
  if(!restaurant)throw new Error("Restaurant not found");
- if(state.restaurants.filter(r=>r.active!==false).length<=1)throw new Error("At least one restaurant must remain");
+ if(restaurant.active!==false&&state.restaurants.filter(r=>r.active!==false).length<=1)throw new Error("At least one restaurant must remain");
  const name=String(restaurant.name||"").trim().toLowerCase();
  const scoped=(record)=>{
   if(!record||typeof record!=="object")return false;
@@ -107,7 +107,7 @@ export function createOwnerResetController({db,ready,photosReady,checkOwnerPassw
    await tx.unsafe("DELETE FROM demo_employee_photos WHERE account_key='owner'");
    await tx.unsafe("DELETE FROM demo_deleted_restaurants WHERE account_key='owner'");
    const gen=await tx.unsafe("UPDATE demo_owner_security SET reset_generation=reset_generation+1,updated_at=now() WHERE account_key='owner' RETURNING reset_generation");
-   return {ok:true,version:Number(result[0].version),resetGeneration:Number(gen[0].reset_generation)};
+   return {ok:true,version:Number(result[0].version),resetGeneration:Number(gen[0].reset_generation),state:fresh};
   });
   clearAttempts();
   return saved;
