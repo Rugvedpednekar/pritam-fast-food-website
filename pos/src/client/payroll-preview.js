@@ -511,6 +511,7 @@ function tpAttendance(){
  [['all','All IDs — ascending'],['1-25','1–25'],['26-50','26–50'],['51-75','51–75'],['76-100','76–100'],['101+','101 and above'],['unassigned','Unassigned IDs']].map(function(opt){
   return'<option value="'+opt[0]+'" '+(filter===opt[0]?'selected':'')+'>'+opt[1]+'</option>';
  }).join("")+'</select></div>'+
+ '<div class="tp-attendance-compact">'+
  tpTable(["Monthly ID","Employee / designation","Days worked"],visible.map(function(r,i){
   var id=tpEscape(r.emp.id);
   return'<tr data-tp-attendance-row="'+id+'"><td><input aria-label="Monthly ID for '+tpEscape(r.emp.name)+'" class="tp-serial-input" type="number" inputmode="numeric" min="1" step="1" placeholder="1, 2, 3…" data-tp-field="serial" data-id="'+id+'" enterkeyhint="next" value="'+(r.serial===null?"":r.serial)+'"></td>'+
@@ -518,7 +519,7 @@ function tpAttendance(){
   
   '<td><input aria-label="Days worked for '+tpEscape(r.emp.name)+'" class="tp-days-input" type="number" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 27" data-tp-field="days" data-id="'+id+'" enterkeyhint="'+(i===visible.length-1?"done":"next")+'" value="'+tpEscape(r.worked==null?"":r.worked)+'"><small class="tp-days-hint">Worked days only</small></td></tr>';
  }))+
- '<div class="tp-note">Press Enter to save and move to the next salaried employee. Monthly IDs and rates are saved for history.</div></section>';
+ '</div><div class="tp-note">Press Enter to save and move to the next salaried employee. Monthly IDs and rates are saved for history.</div></section>';
  if(parcelRows.length){
   out+='<section class="tp-panel"><div class="tp-header-row"><div><h2>Parcel Boys · Commission</h2>'+
   '<p>Open only the parcel boy you want to enter. The 30-day commission form stays closed otherwise.</p></div></div>'+
@@ -1637,6 +1638,34 @@ css.textContent=String.raw`
 .tp-cell-input,.tp-days-input,.tp-serial-input{border:1px solid #d7e3e8;background:white;color:#264457;padding:9px;border-radius:9px;min-width:90px;width:104px;font-size:12px}
 .tp-days-input{border:2px solid #17a27c;background:#f3faf6;font-weight:900;font-size:15px;width:102px}
 .tp-days-hint{display:block;color:#7794a0;font-size:10px;margin-top:5px;white-space:nowrap}
+ /* Keep the three attendance fields adjacent, including on small touchscreens. */
+ .tp-attendance-compact .tp-table-wrap{width:100%;max-width:100%;overflow-x:auto}
+ .tp-attendance-compact .tp-table{width:100%;min-width:0;table-layout:fixed}
+ .tp-attendance-compact .tp-table th:nth-child(1),.tp-attendance-compact .tp-table td:nth-child(1){width:100px}
+ .tp-attendance-compact .tp-table th:nth-child(3),.tp-attendance-compact .tp-table td:nth-child(3){width:117px}
+ .tp-attendance-compact .tp-table th,.tp-attendance-compact .tp-table td{padding:9px 7px}
+ .tp-attendance-compact .tp-person-cell{min-width:0;gap:7px;max-width:100%}
+ .tp-attendance-compact .tp-person-cell>div{min-width:0;overflow-wrap:anywhere}
+ .tp-attendance-compact .tp-serial-input,.tp-attendance-compact .tp-days-input{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:8px 4px}
+ @media(max-width:760px){
+  .tp-attendance-compact .tp-table{min-width:0!important;width:100%!important}
+  .tp-attendance-compact .tp-table th:nth-child(1),.tp-attendance-compact .tp-table td:nth-child(1){width:61px}
+  .tp-attendance-compact .tp-table th:nth-child(3),.tp-attendance-compact .tp-table td:nth-child(3){width:77px}
+  .tp-attendance-compact .tp-table th,.tp-attendance-compact .tp-table td{padding:7px 3px}
+  .tp-attendance-compact .tp-table th{font-size:9px;letter-spacing:0;white-space:normal;line-height:1.15;text-align:left}
+  .tp-attendance-compact .tp-person-cell{gap:0}
+  .tp-attendance-compact .tp-avatar-small{display:none}
+  .tp-attendance-compact .tp-person-cell strong{font-size:11px;line-height:1.25;display:block}
+  .tp-attendance-compact .tp-person-cell small{font-size:9px;line-height:1.15;overflow-wrap:anywhere}
+  .tp-attendance-compact .tp-serial-input,.tp-attendance-compact .tp-days-input{font-size:14px;padding:8px 2px}
+  .tp-attendance-compact .tp-days-hint{display:none}
+ }
+ @media(max-width:375px){
+  .tp-attendance-compact .tp-table th:nth-child(1),.tp-attendance-compact .tp-table td:nth-child(1){width:53px}
+  .tp-attendance-compact .tp-table th:nth-child(3),.tp-attendance-compact .tp-table td:nth-child(3){width:70px}
+  .tp-attendance-compact .tp-person-cell small{display:none}
+ }
+
 .tp-check{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:11px;font-weight:750}.tp-check input{width:17px;height:17px;accent-color:#098566}
 .tp-warning{display:block;color:#aa5735;margin-top:5px;font-size:10px}
 .tp-sheets-layout .tp-table{min-width:410px}.tp-sheet-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
