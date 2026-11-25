@@ -287,6 +287,30 @@ function tpLeaveEarned(days,allowance,interval){
  if(!Number.isInteger(rate)||rate<1||rate>30)rate=7;
  return Math.min(cap,Math.floor(days/rate));
 }
+function tpLoanPersonKey(emp){
+ if(!emp)return "";
+ return String(emp.personId||emp.previousEmploymentId||emp.id);
+}
+function tpLoanBalance(emp,throughMonth){
+ if(!emp||!tpData)return 0;
+ var key=tpLoanPersonKey(emp),borrowed=0,repaid=0,waived=0;
+ var ids=new Set(tpData.employees.filter(function(e){return tpLoanPersonKey(e)===key;}).map(function(e){return e.id;}));
+ Object.keys(tpData.periods||{}).forEach(function(month){
+  if(throughMonth&&month>throughMonth)return;
+  var p=tpData.periods[month];
+  if(!p)return;
+  ids.forEach(function(id){
+   var loan=p.advances&&p.advances[id];
+   if(loan&&loan.kind==="office-loan")borrowed+=Number(loan.amount)||0;
+   var d=p.deductions&&p.deductions[id];
+   if(d)repaid+=Number(d.loanRepayment)||0;
+  });
+ });
+ (tpData.officeLoanWaivers||[]).forEach(function(entry){
+  if(ids.has(entry.employeeId)&&(!throughMonth||entry.month<=throughMonth))waived+=Number(entry.amount)||0;
+ });
+ return Math.max(0,borrowed-repaid-waived);
+}
 function tpCompute(emp,period,override,month){
  if(tpIsParcel(emp))return tpCommissionCalculate(emp,period);
  var raw=override===undefined?period.days[emp.id]:override;
@@ -298,7 +322,7 @@ function tpCompute(emp,period,override,month){
  var leaveEarned=tpLeaveEarned(days,emp.leaveAllowance,policy);
  var leavePay=tpRound(monthly*leaveEarned/TP_BASIS);
  var a=period.advances[emp.id]||{},ded=period.deductions[emp.id]||{};
- var paidAdvance=Number(a.amount)||0;
+ var paidAdvance=a.kind==="office-loan"?0:Number(a.amount)||0;
  var fine=Number(ded.fine)||0,other=Number(ded.other)||0;
  var withheld=paidAdvance+fine+other,earned=gross+leavePay;
  return {days:days,monthly:monthly,gross:gross,leaveEarned:leaveEarned,leavePay:leavePay,
@@ -466,15 +490,17 @@ function tpEmployeesPage(){
 function totalsFineOther(rows){return rows.reduce(function(sum,r){return sum+(Number(r.deductions.fine)||0)+(Number(r.deductions.other)||0);},0);}
 function tpAdvances(){
  var rows=tpRows().filter(function(r){return !tpIsParcel(r.emp);}),total=tpTotals(rows);
- var out='<div class="tp-stats tp-stats-three">'+tpCard("Total advances",tpMoney(total.adv),"Entered advance amounts","₹")+
- tpCard("Advances deducted",tpMoney(total.advPaid),"Automatically subtracted from salaries","↘")+
- tpCard("Other deductions",tpMoney(totalsFineOther(rows)),"Fines and other deductions","▤")+'</div>';
- out+='<section class="tp-panel">'+tpToolbar("Advance Management","Enter advances, fines and other deductions. Every advance amount entered is deducted from the salary calculation.",tpButton("print-advance","Print Distribution Sheet","tp-primary")+tpButton("pdf-advance","Download PDF","tp-light"))+
- '<div class="tp-note">Every entered advance is deducted automatically from salary. Set the amount to ₹0 if no advance was given. <strong>Press Enter after an advance to save it and move to the next employee’s Advance field.</strong></div>';
- out+=tpTable(["Employee / designation","Advance (₹)","Fine (₹)","Other deduction (₹)"],rows.map(function(r){
+ var balanceTotal=rows.reduce(function(sum,r){return sum+tpLoanBalance(r.emp);},0);
+ var out='<div class="tp-stats tp-stats-three">'+tpCard("Office advances outstanding",tpMoney(balanceTotal),"Interest-free employee loans","₹")+
+ tpCard("Recovered this month",tpMoney(rows.reduce(function(sum,r){return sum+Number(tpGetPeriod().deductions[r.emp.id]?.loanRepayment||0);},0)),"Repaid through Other deductions","↘")+
+ tpCard("Other deductions",tpMoney(totalsFineOther(rows)),"Including monthly loan recoveries","▤")+'</div>';
+ out+='<section class="tp-panel">'+tpToolbar("Advance Management","Office advances are interest-free employee loans. Enter any new loan issued this month; recover a custom amount each month using Other deduction.",tpButton("print-advance","Print Distribution Sheet","tp-primary")+tpButton("pdf-advance","Download PDF","tp-light"))+
+ '<div class="tp-note">A new <strong>office advance</strong> adds to the interest-free outstanding balance and is <strong>not</strong> deducted immediately from salary. Enter the amount to recover this month in <strong>Other deduction</strong>. Existing older salary-advance entries keep their historical treatment. <strong>Press Enter to move to the next employee.</strong></div>';
+ out+=tpTable(["Monthly ID","Employee / designation","New loan issued (₹)","Loan balance (₹)","Fine (₹)","Other deduction / loan recovery (₹)"],rows.map(function(r){
  var id=tpEscape(r.emp.id);
- return'<tr data-tp-adv-row="'+id+'"><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
- '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+((r.advance.amount||0)/100).toFixed(2)+'"></td>'+
+ return'<tr data-tp-adv-row="'+id+'"><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
+ '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+(r.advance.kind==="office-loan"?(r.advance.amount/100).toFixed(2):"0.00")+'"></td>'+
+ '<td><strong>'+tpMoney(tpLoanBalance(r.emp))+'</strong></td>'+
  '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="fine" data-id="'+id+'" value="'+((r.deductions.fine||0)/100).toFixed(2)+'"></td>'+
  '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="other" data-id="'+id+'" value="'+((r.deductions.other||0)/100).toFixed(2)+'"></td></tr>';
  }))+'<div class="tp-note">✓ Changes save automatically on this device. This is a demonstration; it does not transfer money.</div></section>';
@@ -807,8 +833,8 @@ function tpPdfText(ctx,value,x,y,size,bold,color,maxWidth,align){
 }
 function tpPdfHeader(ctx,title,month,detail){
  ctx.fillStyle="#145b50";ctx.fillRect(0,0,595,13);
- tpPdfText(ctx,"TABLEWISE  /  RESTAURANT PAYROLL",38,45,10,true,"#14725d");
- tpPdfText(ctx,title,38,83,22,true,"#19384a",515);
+ tpPdfText(ctx,typeof selectedName==="function"?selectedName():"RESTAURANT",38,44,17,true,"#14725d",515);
+ tpPdfText(ctx,title,38,83,20,true,"#19384a",515);
  tpPdfText(ctx,tpMonthLabel(month)+(detail?"  |  "+detail:""),38,108,11,false,"#71828b",515);
  ctx.strokeStyle="#e1e9eb";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(38,121);ctx.lineTo(557,121);ctx.stroke();
 }
@@ -959,7 +985,7 @@ function tpGeneralPdfPages(kind,month){
    return [r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,
     days===null?"—":days, r.calc?r.calc.leaveEarned:"—"];
   });
-  footer="TOTAL WORKED DAYS: "+worked+"  |  RECORDED: "+recorded+"/"+rows.length;
+  footer="ATTENDANCE RECORDED: "+recorded+"/"+rows.length;
  }else throw Error("Unknown PDF sheet type");
  if(!items.length)return [];
  var pages=[],perPage=18;
@@ -1040,7 +1066,13 @@ function tpDoPrint(kind,month){
  if(!records.length)return uxAlert("No employee rows to print.");
  var printRoot=document.getElementById("tp-payroll-print-root");
  if(!printRoot){printRoot=document.createElement("div");printRoot.id="tp-payroll-print-root";document.body.appendChild(printRoot);}
- printRoot.innerHTML=tpPrintableTable(title,sub,heads,records,(kind==="advance"?"Total advance: ":"Total "+kind.toUpperCase()+" payable: ")+tpMoney(total),true);
+ printRoot.innerHTML=tpPrintableTable(selectedName()+" — "+title,sub,heads,records,(kind==="advance"?"Total advance: ":"Total "+kind.toUpperCase()+" payable: ")+tpMoney(total),true);
+ if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"")){
+  document.body.classList.remove("tp-payroll-printing");
+  // Mobile browsers frequently disable window.print(); open a real PDF in
+  // their document viewer for Share > Print instead.
+  return tpDownloadPDF(kind,m);
+ }
  document.body.classList.add("tp-payroll-printing");
  window.print();
 }
@@ -1347,12 +1379,20 @@ document.addEventListener("change",function(ev){
   if(value===null||value>100000000){uxAlert("Enter a valid amount from ₹0 to ₹10,00,000.");draw();return;}
   if(name==="advance"){
    var a=p.advances[id]||{amount:0};
-   a.amount=value;a.enteredAt=tpStamp();
-   // Remove obsolete paid/unpaid state: each entered advance counts as a deduction.
+   if(a.kind!=="office-loan"&&a.amount>0&&value===0){draw();return;}
+   a.amount=value;a.kind="office-loan";a.enteredAt=tpStamp();
    delete a.paid;delete a.paidAt;
    p.advances[id]=a;
   }else{
-   var d=p.deductions[id]||{fine:0,other:0};d[name]=value;p.deductions[id]=d;
+   var d=p.deductions[id]||{fine:0,other:0};
+   if(name==="other"){
+    var principal=tpLoanBalance(emp),oldRepayment=Number(d.loanRepayment)||0;
+    if(principal+oldRepayment>0){
+     if(value>principal+oldRepayment){uxAlert("Monthly recovery cannot exceed the outstanding office advance of "+tpMoney(principal+oldRepayment)+".");draw();return;}
+     d.loanRepayment=value;
+    }else delete d.loanRepayment;
+   }
+   d[name]=value;p.deductions[id]=d;
   }
   var refreshed=tpCompute(emp,p);if(refreshed)p.snapshots[id]=tpSnapshot(emp,refreshed,refreshed.days);
  }else return;
