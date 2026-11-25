@@ -8,8 +8,9 @@ var TP_SECTIONS=["dashboard","employees","attendance","advances","sheets","histo
 var TP_TITLES={dashboard:"Dashboard",employees:"Employees",attendance:"Attendance",advances:"Advances",salary:"Salary Calculator",sheets:"Payment Sheets",history:"Payroll History",settings:"Settings"};
 var tpTab="dashboard",tpEditing=null,tpViewing=null,tpPhoto=null,tpPeriod="",tpIdRange="all",tpCommissionOpen=null,tpCalculationOpenId=null,tpDesignationEditing=null;
 function tpEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
-function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format((Number(p)||0)/100);}
-function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.\d{1,2})?$/.test(v))return null;var p=v.split(".");return Number(p[0])*100+Number((p[1]||"").padEnd(2,"0"));}
+function tpMoney(p){return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:0,maximumFractionDigits:0}).format((Number(p)||0)/100);}
+function tpRupees(p){return String(Math.round((Number(p)||0)/100));}
+function parsePaise(value){var v=String(value==null?"":value).trim();if(!/^\d{1,9}(?:\.0{1,2})?$/.test(v))return null;return Number(v.split(".")[0])*100;}
 function tpMonth(delta){
  var now=dateIN(new Date()).slice(0,7).split("-").map(Number);
  return new Date(Date.UTC(now[0],now[1]-1+(delta||0),1)).toISOString().slice(0,7);
@@ -440,7 +441,7 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
  '<div class="tp-field"><label for="tp-aadhaar">Aadhaar number (optional)</label><input id="tp-aadhaar" name="aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" pattern="([0-9]{4}|[0-9]{12})" value="'+tpEscape(values.aadhaarLast4||"")+'" placeholder="4 or 12 digits"><small>For privacy, only the last 4 digits are saved on this device. The full Aadhaar number is never stored in this demo.</small></div>'+
  (emp?'<div class="tp-field tp-salaried-only"><label>Current monthly salary</label><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong><small>To change it, open the employee profile and enter the new salary there.</small></div>':
- '<div class="tp-field tp-salaried-only"><label for="tp-salary">Starting monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0.00":(values.salary/100).toFixed(2))+'"></div>')+
+ '<div class="tp-field tp-salaried-only"><label for="tp-salary">Starting monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0":tpRupees(values.salary))+'"></div>')+
  '<div class="tp-field tp-salaried-only"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" '+(!parcel?'required':'disabled')+' value="'+tpEscape(values.leaveAllowance||0)+'"></div>'+
  '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
  '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
@@ -499,10 +500,10 @@ function tpAdvances(){
  out+=tpTable(["Monthly ID","Employee / designation","New loan issued (₹)","Loan balance (₹)","Fine (₹)","Other deduction / loan recovery (₹)"],rows.map(function(r){
  var id=tpEscape(r.emp.id);
  return'<tr data-tp-adv-row="'+id+'"><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
- '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+(r.advance.kind==="office-loan"?(r.advance.amount/100).toFixed(2):"0.00")+'"></td>'+
+ '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+(r.advance.kind==="office-loan"?tpRupees(r.advance.amount):"0")+'"></td>'+
  '<td><strong>'+tpMoney(tpLoanBalance(r.emp))+'</strong></td>'+
- '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="fine" data-id="'+id+'" value="'+((r.deductions.fine||0)/100).toFixed(2)+'"></td>'+
- '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="other" data-id="'+id+'" value="'+((r.deductions.other||0)/100).toFixed(2)+'"></td></tr>';
+ '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="fine" data-id="'+id+'" value="'+tpRupees(r.deductions.fine)+'"></td>'+
+ '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="other" data-id="'+id+'" value="'+tpRupees(r.deductions.other)+'"></td></tr>';
  }))+'<div class="tp-note">✓ Changes save automatically on this device. This is a demonstration; it does not transfer money.</div></section>';
  return out;
 }
@@ -523,13 +524,13 @@ function tpCommissionEditor(emp){
  if(mode==="daily"){
   head+='<div class="tp-commission-days"><div class="tp-commission-cols"><strong>Date</strong><strong>Commission (₹)</strong></div>'+
   Array.from({length:30},function(_,i){
-   var v=daily[i],val=v===null||v===undefined?"":(v/100).toFixed(2);
+   var v=daily[i],val=v===null||v===undefined?"":tpRupees(v);
    return'<div class="tp-commission-day"><label for="tp-commission-day-'+(i+1)+'">Day '+(i+1)+'</label>'+
-    '<input id="tp-commission-day-'+(i+1)+'" aria-label="Day '+(i+1)+' commission" class="tp-cell-input" data-tp-field="commissionDaily" data-id="'+tpEscape(emp.id)+'" data-day="'+(i+1)+'" type="text" inputmode="decimal" enterkeyhint="'+(i===29?"done":"next")+'" placeholder="0.00" value="'+tpEscape(val)+'"></div>';
+    '<input id="tp-commission-day-'+(i+1)+'" aria-label="Day '+(i+1)+' commission" class="tp-cell-input" data-tp-field="commissionDaily" data-id="'+tpEscape(emp.id)+'" data-day="'+(i+1)+'" type="text" inputmode="decimal" enterkeyhint="'+(i===29?"done":"next")+'" placeholder="0" value="'+tpEscape(val)+'"></div>';
   }).join("")+'</div>';
  }else{
   head+='<div class="tp-field tp-commission-total-field"><label for="tp-commission-total">Total commission earned (₹)</label>'+
-  '<input id="tp-commission-total" class="tp-cell-input" inputmode="decimal" type="text" placeholder="e.g. 31202" data-tp-field="commissionTotal" data-id="'+tpEscape(emp.id)+'" value="'+(rec.total===null||rec.total===undefined?"":(rec.total/100).toFixed(2))+'">'+
+  '<input id="tp-commission-total" class="tp-cell-input" inputmode="decimal" type="text" placeholder="e.g. 31202" data-tp-field="commissionTotal" data-id="'+tpEscape(emp.id)+'" value="'+(rec.total===null||rec.total===undefined?"":tpRupees(rec.total))+'">'+
   '<small>Enter the monthly total directly. Only GST will be deducted.</small></div>';
  }
  head+='<div class="tp-commission-summary"><div><span>Total commission</span><strong>'+tpMoney(total)+'</strong></div>'+
@@ -1080,8 +1081,8 @@ function tpDoPrint(kind,month){
   heads=["Monthly ID","Parcel Boy","Commission (₹)","GST (₹)","Net payable (₹)"];
   records=rows.filter(function(r){return tpIsParcel(r.emp);}).map(function(r){
    var c=r.calc;if(c)total+=c.net;
-   return [r.serial===null?"—":r.serial,r.emp.name,c?(c.commissionTotal/100).toFixed(2):"Not entered",
-    c?(c.gst/100).toFixed(2):"",c?(c.net/100).toFixed(2):""];
+   return [r.serial===null?"—":r.serial,r.emp.name,c?tpRupees(c.commissionTotal):"Not entered",
+    c?tpRupees(c.gst):"",c?tpRupees(c.net):""];
   });
  }else if(kind==="advance"){
   title="Advance Distribution Sheet";
@@ -1089,7 +1090,7 @@ function tpDoPrint(kind,month){
   heads=["Monthly ID","Employee","Designation","Advance (₹)","Signature"];
   records=rows.filter(function(r){return !tpIsParcel(r.emp);}).map(function(r){
    var amount=Number(r.advance.amount)||0;total+=amount;
-   return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,(amount/100).toFixed(2),""];
+   return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,tpRupees(amount),""];
   });
  }else{
   var method=kind.toUpperCase();
@@ -1098,7 +1099,7 @@ function tpDoPrint(kind,month){
   heads=["Monthly ID","Employee","Designation","Type","Net payable (₹)","Signature"];
   records=rows.filter(function(r){return r.emp.method===method;}).map(function(r){
     var n=r.calc?r.calc.net:0;total+=n;
-    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",r.calc?(n/100).toFixed(2):"Not calculated",""];
+    return[r.serial===null?"—":r.serial,r.emp.name,r.emp.designation,tpIsParcel(r.emp)?"Parcel Boy":"Salaried",r.calc?tpRupees(n):"Not calculated",""];
   });
  }
  if(!records.length)return uxAlert("No employee rows to print.");
@@ -1413,8 +1414,9 @@ document.addEventListener("change",function(ev){
    var c=tpCompute(emp,p);if(c)p.snapshots[id]=tpSnapshot(emp,c,days);
   }
  }else if(name==="advance"||name==="fine"||name==="other"){
-  var value=parsePaise(field.value);
-  if(value===null||value>100000000){uxAlert("Enter a valid amount from ₹0 to ₹10,00,000.");draw();return;}
+  var value=parsePaise(String(field.value||"").trim()===""?"0":field.value);
+  if(value===null||value>100000000){uxAlert("Enter a whole-rupee amount from ₹0 to ₹10,00,000 (no paise).");draw();return;}
+  field.value=tpRupees(value);
   if(name==="advance"){
    var a=p.advances[id]||{amount:0};
    a.amount=value;a.kind="office-loan";a.enteredAt=tpStamp();
@@ -1446,8 +1448,9 @@ document.addEventListener("keydown",function(ev){
  if((tpTab==="advances")!==(kind==="advance"))return;
  ev.preventDefault();ev.stopImmediatePropagation();
  if(kind==="advance"){
-  var amount=parsePaise(field.value);
-  if(amount===null||amount>100000000){uxAlert("Enter a valid advance amount from ₹0 to ₹10,00,000.");field.focus();if(field.select)field.select();return;}
+  var amount=parsePaise(String(field.value||"").trim()===""?"0":field.value);
+  if(amount===null||amount>100000000){uxAlert("Enter a whole-rupee advance from ₹0 to ₹10,00,000 (no paise).");field.focus();if(field.select)field.select();return;}
+  field.value=tpRupees(amount);
  }
  if(kind==="days"&&field.value.trim()!==""&&tpInputDays(field.value)===null){
   uxAlert("Use 0–30 days in half-day steps (such as 22.5 or 27).");field.focus();if(typeof field.select==="function")field.select();return;
