@@ -91,7 +91,7 @@ tpEmployeeProfile=function(emp){
     '<h3>Update Monthly Salary</h3><p class="tp-note">Current salary: <strong>'+tpMoney(tpMonthSalary(emp,tpMonth(0)))+
     '</strong>. New salary is effective today ('+tpDate(tpToday())+'); earlier months and salary history are preserved.</p>'+
     '<div class="tp-field"><label for="tp-profile-new-salary">New monthly salary (₹) *</label>'+
-    '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="0.01" max="10000000" step="0.01" inputmode="decimal" placeholder="Enter the new salary"></div>'+
+    '<input id="tp-profile-new-salary" name="newSalary" type="number" required min="1" max="10000000" step="1" inputmode="numeric" placeholder="Enter whole rupees"></div>'+
     '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">Save New Salary</button></div></form>';
  }
  var actionsEnd=close+'</div>';
@@ -116,7 +116,7 @@ function tpArcRejoinForm(emp){
  '<div class="tp-field"><label for="tp-rejoin-designation">Designation *</label><input id="tp-rejoin-designation" required maxlength="90" list="tp-role-suggestions" value="'+tpEscape(emp.designation)+'"></div>'+
  '<div class="tp-field"><label for="tp-rejoin-restaurant">Restaurant *</label><select id="tp-rejoin-restaurant">'+tpArcRestaurantOptions(emp.restaurant)+'</select></div>'+
  (tpIsParcel(emp)?'<div class="tp-field"><label>Salary</label><p class="tp-note">Commission-only employee — no fixed salary.</p></div>':
- '<div class="tp-field"><label for="tp-rejoin-salary">New starting monthly salary (₹) *</label><input id="tp-rejoin-salary" required inputmode="decimal" value="'+(oldSalary/100).toFixed(2)+'"></div>')+
+ '<div class="tp-field"><label for="tp-rejoin-salary">New starting monthly salary (₹) *</label><input id="tp-rejoin-salary" required inputmode="decimal" value="'+tpRupees(oldSalary)+'"></div>')+
  '</div><datalist id="tp-role-suggestions">'+tpDesignationList().map(function(item){return '<option value="'+tpEscape(item.code)+'" label="'+tpEscape(item.title)+'"></option>';}).join("")+'</datalist>'+
  '<div class="tp-actions"><button type="submit" class="tp-button tp-primary">Confirm Rejoining</button>'+tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
 }
