@@ -1417,7 +1417,6 @@ document.addEventListener("change",function(ev){
   if(value===null||value>100000000){uxAlert("Enter a valid amount from ₹0 to ₹10,00,000.");draw();return;}
   if(name==="advance"){
    var a=p.advances[id]||{amount:0};
-   if(a.kind!=="office-loan"&&a.amount>0&&value===0){draw();return;}
    a.amount=value;a.kind="office-loan";a.enteredAt=tpStamp();
    delete a.paid;delete a.paidAt;
    p.advances[id]=a;
