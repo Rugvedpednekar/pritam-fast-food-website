@@ -265,3 +265,23 @@ test("Transfer form clearly lists other active outlets and excludes inactive bra
  expect(html).toContain("Available outlets: Restaurant 02");
  expect(html.indexOf('id="tp-transfer-form"')).toBeGreaterThan(html.indexOf("EMPLOYEE PROFILE"));
 });
+
+
+test("Employee profile groups transfer, resignation and deletion under one More actions menu",()=>{
+ const {app}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ const html=app.profile(emp);
+ const menuStart=html.indexOf('<details class="tp-profile-more">');
+ const menuEnd=html.indexOf('</details>',menuStart);
+ const menu=html.slice(menuStart,menuEnd);
+ expect(menuStart).toBeGreaterThan(-1);
+ expect(menu).toContain("More actions");
+ expect(menu).toContain('data-tp-action="transfer-employee"');
+ expect(menu).toContain('data-tp-action="mark-left"');
+ expect(menu).toContain('data-tp-action="delete-employee"');
+ expect(html.match(/data-tp-action="transfer-employee"/g)).toHaveLength(1);
+ expect(html.match(/data-tp-action="mark-left"/g)).toHaveLength(1);
+ expect(html.match(/data-tp-action="delete-employee"/g)).toHaveLength(1);
+ expect(html.indexOf('data-tp-action="edit-employee"')).toBeLessThan(menuStart);
+ expect(html.indexOf('data-tp-action="close-profile"',menuEnd)).toBeGreaterThan(menuEnd);
+ expect(html).toContain("Update Monthly Salary");
+});
