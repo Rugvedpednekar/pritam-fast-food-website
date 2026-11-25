@@ -163,7 +163,7 @@ function tpPublishPhoto(id,photo){
   var response=await fetch("/api/payroll/photo",{
    method:"PUT",credentials:"same-origin",cache:"no-store",
    headers:{"content-type":"application/json"},
-   body:JSON.stringify({employeeId:id,photo:photo})
+   body:JSON.stringify({employeeId:id,photo:photo,restaurantId:tpEmp(id)?.restaurantId||null})
   });
   if(!response.ok)throw Error("Photo sync HTTP "+response.status);
   return true;
