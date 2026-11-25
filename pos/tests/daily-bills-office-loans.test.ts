@@ -53,6 +53,7 @@ test("Bill History displays today's records, retaining older invoices for report
 });
 
 function payrollApp(){
+ let fakeToday="2026-11-25";
  const combined=payroll.replace(/\}\)\(\);\s*$/,archive+"\n})();");
  const handlers:Record<string,Function[]>={},alerts:string[]=[];
  const storage=new Map<string,string>();
@@ -73,7 +74,7 @@ function payrollApp(){
  const src=combined.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
   'return {data:()=>tpData,period:tpGetPeriod,compute:tpCompute,loan:tpLoanBalance,render:tpRender,setPage:function(s){tpTab=s;},handle:tpHandleAction};\n})();');
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab","selected","return "+src)(
-  document,{addEventListener:()=>{}},localStorage,restaurants,()=>"2026-11-25",
+  document,{addEventListener:()=>{}},localStorage,restaurants,()=>fakeToday,
   ()=>"",()=>"",()=>true,()=>{},()=>{},(v:string)=>alerts.push(v),"payroll","r1"
  ) as any;
  function change(id:string,name:string,value:string){
@@ -86,7 +87,7 @@ function payrollApp(){
    preventDefault:()=>{},stopImmediatePropagation:()=>{}};
   (handlers.submit||[]).forEach(fn=>fn(event));
  }
- return {app,alerts,change,submit};
+ return {app,alerts,change,submit,setToday:(v:string)=>{fakeToday=v;}};
 }
 
 test("Monthly advance immediately reduces salary; optional profile loan is separate and recovers a custom amount",()=>{
@@ -121,6 +122,39 @@ test("Monthly advance immediately reduces salary; optional profile loan is separ
  expect(html).toContain("Other deduction (₹)");
  expect(html).toContain("Office loan remaining");
  expect(html).toContain("₹18,800");
+});
+
+
+test("Office loan repayment repeats each month, stops at zero, and never creates an advance",()=>{
+ const {app,submit,setToday}=payrollApp(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ const current=app.period("2026-11");
+ current.advances.demo1={amount:0};
+ current.deductions.demo1={fine:0,other:0};
+ submit("tp-office-loan-issue-form","demo1",{"#tp-office-loan-amount":"3000","#tp-office-loan-note":"Travel help"});
+ submit("tp-office-loan-repayment-form","demo1",{"#tp-office-loan-deduction":"1000"});
+ expect(current.deductions.demo1.loanRepayment).toBe(100000);
+ expect(app.loan(emp)).toBe(200000);
+ setToday("2026-12-02");
+ const dec=app.period("2026-12");
+ dec.days.demo1="24";
+ const calc=app.compute(emp,dec,undefined,"2026-12");
+ expect(calc).toBeTruthy();
+ expect(dec.deductions.demo1.loanRepayment).toBe(100000);
+ expect(dec.deductions.demo1.other).toBe(100000);
+ expect(dec.advances.demo1).toBeUndefined();
+ expect(app.loan(emp)).toBe(100000);
+ setToday("2027-01-02");
+ const jan=app.period("2027-01");
+ jan.days.demo1="24";
+ app.compute(emp,jan,undefined,"2027-01");
+ expect(jan.deductions.demo1.loanRepayment).toBe(100000);
+ expect(app.loan(emp)).toBe(0);
+ setToday("2027-02-02");
+ const feb=app.period("2027-02");
+ feb.days.demo1="24";
+ app.compute(emp,feb,undefined,"2027-02");
+ expect(feb.deductions.demo1).toBeUndefined();
+ expect(app.loan(emp)).toBe(0);
 });
 
 test("Employee profile keeps a visible balance note and optional loan/repayment controls",()=>{
