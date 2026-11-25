@@ -4,7 +4,10 @@ import {readFileSync} from "node:fs";
 const base=readFileSync(new URL("../src/client/payroll-preview.js",import.meta.url),"utf8");
 const archive=readFileSync(new URL("../src/client/payroll-archive-increments.js",import.meta.url),"utf8");
 const bonus=readFileSync(new URL("../src/client/payroll-bonus-list.js",import.meta.url),"utf8");
-const combinedArchive=archive.replace(/\}\)\(\);\s*$/,bonus+"\n})();");
+const transfer=readFileSync(new URL("../src/client/payroll-transfers.js",import.meta.url),"utf8");
+const bonusWithTransfer=bonus.replace(/\}\)\(\);\s*$/,transfer+"\n})();");
+if(bonusWithTransfer===bonus)throw new Error("Transfer module insertion failed");
+const combinedArchive=archive.replace(/\}\)\(\);\s*$/,bonusWithTransfer+"\n})();");
 if(combinedArchive===archive)throw new Error("Bonus module insertion failed");
 const combined=base.replace(/\}\)\(\);\s*$/,combinedArchive+"\n})();");
 if(combined===base)throw new Error("Archive module insertion failed");
@@ -20,7 +23,7 @@ function boot(){
  const localStorage={getItem:(key:string)=>storage.get(key)||null,setItem:(key:string,value:string)=>storage.set(key,value)};
  const restaurants={restaurants:[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Restaurant 02",active:true}]};
  const instrumented=combined.replace(/^\/\*[\s\S]*?\*\/\s*/,"").replace(/\}\)\(\);\s*$/,
-  'return {render:tpRender,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,active:tpEmployees,profile:tpEmployeeProfile,selectRestaurant:function(v){selected=v;}};\n})();');
+  'return {render:tpRender,setPage:function(v){tpTab=v;},setMonth:function(v){tpPeriod=v;},data:function(){return tpData;},period:tpGetPeriod,active:tpEmployees,profile:tpEmployeeProfile,handle:tpHandleAction,employeeForm:tpEmployeeForm,selectRestaurant:function(v){selected=v;},getSelected:function(){return selected;}};\n})();');
  if(!instrumented.includes('return {render:tpRender'))throw new Error("Test instrumentation failed");
  const app=new Function("document","window","localStorage","data","dateIN","payroll","settings","confirm","draw","showToast","uxAlert","tab","selected","return "+instrumented)(
   document,{addEventListener:()=>{}},localStorage,restaurants,()=>"2026-11-25",
@@ -30,7 +33,12 @@ function boot(){
    preventDefault:()=>{},stopImmediatePropagation:()=>{}};
   (handlers.submit||[]).forEach(fn=>fn(event));
  }
- return {app,handlers,storage,alerts,toasts,saveBonusBasis};
+ function submitForm(id:string,employeeId:string,fields:Record<string,string>){
+  const event={target:{id,dataset:{id:employeeId},querySelector:(selector:string)=>Object.prototype.hasOwnProperty.call(fields,selector)?{value:fields[selector]}:null},
+   preventDefault:()=>{},stopImmediatePropagation:()=>{}};
+  (handlers.submit||[]).forEach(fn=>fn(event));
+ }
+ return {app,handlers,storage,alerts,toasts,saveBonusBasis,submitForm};
 }
 
 test("Bonus List is a dedicated payroll section with per-month employee IDs and days",()=>{
@@ -126,4 +134,113 @@ test("Bonus eligibility is not falsely approved before a days-per-month rule is 
  expect(html).toContain("Awaiting conversion rule");
  expect(html).toContain("11 equivalent months qualify for full bonus");
  expect(html).toContain("capped at 12 equivalent months");
+});
+
+
+test("Transfer Employee form has only destination, date and recorded-day allocation — no transfer types",()=>{
+ const {app}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ app.setPage("employees");
+ expect(app.profile(emp)).toContain('data-tp-action="transfer-employee"');
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ const html=app.render();
+ expect(html).toContain('id="tp-transfer-form"');
+ expect(html).toContain('id="tp-transfer-outlet"');
+ expect(html).toContain('id="tp-transfer-date"');
+ expect(html).toContain('id="tp-transfer-old-days"');
+ expect(html).toContain("From outlet");
+ expect(html).toContain("To outlet");
+ expect(html).not.toContain('id="tp-transfer-type"');
+ expect(html).not.toContain("Temporary / Permanent");
+ expect(html).not.toContain("Permanent transfer");
+ expect(html).not.toContain("Temporary transfer");
+});
+
+test("Transferring updates outlet and monthly ID without changing salary or total workdays",()=>{
+ const {app,submitForm,alerts}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ const p=app.period("2026-11"),oct=app.period("2026-10");
+ const priorTotal=p.days.demo1,oldId=p.serials.demo1,octId=oct.serials.demo1;
+ const n=app.data().employees.length;
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ submitForm("tp-transfer-form","demo1",{
+  "#tp-transfer-outlet":"r2","#tp-transfer-date":"2026-11-25","#tp-transfer-old-days":"12"
+ });
+ expect(alerts).toHaveLength(0);
+ expect(app.data().employees.length).toBe(n);
+ expect(emp.id).toBe("demo1");
+ expect(emp.restaurant).toBe("Restaurant 02");
+ expect(emp.restaurantId).toBe("r2");
+ expect(app.getSelected()).toBe("r2");
+ expect(p.days.demo1).toBe(priorTotal);
+ expect(oct.serials.demo1).toBe(octId);
+ expect(p.bonusOutlets.demo1.segments).toEqual([
+  {restaurant:"Pritam Fast Food",restaurantId:"r1",monthlyId:oldId,days:12},
+  {restaurant:"Restaurant 02",restaurantId:"r2",monthlyId:3,days:null}
+ ]);
+ expect(p.serials.demo1).toBe(3);
+ expect(app.data().transfers).toHaveLength(1);
+ expect(app.data().transfers[0]).toMatchObject({
+  employeeId:"demo1",date:"2026-11-25",fromMonthlyId:oldId,toMonthlyId:3,daysAtPreviousOutlet:12
+ });
+ app.setPage("bonus");
+ const sheet=app.render();
+ expect(sheet).toContain("ID 1");
+ expect(sheet).toContain("ID 3");
+ expect(sheet).toContain("12 days");
+ expect(sheet).toContain("14 days");
+ expect(sheet).toContain("26"); // Split 12 + 14 = original 26, not 52.
+ expect(app.profile(emp)).toContain("Outlet Transfer History");
+ expect(app.profile(emp)).toContain("25 Nov 2026");
+});
+
+test("Multiple outlet transfers in one month split recorded days without double counting",()=>{
+ const {app,submitForm,alerts}=boot();
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ submitForm("tp-transfer-form","demo1",{
+  "#tp-transfer-outlet":"r2","#tp-transfer-date":"2026-11-25","#tp-transfer-old-days":"12"
+ });
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ submitForm("tp-transfer-form","demo1",{
+  "#tp-transfer-outlet":"r1","#tp-transfer-date":"2026-11-25","#tp-transfer-old-days":"8"
+ });
+ expect(alerts).toHaveLength(0);
+ const p=app.period("2026-11"),segments=p.bonusOutlets.demo1.segments;
+ expect(p.days.demo1).toBe("26");
+ expect(segments.map((x:any)=>x.days)).toEqual([12,8,null]);
+ expect(segments.map((x:any)=>x.restaurantId)).toEqual(["r1","r2","r1"]);
+ expect(app.data().transfers).toHaveLength(2);
+ app.setPage("bonus");
+ const list=app.render();
+ expect(list).toContain("12 days");
+ expect(list).toContain("8 days");
+ expect(list).toContain("6 days");
+ const row=list.match(/<tr><td><strong>Aarav Patil<\/strong><\/td>([\s\S]*?)<\/tr>/)?.[1]||"";
+ expect(row).toContain("ID 1");
+ expect(row).toContain("ID 3");
+});
+
+test("Transfer validation protects historical months and rejects invalid day splits",()=>{
+ const {app,submitForm,alerts}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ app.handle({dataset:{tpAction:"transfer-employee",id:"demo1"}});
+ submitForm("tp-transfer-form","demo1",{
+  "#tp-transfer-outlet":"r2","#tp-transfer-date":"2026-10-20","#tp-transfer-old-days":"12"
+ });
+ expect(emp.restaurantId).toBe("r1");
+ expect(alerts.some(s=>s.includes("current month"))).toBe(true);
+ submitForm("tp-transfer-form","demo1",{
+  "#tp-transfer-outlet":"r2","#tp-transfer-date":"2026-11-25","#tp-transfer-old-days":"29"
+ });
+ expect(emp.restaurantId).toBe("r1");
+ expect(alerts.some(s=>s.includes("between 0 and 26"))).toBe(true);
+ expect(app.data().transfers).toBeUndefined();
+});
+
+test("Editing an existing employee keeps outlet read-only and points to Transfer Employee",()=>{
+ const {app}=boot(),emp=app.data().employees.find((e:any)=>e.id==="demo1");
+ const html=app.employeeForm(emp);
+ expect(html).toContain("Current outlet");
+ expect(html).toContain("Use Transfer Employee");
+ expect(html).not.toContain('id="tp-restaurant" name="restaurant"');
+ expect(html).toContain('type="hidden" name="restaurant"');
+ const newEmployee=app.employeeForm(null);
+ expect(newEmployee).toContain('id="tp-restaurant"');
 });
