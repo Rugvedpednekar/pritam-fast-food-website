@@ -30,7 +30,7 @@ function boot(savedData){
  return {app,storage,handlers,setInputs};
 }
 
-test("Employee photos have an open button, remove X and a touch-friendly lightbox",()=>{
+test("Employee photos open anywhere but remove X appears only in Edit Employee",()=>{
  const {app}=boot();
  app.setPage("employees");
  let page=app.page();
@@ -39,8 +39,8 @@ test("Employee photos have an open button, remove X and a touch-friendly lightbo
  employee.photo="data:image/jpeg;base64,AA==";
  page=app.page();
  expect(page).toContain('data-tp-action="open-employee-photo"');
- expect(page).toContain('data-tp-action="remove-employee-photo"');
- expect(page).toContain('aria-label="Remove photo of '+employee.name+'"');
+ expect(page).not.toContain('data-tp-action="remove-employee-photo"');
+ expect(page).not.toContain('aria-label="Remove photo of '+employee.name+'"');
  app.handle({dataset:{tpAction:"edit-employee",id:employee.id}});
  page=app.page();
  expect(page).toContain('data-tp-action="open-photo-preview"');
@@ -60,7 +60,8 @@ test("Employee photos sync through owner login and never use public photo URLs",
  expect(source).toContain('"/api/payroll/photo"');
  expect(source).toContain('credentials:"same-origin"');
  expect(source).toContain('tpPhotoChanged[savedEmp.id]=true');
- expect(source).toContain('tpPhotoChanged[id]=true');
+ expect(source).toContain('tpPublishPhoto(savedEmp.id,savedEmp.photo||"")');
+ expect(source).toContain('if(!tpEditing||tpEditing==="new")return;');
  expect(source).toContain("tpOriginalCloudLoad=cloudLoad");
  const server=readFileSync(new URL("../src/server.ts",import.meta.url),"utf8");
  expect(server.indexOf('if(!auth(req))')).toBeLessThan(server.indexOf('if(path==="/api/payroll/photos"'));
