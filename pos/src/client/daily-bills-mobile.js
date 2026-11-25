@@ -3,9 +3,30 @@
 (function(){
  "use strict";
  navnames.reports="Reports";
+ // Daily history follows each outlet's configured IST business-day cutoff.
+ // The live list rolls over immediately at cutoff, without deleting old invoices.
  function activeBillDay(){
-  var existing=data.openDays&&data.openDays[selected];
+  var existing=data.openDays&&data.openDays[selected],cfg=data.branchSettings&&data.branchSettings[selected]||{};
+  if(cfg.autoDayEndEnabled===true&&/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(cfg.autoDayEndTime)){
+   var now=Date.now(),offset=330*60000,local=new Date(now+offset),parts=cfg.autoDayEndTime.split(":").map(Number);
+   var cutoff=Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate(),parts[0],parts[1])-offset;
+   if(cutoff>now)cutoff-=86400000;
+   return new Date(cutoff+offset).toISOString().slice(0,10);
+  }
   return existing&&existing.date||today();
+ }
+ var twBillHistoryMode="today",twBillHistoryDate="",twBillHistoryOutlet="";
+ function twBillHistoryDateOf(b){return String(b.businessDate||b.day||"");}
+ function twBillHistoryPastDates(current){
+  var dates={};
+  (data.bills||[]).forEach(function(b){
+   var d=twBillHistoryDateOf(b);
+   if(b.restaurantId===selected&&/^\\d{4}-\\d{2}-\\d{2}$/.test(d)&&d<current)dates[d]=true;
+  });
+  return Object.keys(dates).sort().reverse();
+ }
+ function twBillHistoryRows(day){
+  return (data.bills||[]).filter(function(b){return b.restaurantId===selected&&twBillHistoryDateOf(b)===day;});
  }
  // One independent invoice sequence per outlet per business day.
  // The old FY-scoped counters are kept only for legacy invoices.
@@ -26,12 +47,49 @@
   return String(value);
  };
  bills=function(){
-  var day=activeBillDay(),daily=dayBills(selected,day);
-  return header("Bill History","Today's "+e(pretty(day))+" bills. Numbering restarts at 1 for each restaurant every day.",'')+
-   '<div class="panel"><h2 class="panel-title">'+e(selectedName())+' · '+e(pretty(day))+'</h2>'+
-   '<p class="panel-sub">'+daily.length+' bill(s) today. Older invoices remain securely stored for reporting and audit.</p>'+
-   smallTable(daily,500)+'</div>';
+  var current=activeBillDay(),pastDates=twBillHistoryPastDates(current);
+  if(twBillHistoryOutlet!==selected){twBillHistoryMode="today";twBillHistoryDate="";twBillHistoryOutlet=selected;}
+  if(twBillHistoryMode==="previous"&&pastDates.indexOf(twBillHistoryDate)<0)twBillHistoryDate=pastDates[0]||"";
+  var previous=twBillHistoryMode==="previous",day=previous?twBillHistoryDate:current;
+  var daily=day?twBillHistoryRows(day):[];
+  var buttons='<button type="button" class="btn'+(!previous?' primary':'')+'" data-tw-history="today" aria-pressed="'+(!previous)+'">Current Day</button> '+
+   '<button type="button" class="btn'+(previous?' primary':'')+'" data-tw-history="previous" aria-pressed="'+previous+'">Previous Days</button>';
+  var caption=previous?"View historical bills by business date. Closed bills are read-only and remain available to print.":
+   "Only the current business day's bills are shown. The list clears automatically when a new business day begins.";
+  var selector=previous?'<div class="tw-bill-history-filter"><label for="tw-bill-history-date">Select previous business day</label>'+
+   '<select id="tw-bill-history-date" class="input" aria-label="Previous bill date"'+(pastDates.length?'':' disabled')+'>'+
+   pastDates.map(function(d){return '<option value="'+e(d)+'"'+(d===day?' selected':'')+'>'+e(pretty(d))+'</option>';}).join("")+
+   '</select></div>':'';
+  var message=!previous?(daily.length?daily.length+' bill(s) for this business day.':"No bills for this business day yet.") :
+   (day?daily.length+' saved bill(s) for '+pretty(day)+'.':"No previous-day bills are available yet.");
+  return header("Bill History",(previous?"Previous Days · ":"Current Day · ")+e(pretty(current)),buttons)+
+   '<div class="panel tw-bill-history-panel"><div class="tw-bill-history-heading"><div><h2 class="panel-title">'+e(selectedName())+' · '+(day?e(pretty(day)):"Previous Days")+'</h2>'+
+   '<p class="panel-sub">'+e(caption)+'</p></div>'+selector+'</div>'+
+   '<p class="sub">'+e(message)+'</p>'+ (day?smallTable(daily,500):'<div class="empty">There are no older bills to display.</div>')+'</div>';
  };
+ if(typeof document.addEventListener==="function"){
+  document.addEventListener("click",function(event){
+   var target=event.target&&event.target.closest&&event.target.closest("button[data-tw-history]");
+   if(!target||tab!=="bills")return;
+   event.preventDefault();event.stopImmediatePropagation();
+   var next=target.getAttribute("data-tw-history");
+   if(next!=="today"&&next!=="previous")return;
+   twBillHistoryMode=next;
+   if(next==="today")twBillHistoryDate="";
+   draw();
+  },true);
+  document.addEventListener("change",function(event){
+   var target=event.target;
+   if(tab!=="bills"||!target||target.id!=="tw-bill-history-date")return;
+   var allowed=twBillHistoryPastDates(activeBillDay());
+   if(allowed.indexOf(target.value)<0)return;
+   twBillHistoryDate=target.value;twBillHistoryMode="previous";
+   draw();
+  },true);
+ }
+ var twBillHistoryCSS=document.createElement("style");
+ twBillHistoryCSS.textContent='.tw-bill-history-heading{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px}.tw-bill-history-heading>div:first-child{min-width:0;flex:1}.tw-bill-history-filter{display:grid;gap:7px;min-width:min(100%,245px)}.tw-bill-history-filter label{font-size:12px;font-weight:750;color:var(--muted)}.tw-bill-history-filter select{width:100%;min-height:44px}@media(max-width:600px){.tw-bill-history-filter{width:100%}.tw-bill-history-heading{align-items:stretch}.heading .quick button[data-tw-history]{flex:1}}';
+ document.head.appendChild(twBillHistoryCSS);
  // Print popups often fail on iPhone/Android. Instead, show a printable
  // receipt on the same page with a real tapped Print control.
  var previousPrintBill=printBill;
