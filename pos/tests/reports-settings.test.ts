@@ -17,7 +17,7 @@ function mountReportsSettings(){
  const stub={
   getElementById:(id:string)=>id==="content"?content:null
  };
- const code=source.replace(/\}\)\(\);\s*$/, `return {settings, reports, draw};})();`);
+ const code=source.replace(/^\/\*[\s\S]*?\*\/\s*/, "").replace(/\}\)\(\);\s*$/, `return {settings, reports, draw};})();`);
  const runtime=new Function("settings","reports","draw","tab","document","window","MutationObserver","return "+code)(
   ()=>'<div class="heading">Settings</div><div class="panel">Invoice configuration</div>',
   ()=>'<section class="report-panel">Saved reports</section>',
