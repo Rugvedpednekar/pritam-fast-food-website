@@ -52,6 +52,11 @@ test("Bonus List has editable period and only the compact month matrix",()=>{
  expect(h).toContain('class="tp-bonus-mini"');
  expect(h).toContain('data-tp-action="pdf-bonus-list"');
  expect(h).not.toContain("Detailed month-by-month bonus list");
+ expect(h).not.toContain('id="tp-bonus-basis-form"');
+ expect(h).not.toContain("Save Bonus Rule");
+ expect(h).not.toContain("Full bonus eligible");
+ expect(h).toContain("<th>Jun 26</th>");
+ expect(h).toContain("<th>Jul 26</th>");
  expect(h).not.toContain("ID in that month");
 });
 test("Custom period supports 1 to 12 months and rejects 13 months",()=>{
@@ -61,25 +66,26 @@ test("Custom period supports 1 to 12 months and rejects 13 months",()=>{
  let h=app.render();
  expect(h).toContain('value="2026-04"');
  expect(h).toContain('value="2026-11"');
- expect(h).not.toContain("<th>March 2026</th>");
- expect(h).toContain("<th>April 2026</th>");
+ expect(h).not.toContain("<th>Mar 26</th>");
+ expect(h).toContain("<th>Apr 26</th>");
  submitForm("tp-bonus-period-form","",{"#tp-bonus-period-from":"2025-11","#tp-bonus-period-through":"2026-11"});
  expect(alerts.some(a=>a.includes("1 to 12"))).toBe(true);
- expect(app.render()).not.toContain("<th>November 2025</th>");
+ expect(app.render()).not.toContain("<th>Nov 25</th>");
 });
 test("Bonus months remain capped at 12 even when actual days exceed that threshold",()=>{
- const {app,saveBasis}=boot();
+ const {app}=boot();
  for(let i=-12;i<=0;i++){
   const month=new Date(Date.UTC(2026,10+i,1)).toISOString().slice(0,7);
   const p=app.period(month);p.days.demo1="30";p.serials.demo1=i+15;
   p.snapshots.demo1={days:30,restaurant:"Pritam Fast Food"};
  }
- saveBasis("26");app.setPage("bonus");
+ app.setPage("bonus");
  const h=app.render();
- expect(h).toContain("<th>December 2025</th>");
- expect(h).not.toContain("<th>November 2025</th>");
- expect(h).toContain("12.00");
- expect(h).not.toContain("13.85");
+ expect(h).toContain("<th>Dec 25</th>");
+ expect(h).not.toContain("<th>Nov 25</th>");
+ expect(h).toContain("<th>Nov 26</th>");
+ expect(h).toContain("<strong>360</strong>");
+ expect(h).not.toContain("Months / 12");
 });
 test("Compact cells show numeric monthly ID, worked days, and restaurant acronym",()=>{
  const {app}=boot();
@@ -194,6 +200,6 @@ test("Single-page landscape bonus PDF has narrow month columns and employee rows
  expect(pdfCode).toContain("tpMonthSalary");
  expect(pdfCode).toContain("tpBonusOutletCode");
  expect(pdfCode).toContain("person.days");
- expect(pdfCode).toContain("tpBonusCreditedMonths");
+ expect(pdfCode).toContain("tpBonusShortMonth");
  expect(pdfCode).toContain('landscape');
 });
