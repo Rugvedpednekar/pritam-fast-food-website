@@ -108,7 +108,7 @@ html=html.replace("startupFinished=true;\ncloudStart();\n})();",
  dailyBillsModule+"\n"+"startupFinished=true;\ncloudStart();\n})();");
 // Owner PIN, destructive reset controls and protected local-payroll cleanup.
 const ownerResetClient=await Bun.file(new URL("./client/owner-reset.js",import.meta.url)).text();
-const ownerBoot="startupFinished=true;\\ncloudStart();\\n})();";
+const ownerBoot="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(ownerBoot))throw Error("Owner reset insertion point missing");
 html=html.replace(ownerBoot,ownerResetClient+"\\n"+ownerBoot);
 // Dark mode is the default for every workspace, including styles injected at runtime.
