@@ -646,6 +646,148 @@ html[data-theme="dark"] body #content .pill.neutral{
  }
 }
 
+
+/* Reports now opens from Settings. The report renderer may inject legacy
+   light-mode cards at runtime; the runtime tags bright surfaces so these
+   scoped rules darken them without affecting other screens. */
+html[data-theme="dark"] #content .tw-settings-report-entry{
+ background:#192b34!important;
+ color:#eaf5f0!important;
+ border:1px solid #3b535c!important;
+}
+html[data-theme="dark"] #content .tw-settings-report-entry-head{
+ display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+}
+html[data-theme="dark"] #content .tw-settings-report-entry .panel-title{
+ color:#f0f8f4!important;
+}
+html[data-theme="dark"] #content .tw-settings-report-entry .panel-sub{
+ color:#b9cbd0!important;
+ max-width:700px;
+}
+html[data-theme="dark"] #content .tw-settings-report-entry .btn{
+ min-height:44px;
+}
+html[data-theme="dark"] #content.tw-settings-reports{
+ background:#101b22!important;
+ color:#ebf5f1!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports .tw-reports-back{
+ margin:0 0 14px;
+ display:flex;justify-content:flex-start;
+}
+html[data-theme="dark"] #content.tw-settings-reports .tw-reports-back .btn{
+ background:#253e45!important;
+ border:1px solid #4c6770!important;
+ color:#eaf5ef!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports .tw-report-light-surface,
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ .panel,.card,.report-panel,.report-card,.report-toolbar,.report-results,
+ .rep-panel,.rep-card,.rep-toolbar,.rep-filters,.rep-results,
+ [class*="rep-panel"],[class*="rep-card"],[class*="report-panel"],
+ [class*="report-card"],[class*="report-filter"],[class*="report-table"]
+){
+ background:#1c2e37!important;
+ color:#eaf5f0!important;
+ border-color:#3b535c!important;
+ box-shadow:none!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ h1,h2,h3,h4,h5,h6,strong,b,label,legend,summary,
+ .panel-title,.heading,.title,.report-title,.rep-title
+){color:#f2faf7!important;opacity:1!important;}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ p,small,span,div,td,th,dt,dd,
+ .sub,.panel-sub,.hint,.help,.report-label,.rep-label,
+ .report-value,.rep-value,.report-metric,.rep-metric
+){color:#dbeae7!important;opacity:1!important;}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ input,select,textarea,[role="combobox"],[type="date"]
+){
+ background:#132730!important;
+ color:#eff7f4!important;
+ border:1px solid #4b6a73!important;
+ color-scheme:dark!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(input,textarea)::placeholder{
+ color:#b7c9cd!important;
+ opacity:1;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ input,select,textarea,button
+):focus-visible{
+ outline:2px solid #66d6b4!important;
+ outline-offset:2px;
+}
+html[data-theme="dark"] #content.tw-settings-reports table{
+ background:#192c35!important;
+ border-color:#3b525c!important;
+ color:#f0f8f5!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports th,
+html[data-theme="dark"] #content.tw-settings-reports thead tr{
+ background:#243e48!important;
+ color:#f1f9f5!important;
+ border-color:#4a6370!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports td,
+html[data-theme="dark"] #content.tw-settings-reports tbody tr{
+ background:#192c35!important;
+ color:#e7f3ef!important;
+ border-color:#3c535d!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports tbody tr:nth-child(even) td{
+ background:#203640!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ .tw-report-light-surface.btn,.tw-report-light-surface[type="button"],
+ button[class*="export"],button[class*="download"]
+){
+ background:#293f49!important;
+ border-color:#527080!important;
+ color:#f0f9f5!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ .btn.primary,button.primary,button[type="submit"]
+){
+ background:#128b70!important;
+ border-color:#179c7f!important;
+ color:#fff!important;
+}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ a,[role="link"]
+){color:#9deccd!important;}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ .report-summary,.report-total,.rep-summary,.rep-total
+){color:#f3fbf7!important;}
+html[data-theme="dark"] #content.tw-settings-reports :is(
+ button,input,select,textarea
+):disabled{opacity:.7!important;}
+@media(max-width:760px){
+ html[data-theme="dark"] #content .tw-settings-report-entry-head{
+  flex-direction:column;align-items:stretch;
+ }
+ html[data-theme="dark"] #content .tw-settings-report-entry-head .btn{
+  width:100%;
+ }
+ html[data-theme="dark"] #content.tw-settings-reports table{
+  min-width:max-content;
+ }
+}
+@media print{
+ html[data-theme="dark"] #content.tw-settings-reports,
+ html[data-theme="dark"] #content.tw-settings-reports .tw-report-light-surface,
+ html[data-theme="dark"] #content.tw-settings-reports :is(.panel,.card,table,tbody,thead,tr,th,td),
+ html[data-theme="dark"] #content.tw-settings-reports :is(h1,h2,h3,h4,h5,h6,label,span,strong,div,p){
+  background:#fff!important;
+  color:#111!important;
+ }
+ html[data-theme="dark"] #content.tw-settings-reports .tw-reports-back{
+  display:none!important;
+ }
+}
+
 /* Keep printed bills and payroll PDFs white with legible dark ink. */
 @media print{
  html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
