@@ -1,4 +1,5 @@
 import {closeDueBusinessDays} from "./day-end";
+import {normalizeRestaurantNames} from "./restaurant-name";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
@@ -126,14 +127,16 @@ async function runAutomaticDayEnd() {
     const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");
     if (!rows.length) return;
     const current=rows[0],state=JSON.parse(current.payload);
+    const renamed=normalizeRestaurantNames(state);
     const due=closeDueBusinessDays(state,new Date());
-    if (!due.length) return;
+    if (!due.length&&!renamed) return;
     const saved=await db.unsafe(
       "UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",
       [JSON.stringify(state),Number(current.version)]
     );
     if (saved.length) {
-      console.log("Auto business day ended for "+due.join(", "));
+      if(due.length)console.log("Auto business day ended for "+due.join(", "));
+      if(renamed)console.log("Normalized legacy restaurant name to Pritam Fast Food.");
       return;
     }
   }
@@ -171,6 +174,7 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
   let b;try{b=JSON.parse(text)}catch{return res({error:"Invalid JSON"},400)}
   let v=b?.version,state=b?.state;
   if(!Number.isSafeInteger(v)||v<0||state?.schema!==1||!Array.isArray(state.restaurants)||(state.restaurants.length<1||state.restaurants.length>50||!state.restaurants.some(r=>r&&r.active!==false))||!Array.isArray(state.bills)||!Array.isArray(state.employees)||!Array.isArray(state.closings)||!state.menus||!Number.isSafeInteger(state.seq))return res({error:"Invalid demo schema"},422);
+  normalizeRestaurantNames(state);
   try{await ready();await runAutomaticDayEnd();let rows;if(v===0)rows=await db.unsafe("INSERT INTO demo_snapshots(account_key,version,payload) VALUES('owner',1,$1::jsonb) ON CONFLICT DO NOTHING RETURNING version",[JSON.stringify(state)]);
   else rows=await db.unsafe("UPDATE demo_snapshots SET payload=$1::jsonb,version=version+1,updated_at=now() WHERE account_key='owner' AND version=$2 RETURNING version",[JSON.stringify(state),v]);
   return rows.length?res({ok:true,version:Number(rows[0].version)}):res({error:"Concurrent update detected. Reload cloud data.",code:"VERSION_CONFLICT"},409)
