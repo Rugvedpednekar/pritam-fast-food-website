@@ -386,7 +386,8 @@ function tpEmployeeForm(emp){
  }).join("")+'</select>'+
  '<small>Create or change shortcuts in Payroll → Settings → Designation Shortcuts.</small></div>'+
  '<div class="tp-field"><label for="tp-joined">Joining date *</label><input id="tp-joined" name="joined" type="date" required value="'+tpEscape(values.joined)+'"></div>'+
- '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>'+
+ (emp?'<div class="tp-field"><label>Current outlet</label><strong>'+tpEscape(values.restaurant)+'</strong><input type="hidden" name="restaurant" value="'+tpEscape(values.restaurant)+'"><small>Use Transfer Employee on the profile to change outlets and preserve transfer history.</small></div>':
+ '<div class="tp-field"><label for="tp-restaurant">Restaurant *</label><select id="tp-restaurant" name="restaurant">'+options.map(function(name){return'<option value="'+tpEscape(name)+'" '+(name===values.restaurant?'selected':'')+'>'+tpEscape(name)+'</option>';}).join("")+'</select></div>')+
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
  '<div class="tp-field"><label for="tp-aadhaar">Aadhaar number (optional)</label><input id="tp-aadhaar" name="aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" pattern="([0-9]{4}|[0-9]{12})" value="'+tpEscape(values.aadhaarLast4||"")+'" placeholder="4 or 12 digits"><small>For privacy, only the last 4 digits are saved on this device. The full Aadhaar number is never stored in this demo.</small></div>'+
  (emp?'<div class="tp-field tp-salaried-only"><label>Current monthly salary</label><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong><small>To change it, open the employee profile and enter the new salary there.</small></div>':
@@ -1175,6 +1176,7 @@ document.addEventListener("submit",function(ev){
  if(!parcel&&salary>1000000000)return uxAlert("For this demo, monthly salary must be at most ₹1,00,00,000.");
  var existing=tpEditing&&tpEditing!=="new"?tpEmp(tpEditing):null;
  if(tpEditing!=="new"&&!existing)return uxAlert("Employee no longer exists. Refresh Payroll.");
+ if(existing&&restaurant!==existing.restaurant)return uxAlert("Use Transfer Employee in the employee profile to move outlets while keeping attendance and bonus history.");
  var before=JSON.stringify(tpData);
  if(existing){
   if(tpIsParcel(existing)!==parcel){uxAlert("Employee type is fixed to preserve past payroll. Create a new employee record instead.");return;}
