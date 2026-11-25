@@ -110,7 +110,7 @@ html=html.replace("startupFinished=true;\ncloudStart();\n})();",
 const ownerResetClient=await Bun.file(new URL("./client/owner-reset.js",import.meta.url)).text();
 const ownerBoot="startupFinished=true;\ncloudStart();\n})();";
 if(!html.includes(ownerBoot))throw Error("Owner reset insertion point missing");
-html=html.replace(ownerBoot,ownerResetClient+"\\n"+ownerBoot);
+html=html.replace(ownerBoot,ownerResetClient+"\n"+ownerBoot);
 // Dark mode is the default for every workspace, including styles injected at runtime.
 html=html.replace('<html lang="en">','<html lang="en" data-theme="dark">');
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
