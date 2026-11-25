@@ -694,6 +694,8 @@ test("New parcel-boy commission forms default to Monthly Total; prior daily entr
  expect(first).toContain('value="total" selected');
  expect(first).toContain('data-tp-field="commissionTotal"');
  expect(first).not.toContain('data-tp-field="commissionDaily"');
+ // A worker who explicitly chose daily entry keeps that choice.
+ app.period("2026-11").commissions[existing.id].mode="daily";
  app.openCommission(existing.id);
  const old=app.page();
  expect(old).toContain('value="daily" selected');
