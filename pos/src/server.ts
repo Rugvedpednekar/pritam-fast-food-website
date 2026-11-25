@@ -2,6 +2,7 @@ import {closeDueBusinessDays} from "./day-end";
 import {normalizeRestaurantNames} from "./restaurant-name";
 import {createOwnerResetController} from "./owner-reset";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
+const darkThemeCSS = await Bun.file(new URL("./client/dark-theme.css", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
 const employeeExtension=Bun.env.EMPLOYEE_EXTENSION_JS;
@@ -105,6 +106,14 @@ if(!dailyBillsModule.includes("newInvoiceNumber=function(day)"))throw Error("Dai
 if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("Daily bill insertion point missing");
 html=html.replace("startupFinished=true;\ncloudStart();\n})();",
  dailyBillsModule+"\n"+"startupFinished=true;\ncloudStart();\n})();");
+// Owner PIN, destructive reset controls and protected local-payroll cleanup.
+const ownerResetClient=await Bun.file(new URL("./client/owner-reset.js",import.meta.url)).text();
+const ownerBoot="startupFinished=true;\\ncloudStart();\\n})();";
+if(!html.includes(ownerBoot))throw Error("Owner reset insertion point missing");
+html=html.replace(ownerBoot,ownerResetClient+"\\n"+ownerBoot);
+// Dark mode is the default for every workspace, including styles injected at runtime.
+html=html.replace('<html lang="en">','<html lang="en" data-theme="dark">');
+html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
