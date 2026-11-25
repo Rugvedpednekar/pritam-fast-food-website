@@ -15,12 +15,12 @@ function restaurantState(){
  };
 }
 
-function fakeDB(initial:any, opts:{raced?:boolean}={}){
+function fakeDB(initial:any, opts:{raced?:boolean,doubleEncoded?:boolean,malformed?:boolean}={}){
  let snapshot=structuredClone(initial),version=7,deletedPhotos=0,tombstones=0,updateAttempts=0,unrecognizedQuery="";
  async function sql(query:string,params:any[]=[],within=false):Promise<any[]>{
   if(query.startsWith("SELECT version,payload::text")){
    if(within)throw Error("Should not read the snapshot from transaction SELECT");
-   return [{version,payload:JSON.stringify(snapshot)}];
+   return [{version,payload:opts.malformed?"{not-json":opts.doubleEncoded?JSON.stringify(JSON.stringify(snapshot)):JSON.stringify(snapshot)}];
   }
   if(query.startsWith("UPDATE demo_snapshots SET payload=")){
    updateAttempts++;
@@ -81,3 +81,24 @@ test("Wrong confirmation and last-restaurant protection block permanent deletion
  expect(()=>purgeRestaurantState(only,"r1")).toThrow("At least one restaurant must remain");
  expect(only.restaurants).toHaveLength(1);
 });
+
+test("Delete a fake restaurant stored as a legacy double-encoded JSONB string",async()=>{
+ const {controller,get}=fakeDB(restaurantState(),{doubleEncoded:true});
+ const result=await controller.deleteRestaurant({
+  restaurantId:"r2",version:7,confirmation:"DELETE",employeeIds:["e2"]
+ });
+ expect(result.ok).toBe(true);
+ expect(result.state.restaurants.map((r:any)=>r.id)).toEqual(["r1"]);
+ expect(result.state.bills.map((b:any)=>b.id)).toEqual(["1"]);
+ expect(result.state.menus).toHaveProperty("r1");
+ expect(result.state.menus).not.toHaveProperty("r2");
+ expect(get()).toMatchObject({version:8,deletedPhotos:1,tombstones:1});
+});
+
+test("Malformed JSON fails safely before any delete or database update",async()=>{
+ const {controller,get}=fakeDB(restaurantState(),{malformed:true});
+ await expect(controller.deleteRestaurant({restaurantId:"r2",version:7,confirmation:"DELETE"}))
+  .rejects.toThrow("Could not decode saved restaurant data");
+ expect(get()).toMatchObject({version:7,deletedPhotos:0,tombstones:0,updateAttempts:0});
+});
+
