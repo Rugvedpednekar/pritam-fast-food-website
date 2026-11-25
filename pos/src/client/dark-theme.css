@@ -177,6 +177,103 @@ html[data-theme="dark"] .tp-app .tp-photo-lightbox{background:#071116f5!importan
 html[data-theme="dark"] .tp-app .tp-x{background:#29404a!important;color:#dcece8!important}
 html[data-theme="dark"] .tw-owner-modal{background:#192830!important}
 html[data-theme="dark"] .tw-owner-modal label{color:#dceeea}
+
+/* Payroll dark-mode contrast fix (dashboard, tabs and secondary workflow views).
+   The payroll extension injects its light stylesheet at runtime; these explicit
+   rules intentionally override those defaults while preserving print output. */
+html[data-theme="dark"] .tp-app .tp-nav{
+ background:#192830!important;
+ border-color:#344c56!important;
+ box-shadow:0 4px 20px #06101640!important;
+}
+html[data-theme="dark"] .tp-app .tp-nav button{
+ background:transparent!important;
+ color:#bccfd3!important;
+}
+html[data-theme="dark"] .tp-app .tp-nav button:hover,
+html[data-theme="dark"] .tp-app .tp-nav button:focus-visible{
+ background:#28423f!important;
+ color:#a8f2d8!important;
+ outline-color:#6ce1c5!important;
+}
+html[data-theme="dark"] .tp-app .tp-nav button.tp-active{
+ background:#1e5249!important;
+ color:#b2f7db!important;
+}
+html[data-theme="dark"] .tp-app .tp-stat{
+ background:#192830!important;
+ border:1px solid #344b54!important;
+ box-shadow:0 6px 20px #060e143d!important;
+ color:#e8f2ef!important;
+}
+html[data-theme="dark"] .tp-app .tp-stat-head,
+html[data-theme="dark"] .tp-app .tp-stat-head span,
+html[data-theme="dark"] .tp-app .tp-stat small{
+ color:#afc5cd!important;
+}
+html[data-theme="dark"] .tp-app .tp-stat strong,
+html[data-theme="dark"] .tp-app .tp-stat .tp-stat-value{
+ color:#f0f9f5!important;
+}
+html[data-theme="dark"] .tp-app .tp-stat-icon{
+ color:#70e3be!important;
+ background:#28493f!important;
+}
+html[data-theme="dark"] .tp-app .tp-stat:hover{
+ border-color:#466c6a!important;
+}
+html[data-theme="dark"] .tp-app .tp-profile-more>summary,
+html[data-theme="dark"] .tp-app .tp-profile-menu,
+html[data-theme="dark"] .tp-app .tp-history-entry>summary{
+ background:#23353e!important;
+ color:#dceeea!important;
+ border-color:#3c5560!important;
+}
+html[data-theme="dark"] .tp-app .tp-profile-more>summary:hover,
+html[data-theme="dark"] .tp-app .tp-profile-more[open]>summary{
+ background:#2a4548!important;
+ color:#b9f2dc!important;
+}
+html[data-theme="dark"] .tp-app .tp-history-entry,
+html[data-theme="dark"] .tp-app .tp-table-wrap{
+ border-color:#364c55!important;
+}
+html[data-theme="dark"] .tp-app .tp-history-entry>summary small,
+html[data-theme="dark"] .tp-app .tp-sheet-title p,
+html[data-theme="dark"] .tp-app .tp-parcel-sheet-desc,
+html[data-theme="dark"] .tp-app .tp-photo-box small,
+html[data-theme="dark"] .tp-app .tp-days-hint{
+ color:#a9bec5!important;
+}
+html[data-theme="dark"] .tp-app .tp-sheet-symbol{
+ background:#28473e!important;
+ color:#8de9c7!important;
+}
+html[data-theme="dark"] .tp-app .tp-sheet-total{
+ background:#24463c!important;
+ color:#d7f5e9!important;
+}
+html[data-theme="dark"] .tp-app .tp-commission-day:nth-child(even){
+ background:#20343b!important;
+}
+html[data-theme="dark"] .tp-app .tp-form-photo-remove,
+html[data-theme="dark"] .tp-app .tp-avatar-remove{
+ background:#3b2a31!important;
+ color:#ffbdc1!important;
+ border-color:#965d68!important;
+}
+html[data-theme="dark"] .tp-app .tp-grand span,
+html[data-theme="dark"] .tp-app .tp-grand small{
+ color:#c8e8dd!important;
+}
+html[data-theme="dark"] .tp-app .tp-deleted-people>summary{
+ color:#b6d4d1!important;
+}
+@media(max-width:760px){
+ html[data-theme="dark"] .tp-app .tp-nav{scrollbar-color:#405b61 #182831}
+ html[data-theme="dark"] .tp-app .tp-stat{min-width:0}
+}
+
 /* Keep printed bills and payroll PDFs white with legible dark ink. */
 @media print{
  html[data-theme="dark"],html[data-theme="dark"] body{background:#fff!important;color:#111!important;color-scheme:light}
