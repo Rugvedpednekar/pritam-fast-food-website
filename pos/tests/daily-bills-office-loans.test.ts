@@ -18,7 +18,7 @@ function billingApp(){
  const app=new Function("navnames","data","selected","today","dayBills","header","e","pretty","selectedName","smallTable","newInvoiceNumber","bills","printBill","navigator","receiptPDF","setToday","document","tab","draw",script)(
   navnames,data,"r1",()=>date,
   (r:string,d:string)=>data.bills.filter(b=>b.restaurantId===r&&b.day===d),
-  (title:string,sub:string)=>title+" | "+sub,(s:string)=>String(s),
+  (title:string,sub:string,actions:string="")=>title+" | "+sub+" "+actions,(s:string)=>String(s),
   (s:string)=>s,()=>data.restaurants?"Restaurant":"Pritam Fast Food",
   (rows:any[])=>"rows="+rows.map(b=>b.number).join(","),
   ()=>"",()=>"",()=>{}, {userAgent:"Desktop"},undefined,(d:string)=>{date=d;},
