@@ -341,7 +341,7 @@ function tpCompute(emp,period,override,month){
  var fine=Number(ded.fine)||0;
   // Recover a configurable loan amount from this month's actual salary,
   // never from an earlier closed month or more than salary/loan remaining.
-  if(tpData&&emp.active!==false&&(month||tpPeriod)===tpMonth(0)&&!period.finalized&&!period.locked){
+  if(tpData&&emp.active!==false&&Object.prototype.hasOwnProperty.call(emp,"officeLoanMonthlyDeduction")&&!period._skipLoanAuto&&(month||tpPeriod)===tpMonth(0)&&!period.finalized&&!period.locked){
    var earlier=Number(ded.loanRepayment)||0,manualOther=Math.max(0,(Number(ded.other)||0)-earlier);
    var balanceBefore=tpLoanBalance(emp,tpMonth(0))+earlier;
    var scheduled=Number(emp.officeLoanMonthlyDeduction)||0;
