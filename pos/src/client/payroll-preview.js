@@ -78,9 +78,9 @@ function tpSample(){
   emps.forEach(function(emp,i){
    p.serials[emp.id]=i<4?i+1:i<6?i-3:5;
    if(tpIsParcel(emp)){
-    if(idx===0)p.commissions[emp.id]={mode:"daily",
+    if(idx===0)p.commissions[emp.id]={mode:"total",
      daily:[1000,1500,1300,1200,1202].concat(Array(25).fill(1000)).map(function(x){return x*100;}),
-     total:null,gstRate:5};
+     total:3120200,gstRate:5};
     return;
    }
    p.salaries[emp.id]=emp.salary;
@@ -304,6 +304,7 @@ function tpLoanPersonKey(emp){
 }
 function tpLoanBalance(emp,throughMonth){
  if(!emp||!tpData)return 0;
+ if(!throughMonth)throughMonth=tpMonth(0);
  var key=tpLoanPersonKey(emp),borrowed=0,repaid=0,waived=0;
  var ids=new Set(tpData.employees.filter(function(e){return tpLoanPersonKey(e)===key;}).map(function(e){return e.id;}));
  (tpData.officeLoans||[]).forEach(function(loan){
@@ -571,13 +572,13 @@ function tpCommissionEditor(emp){
  var rate=rec.gstRate==null?(emp.commissionGstRate==null?5:emp.commissionGstRate):rec.gstRate;
  var calc=tpCommissionCalculate(emp,p),total=calc?calc.commissionTotal:0;
  var head='<section class="tp-panel tp-commission-editor" id="tp-commission-editor"><div class="tp-header-row"><div>'+
- '<h2>Parcel Boy Commission — '+tpEscape(emp.name)+'</h2><p>'+tpMonthLabel(tpPeriod)+' · 30 commission entries or one total</p></div>'+
+ '<h2>Parcel Boy Commission — '+tpEscape(emp.name)+'</h2><p>'+tpMonthLabel(tpPeriod)+' · Monthly total is the default entry method</p></div>'+
  tpButton("close-commission","Close","tp-light")+'</div>'+
- '<div class="tp-note">Enter the commission amounts earned from bills, not total bill sales. As in your sheet, the default GST deduction is 5%. No salary, paid leave, advances or fines are deducted from parcel boy commissions.</div>'+
+ '<div class="tp-note">Enter the commission amounts earned from bills, not total bill sales. Monthly commission total is selected by default; 30 daily entries remain optional. GST defaults to 5%.</div>'+
  '<div class="tp-form-grid">'+
  '<div class="tp-field"><label for="tp-commission-mode">Entry method</label><select id="tp-commission-mode" data-tp-field="commissionMode" data-id="'+tpEscape(emp.id)+'">'+
- '<option value="daily" '+(mode==="daily"?"selected":"")+'>30 daily entries</option>'+
- '<option value="total" '+(mode==="total"?"selected":"")+'>Enter monthly commission total</option></select></div>'+
+ '<option value="total" '+(mode==="total"?"selected":"")+'>Monthly commission total (default)</option>'+
+ '<option value="daily" '+(mode==="daily"?"selected":"")+'>30 daily entries</option></select></div>'+
  '<div class="tp-field"><label for="tp-commission-gst">GST deduction (%)</label><input class="tp-cell-input" id="tp-commission-gst" type="number" step="0.01" min="0" max="100" inputmode="decimal" data-tp-field="commissionGST" data-id="'+tpEscape(emp.id)+'" value="'+tpEscape(rate)+'"></div></div>';
  var daily=Array.isArray(rec.daily)?rec.daily:[];
  if(mode==="daily"){
