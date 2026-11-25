@@ -1,6 +1,7 @@
 import {closeDueBusinessDays} from "./day-end";
 import {normalizeRestaurantNames} from "./restaurant-name";
 import {createOwnerResetController} from "./owner-reset";
+import {runRestaurantDeletionSmoke} from "./restaurant-deletion-smoke";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const darkThemeCSS = await Bun.file(new URL("./client/dark-theme.css", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
@@ -176,6 +177,24 @@ automaticDayEndTimer.unref?.();
 runAutomaticDayEnd().catch(err => console.error("Auto day-end startup:",err.message));
 
 const ownerReset=createOwnerResetController({db,ready,photosReady,checkOwnerPassword:p=>checkLogin(user,p)});
+// Verify deletion using a real PostgreSQL transaction containing two fake
+// restaurants. The transaction is always rolled back, leaving owner data intact.
+// Also report ONLY the JSON field types of the owner's snapshot to diagnose
+// unexpected storage shapes without exposing saved restaurant contents.
+(async()=>{
+ try{
+  await ownerReset.status();
+  const schema=await db.unsafe(
+   "SELECT jsonb_typeof(payload) AS root_type, jsonb_typeof(payload->'restaurants') AS restaurant_type, jsonb_typeof(payload->'menus') AS menu_type, jsonb_typeof(payload->'bills') AS bills_type FROM demo_snapshots WHERE account_key='owner'"
+  );
+  if(schema.length)console.info("Owner restaurant snapshot field types:",JSON.stringify(schema[0]));
+  const smoke=await runRestaurantDeletionSmoke(db);
+  console.info("Fake restaurant add/delete PostgreSQL smoke:",JSON.stringify(smoke));
+ }catch(err){
+  console.error("Fake restaurant deletion smoke failed (owner data untouched):",err?.message||String(err));
+ }
+})();
+
 const failures=new Map();
 Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
  const path=new URL(req.url).pathname;
