@@ -436,6 +436,12 @@ tpArcLeftForm=function(emp){
  '<div class="tp-field"><label for="tp-departure-method">Payment method *</label><select id="tp-departure-method"><option value="CASH" '+(emp.method==="CASH"?"selected":"")+'>CASH</option>'+
  '<option value="CHEQUE" '+(emp.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
  '<div class="tp-field"><label for="tp-departure-notes">Remarks</label><input id="tp-departure-notes" maxlength="180" placeholder="Optional resignation notes"></div></div>'+
+ (tpLoanBalance(emp,date.slice(0,7))>0?
+ '<div class="tp-note tp-loan-resign-warning"><strong>⚠ OFFICE ADVANCE PENDING: '+tpMoney(tpLoanBalance(emp,date.slice(0,7)))+'</strong>'+
+ '<p>Choose whether to deduct the balance from final salary using Other deduction, or waive it. If salary is not enough to cover the loan, the remaining balance stays due.</p>'+
+ '<div class="tp-field"><label for="tp-departure-loan-choice">Office loan settlement *</label><select id="tp-departure-loan-choice" required>'+
+ '<option value="">Choose</option><option value="deduct">Deduct from final salary</option>'+
+ '<option value="waive">Waive outstanding office loan</option></select></div></div>':"")+
  '<p class="tp-note">Final settlements are tracked outside active salary totals. This keeps any remaining amount due visible without adding an extra active salary.</p>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="submit">'+(historic?"Save Final Settlement":"Confirm Resignation")+'</button>'+
  tpButton("cancel-archive","Cancel","tp-light")+'</div></form></section>';
@@ -501,7 +507,11 @@ tpEmployeeProfile=function(emp){
  var s=emp.finalSettlement;
  var block='<div class="tp-note"><strong>'+tpEscape(tpDepartureStatus(emp))+'</strong> · Last working date: '+tpDate(emp.leftAt||emp.lastWorkingDate)+
  '</div>'+(s?'<div class="tp-note"><strong>Final salary: '+tpMoney(s.net)+'</strong> · '+(s.status==="PAID"?"Paid on "+tpDate(s.paidAt):"Payment due")+
- ' · '+tpEscape(s.method||emp.method)+'</div><div class="tp-actions">'+
+ ' · '+tpEscape(s.method||emp.method)+'</div>'+
+ (s.officeLoan&&s.officeLoan.originalOutstanding?'<div class="tp-note">Office advance at resignation: '+tpMoney(s.officeLoan.originalOutstanding)+
+  ' · Deducted '+tpMoney(s.officeLoan.deducted)+' · Waived '+tpMoney(s.officeLoan.waived)+
+  ' · Pending '+tpMoney(s.officeLoan.remaining)+'</div>':"")+
+ '<div class="tp-actions">'+
  tpButton("pdf-final-salary","Download Final Salary PDF","tp-light",'data-id="'+tpEscape(emp.id)+'"')+
  (s.status==="DUE"?tpButton("record-final-paid","Record Salary Paid","tp-primary",'data-id="'+tpEscape(emp.id)+'"'):"")+'</div>':"");
  var pos=html.lastIndexOf("</section>");
@@ -551,9 +561,29 @@ document.addEventListener("submit",function(ev){
      notes=tpTrim(form.querySelector("#tp-departure-notes").value,180);
  if(!["DUE","PAID"].includes(status)||!["CASH","CHEQUE"].includes(method))return uxAlert("Choose Paid or Due and a payment method.");
  if(status==="PAID"&&(!tpArcDate(paidAt)||paidAt>tpToday()))return uxAlert("Enter a valid date when final salary was paid.");
- if(!confirm("Record "+emp.name+"'s final earned salary "+tpMoney(calc.net)+
+ var officeOutstanding=tpLoanBalance(emp,month),
+  loanChoice=form.querySelector("#tp-departure-loan-choice")?.value||"",
+  loanDeduction=officeOutstanding>0&&loanChoice==="deduct"?Math.min(officeOutstanding,calc.net):0,
+  loanWaiver=officeOutstanding>0&&loanChoice==="waive"?officeOutstanding:0;
+ if(officeOutstanding>0&&loanChoice!=="deduct"&&loanChoice!=="waive")
+  return uxAlert("⚠ Office advance pending: "+tpMoney(officeOutstanding)+". Select Deduct or Waive before resignation.");
+ if(!confirm("Record "+emp.name+"'s final earned salary "+tpMoney(Math.max(0,calc.net-loanDeduction))+
+   (officeOutstanding?" · Office loan "+(loanChoice==="deduct"?"deduct "+tpMoney(loanDeduction):"waive "+tpMoney(loanWaiver)):"")+
+
   " as "+(status==="PAID"?"PAID":"DUE")+"? Employment history will be preserved."))return;
  var before=JSON.stringify(tpData);
+ if(loanDeduction){
+  var deduction=period.deductions[emp.id]||{fine:0,other:0};
+  deduction.other=(Number(deduction.other)||0)+loanDeduction;
+  deduction.loanRepayment=(Number(deduction.loanRepayment)||0)+loanDeduction;
+  period.deductions[emp.id]=deduction;
+ }
+ if(loanWaiver){
+  if(!Array.isArray(tpData.officeLoanWaivers))tpData.officeLoanWaivers=[];
+  tpData.officeLoanWaivers.push({employeeId:emp.id,personId:tpArcPersonId(emp),
+    month:month,amount:loanWaiver,reason:"Waived at resignation",recordedAt:tpStamp()});
+ }
+ if(loanDeduction)calc=tpCompute(emp,period,days,month);
  emp.active=false;emp.left=true;emp.leftAt=date;emp.lastWorkingDate=date;emp.closedAt=emp.closedAt||tpStamp();
  emp.exitType="resigned";
  if(days!==null&&!oldEntry){
@@ -563,6 +593,8 @@ document.addEventListener("submit",function(ev){
  emp.finalSettlement={month:month,net:calc.net,gross:calc.gross,earned:calc.earned,leavePay:calc.leavePay||0,
    deductions:calc.withheld||0,advance:calc.paidAdvance||0,workedDays:days,
    commission:calc.commissionTotal||0,gst:calc.gst||0,
+   officeLoan:{originalOutstanding:officeOutstanding,deducted:loanDeduction,waived:loanWaiver,
+    remaining:Math.max(0,officeOutstanding-loanDeduction-loanWaiver)},
    method:method,status:status,paidAt:status==="PAID"?paidAt:null,notes:notes,recordedAt:tpStamp()};
  period.updatedAt=tpStamp();
  if(!tpSave()){tpData=JSON.parse(before);return;}
@@ -594,7 +626,11 @@ function tpDepartureDownloadPDF(emp){
    ["Gross / commission",tpMoney(s.gross)],["Earned leave",tpMoney(s.leavePay)],
    ["Deductions",tpMoney(s.deductions)],["Net final salary",tpMoney(s.net)],
    ["Payment status",s.status==="PAID"?"PAID":"DUE"],["Date paid",s.paidAt||"—"],
-   ["Payment method",s.method],["Remarks",s.notes||"—"]];
+   ["Payment method",s.method],
+    ["Office loan deducted",tpMoney(s.officeLoan&&s.officeLoan.deducted||0)],
+    ["Office loan waived",tpMoney(s.officeLoan&&s.officeLoan.waived||0)],
+    ["Office loan still due",tpMoney(s.officeLoan&&s.officeLoan.remaining||0)],
+    ["Remarks",s.notes||"—"]];
   rows.forEach(function(row,i){
    var y=165+i*35;
    if(i%2===0){ctx.fillStyle="#f5f8f7";ctx.fillRect(38,y-19,519,31);}
@@ -609,7 +645,7 @@ function tpDepartureDownloadPDF(emp){
  }catch(error){uxAlert("Could not create final salary PDF: "+(error&&error.message||"Unknown error"));}
 }
 var depCSS=document.createElement("style");
-depCSS.textContent="#tp-departure-pay-fields[hidden]{display:none!important}#tp-departure-pay-fields{background:#fafcfb;border:1px solid #dfebe4;border-radius:11px;padding:15px}";
+depCSS.textContent=".tp-loan-resign-warning{background:#fff3e4;border:1px solid #e5bd70;border-radius:11px;padding:14px;color:#81521e}.tp-loan-resign-warning .tp-field{max-width:460px}.tp-loan-resign-warning select{width:100%}#tp-departure-pay-fields[hidden]{display:none!important}#tp-departure-pay-fields{background:#fafcfb;border:1px solid #dfebe4;border-radius:11px;padding:15px}";
 document.head.appendChild(depCSS);
 
 })();
