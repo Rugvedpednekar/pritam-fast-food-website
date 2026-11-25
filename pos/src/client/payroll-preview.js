@@ -349,7 +349,7 @@ function tpRows(month,includeHistory){
 function tpTotals(rows){
  var t={base:0,adv:0,advPaid:0,cash:0,cheque:0,ready:0,fines:0,other:0,leavePay:0,grand:0};
  rows.forEach(function(r){
-  t.base+=r.salary;t.adv+=Number(r.advance.amount)||0;t.advPaid+=Number(r.advance.amount)||0;
+  t.base+=r.salary;t.adv+=Number(r.advance.amount)||0;t.advPaid+=Number(r.calc&&r.calc.paidAdvance)||0;
   if(r.calc){
    t.ready++;t.grand+=r.calc.net;t.fines+=r.calc.fine;t.other+=r.calc.other;
    t.leavePay+=Number(r.calc.leavePay)||0;
@@ -371,7 +371,7 @@ function tpDashboard(){
  var rows=tpRows(),t=tpTotals(rows),count=tpEmployees().length;
  var out='<div class="tp-stats">'+tpCard("Total employees",String(count),"Active team members","♙")+
   tpCard("Monthly salary expense",tpMoney(t.base),"Contractual base salaries","₹")+
-  tpCard("Total advances",tpMoney(t.adv),"Entered advances are deducted","↗")+
+  tpCard("Advances issued",tpMoney(t.adv),"New office loans are not deducted immediately","↗")+
   tpCard("Cash salary total",tpMoney(t.cash),"Calculated including leave pay","₹")+
   tpCard("Cheque salary total",tpMoney(t.cheque),"Calculated including leave pay","▤")+'</div>';
  out+='<div class="tp-two"><section class="tp-panel">'+tpToolbar("Payroll overview",tpMonthLabel(tpPeriod)+' · 30-day salary basis',tpButton("go-sheets","View Payment Sheets","tp-primary"))+
@@ -380,7 +380,7 @@ function tpDashboard(){
  '<div class="tp-summary-row"><span>Paid leave money included</span><strong>'+tpMoney(t.leavePay)+'</strong></div>'+
  '<div class="tp-summary-row"><span>Advances deducted</span><strong>'+tpMoney(t.advPaid)+'</strong></div>'+
  '<div class="tp-summary-row"><span>Fines and other deductions</span><strong>'+tpMoney(t.fines+t.other)+'</strong></div>'+
- '<div class="tp-note">Salary ÷ 30 × days worked + earned leave pay − advance − fines − other deductions. Leave pay is capped by each employee’s allowance.</div></section>';
+ '<div class="tp-note">Salary ÷ 30 × days worked + earned leave pay − salary advances (legacy only) − fines − other deductions. Office loans are recovered in Other deduction. Leave pay is capped by each employee’s allowance.</div></section>';
  out+='<section class="tp-panel">'+tpToolbar("Payroll workflow","Manage advance amounts, calculate pay and prepare separate payment sheets.","")+
  '<div class="tp-step"><span>₹</span><div><strong>Advances</strong><p>Record employee advances and deductions.</p></div>'+tpButton("go-advances","Open","tp-light")+'</div>'+
  '<div class="tp-step"><span>▦</span><div><strong>Monthly Attendance</strong><p>Enter days once for Attendance and Salary.</p></div>'+tpButton("go-attendance","Open","tp-light")+'</div>'+
@@ -441,7 +441,7 @@ function tpEmployeeForm(emp){
  '<div class="tp-field"><label for="tp-method">Payment method *</label><select id="tp-method" name="method"><option value="CASH" '+(values.method==="CASH"?"selected":"")+'>CASH</option><option value="CHEQUE" '+(values.method==="CHEQUE"?"selected":"")+'>CHEQUE</option></select></div>'+
  '<div class="tp-field"><label for="tp-aadhaar">Aadhaar number (optional)</label><input id="tp-aadhaar" name="aadhaar" type="text" inputmode="numeric" maxlength="12" autocomplete="off" pattern="([0-9]{4}|[0-9]{12})" value="'+tpEscape(values.aadhaarLast4||"")+'" placeholder="4 or 12 digits"><small>For privacy, only the last 4 digits are saved on this device. The full Aadhaar number is never stored in this demo.</small></div>'+
  (emp?'<div class="tp-field tp-salaried-only"><label>Current monthly salary</label><strong>'+tpMoney(tpMonthSalary(emp,tpPeriod))+'</strong><small>To change it, open the employee profile and enter the new salary there.</small></div>':
- '<div class="tp-field tp-salaried-only"><label for="tp-salary">Starting monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="decimal" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0":tpRupees(values.salary))+'"></div>')+
+ '<div class="tp-field tp-salaried-only"><label for="tp-salary">Starting monthly salary (₹) *</label><input id="tp-salary" name="salary" inputmode="numeric" '+(!parcel?'required':'disabled')+' value="'+(parcel?"0":tpRupees(values.salary))+'"></div>')+
  '<div class="tp-field tp-salaried-only"><label for="tp-leaves">Maximum paid leave days per month *</label><input id="tp-leaves" name="leaveAllowance" type="number" min="0" max="31" step="1" '+(!parcel?'required':'disabled')+' value="'+tpEscape(values.leaveAllowance||0)+'"></div>'+
  '<div class="tp-field tp-parcel-only"><label for="tp-parcel-gst">GST deducted from commissions (%)</label><input id="tp-parcel-gst" name="commissionGstRate" type="number" min="0" max="100" step="0.01" inputmode="decimal" '+(parcel?'required':'disabled')+' value="'+tpEscape(values.commissionGstRate==null?5:values.commissionGstRate)+'">'+
  '<small>Default 5%, as in your commission sheet. This is a demo deduction rate, not tax advice.</small></div></div>'+
@@ -500,10 +500,10 @@ function tpAdvances(){
  out+=tpTable(["Monthly ID","Employee / designation","New loan issued (₹)","Loan balance (₹)","Fine (₹)","Other deduction / loan recovery (₹)"],rows.map(function(r){
  var id=tpEscape(r.emp.id);
  return'<tr data-tp-adv-row="'+id+'"><td><strong>'+(r.serial===null?"—":r.serial)+'</strong></td><td><div class="tp-person-cell">'+tpAvatar(r.emp,"small")+'<div><strong>'+tpEscape(r.emp.name)+'</strong><small>'+tpEscape(r.emp.designation)+'</small></div></div></td>'+
- '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="decimal" enterkeyhint="next" value="'+(r.advance.kind==="office-loan"?tpRupees(r.advance.amount):"0")+'"></td>'+
+ '<td><input class="tp-cell-input" data-tp-field="advance" data-id="'+id+'" inputmode="numeric" enterkeyhint="next" value="'+(r.advance.kind==="office-loan"?tpRupees(r.advance.amount):"0")+'"></td>'+
  '<td><strong>'+tpMoney(tpLoanBalance(r.emp))+'</strong></td>'+
- '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="fine" data-id="'+id+'" value="'+tpRupees(r.deductions.fine)+'"></td>'+
- '<td><input class="tp-cell-input" inputmode="decimal" data-tp-field="other" data-id="'+id+'" value="'+tpRupees(r.deductions.other)+'"></td></tr>';
+ '<td><input class="tp-cell-input" inputmode="numeric" data-tp-field="fine" data-id="'+id+'" value="'+tpRupees(r.deductions.fine)+'"></td>'+
+ '<td><input class="tp-cell-input" inputmode="numeric" data-tp-field="other" data-id="'+id+'" value="'+tpRupees(r.deductions.other)+'"></td></tr>';
  }))+'<div class="tp-note">✓ Changes save automatically on this device. This is a demonstration; it does not transfer money.</div></section>';
  return out;
 }
@@ -524,13 +524,13 @@ function tpCommissionEditor(emp){
  if(mode==="daily"){
   head+='<div class="tp-commission-days"><div class="tp-commission-cols"><strong>Date</strong><strong>Commission (₹)</strong></div>'+
   Array.from({length:30},function(_,i){
-   var v=daily[i],val=v===null||v===undefined?"":tpRupees(v);
+   var v=daily[i],val=v===null||v===undefined?"0":tpRupees(v);
    return'<div class="tp-commission-day"><label for="tp-commission-day-'+(i+1)+'">Day '+(i+1)+'</label>'+
     '<input id="tp-commission-day-'+(i+1)+'" aria-label="Day '+(i+1)+' commission" class="tp-cell-input" data-tp-field="commissionDaily" data-id="'+tpEscape(emp.id)+'" data-day="'+(i+1)+'" type="text" inputmode="decimal" enterkeyhint="'+(i===29?"done":"next")+'" placeholder="0" value="'+tpEscape(val)+'"></div>';
   }).join("")+'</div>';
  }else{
   head+='<div class="tp-field tp-commission-total-field"><label for="tp-commission-total">Total commission earned (₹)</label>'+
-  '<input id="tp-commission-total" class="tp-cell-input" inputmode="decimal" type="text" placeholder="e.g. 31202" data-tp-field="commissionTotal" data-id="'+tpEscape(emp.id)+'" value="'+(rec.total===null||rec.total===undefined?"":tpRupees(rec.total))+'">'+
+  '<input id="tp-commission-total" class="tp-cell-input" inputmode="decimal" type="text" placeholder="e.g. 31202" data-tp-field="commissionTotal" data-id="'+tpEscape(emp.id)+'" value="'+(rec.total===null||rec.total===undefined?"0":tpRupees(rec.total))+'">'+
   '<small>Enter the monthly total directly. Only GST will be deducted.</small></div>';
  }
  head+='<div class="tp-commission-summary"><div><span>Total commission</span><strong>'+tpMoney(total)+'</strong></div>'+
@@ -639,7 +639,7 @@ function tpSheetBreakdown(row){
    line("Earned paid leave days",c?String(c.leaveEarned):"—")+
    line("Leave pay",c?tpMoney(c.leavePay):"—")+
    line("Gross earnings",c?tpMoney(c.earned):"—")+
-   line("Advance deducted",tpMoney(Number(row.advance.amount)||0))+
+   line("Salary advance deducted",tpMoney(c?c.paidAdvance:0))+
    line("Fine deducted",tpMoney(Number(row.deductions.fine)||0))+
    line("Other deductions",tpMoney(Number(row.deductions.other)||0))+
    line("Net salary payable",c?tpMoney(c.net):"Awaiting Attendance",true)+
