@@ -57,6 +57,28 @@
    color:#edf8f4!important;
    border:1px solid #59747b!important;
   }
+  /* An occupied dine-in table must be visually green, not the neutral gray
+     or amber shades inherited from older POS themes. */
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button.tw-table-occupied,
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button.occupied,
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button[data-status="occupied"]{
+   background:#17684f!important;
+   color:#f4fff8!important;
+   border:1px solid #47b78e!important;
+   box-shadow:inset 0 0 0 1px #236b56!important;
+  }
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button.tw-table-occupied :is(strong,b,span,small,div,p){
+   color:#f0fff8!important;
+   opacity:1!important;
+  }
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button.tw-table-occupied:hover{
+   background:#218366!important;
+   border-color:#6cd6ad!important;
+  }
+  /* Only the three requested instructional lines are removed. */
+  #content .fl-root:not(.fl-billing) .tw-unwanted-pos-hint{
+   display:none!important;
+  }
   @media(max-width:760px){
    html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-stats > :not(.tw-pos-quick-actions):not(.tw-pos-action-btn):not(.tw-new-zomato){
     min-height:48px;
@@ -92,11 +114,47 @@
    if(fallback){fallback.classList.add("tw-table-jump-dark");return;}
   }
  }
+ function updateFloorTables(){
+  if(tab!=="pos")return;
+  var floor=document.querySelector("#content .fl-root:not(.fl-billing)");
+  if(!floor)return;
+  var grid=floor.querySelector(".fl-table-grid");
+  if(grid){
+   var buttons=grid.querySelectorAll("button");
+   for(var i=0;i<buttons.length;i++){
+    var button=buttons[i];
+    // The POS already displays "Occupied" for tables holding open orders.
+    // Use that existing status rather than changing any order state.
+    var occupied=/\\boccupied\\b/i.test(button.textContent||"")||
+      button.classList.contains("occupied")||
+      button.getAttribute("data-status")==="occupied";
+    button.classList.toggle("tw-table-occupied",occupied);
+   }
+  }
+  var unwanted=[
+   /^white\\s*=\\s*available\\s*[·•.\\-]\\s*green\\s*=\\s*open\\s+order$/i,
+   /^resume\\s+any\\s+saved\\s+parcel$/i,
+   /^type\\s+table\\s+number\\s*\\+\\s*enter\\s*[·•.\\-]\\s*press\\s*p\\s+for\\s+parcel$/i
+  ];
+  // Match the entire instruction in its smallest enclosing element; this
+  // keeps DINE-IN / OPEN PARCEL ORDERS headings and the editable input.
+  var candidates=floor.querySelectorAll("small,p,span,div,label");
+  for(var j=0;j<candidates.length;j++){
+   var el=candidates[j];
+   if(el.classList.contains("tw-unwanted-pos-hint"))continue;
+   var content=(el.textContent||"").replace(/\\s+/g," ").trim();
+   if(!unwanted.some(function(rule){return rule.test(content);}))continue;
+   if(el.querySelector("input,button,select,textarea"))continue;
+   el.classList.add("tw-unwanted-pos-hint");
+  }
+ }
  var beforeDraw=draw;
  draw=function(){
   var result=beforeDraw.apply(this,arguments);
   markTableNumberRow();
+  updateFloorTables();
   return result;
  };
  markTableNumberRow();
+ updateFloorTables();
 })();
