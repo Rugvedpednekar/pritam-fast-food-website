@@ -9,10 +9,11 @@ function harness(popupAllowed=true){
   const selector=which==="search"?'data-kba="choose"':'data-kba="line"';
   const count=content.innerHTML.split(selector).length-1;
   if(selectionNodes[which].length!==count){
-   selectionNodes[which]=Array.from({length:count},()=>({
+   selectionNodes[which]=Array.from({length:count},(_,index)=>({
     current:false,ariaSelected:"false",scrolls:0,
     classList:{toggle:function(name:string,enabled:boolean){if(name==="kb-current")this.owner.current=enabled;}},
     setAttribute:function(name:string,val:string){if(name==="aria-selected")this.ariaSelected=val;},
+    focus:function(){activeId=which==="order"?"kb-line-"+index:"kb-search-result-"+index;},
     scrollIntoView:function(){this.scrolls++;}
    }));
    selectionNodes[which].forEach(n=>n.classList.owner=n);
@@ -140,7 +141,7 @@ test("Viewing mode edits existing quantities and requires 0 to add a new item",(
  h.key("Enter");expect(h.obj.kb.step).toBe("qty");
  h.set("kb-qty","4");h.key("Enter");
  expect(h.obj.kb.mode).toBe("view");
- expect(h.active()).toBe("kb-code");
+ expect(h.active()).toBe("kb-line-0");
  expect(h.cart()).toHaveLength(1);
  expect(h.cart()[0].qty).toBe(4);
  h.key("0");expect(h.obj.kb.mode).toBe("add");
@@ -216,4 +217,43 @@ test("Esc and minus close alphabetic Search Assistant without leaving the curren
   h.set("kb-code","37");h.key("Enter");
   expect(h.obj.kb.item.name).toBe("MASALA DOSA");
  }
+});
+
+
+test("Viewing Mode hides the right-hand editor; 0 reveals it while retaining the same table",()=>{
+ const h=harness();
+ expect(h.obj.screen()).not.toContain('kb-grid kb-view-only');
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ const originalOrder=h.obj.getActiveOrder();
+ h.key("Escape");
+ expect(h.obj.kb.mode).toBe("view");
+ expect(h.obj.kb.step).toBe("list");
+ expect(h.obj.screen()).toContain('kb-grid kb-view-only');
+ expect(h.active()).toBe("kb-line-0");
+ expect(h.currentTable()).toBe("t1");
+ h.key("0");
+ expect(h.obj.kb.mode).toBe("add");
+ expect(h.obj.screen()).not.toContain('kb-grid kb-view-only');
+ expect(h.active()).toBe("kb-code");
+ expect(h.obj.getActiveOrder()).toBe(originalOrder);
+ expect(h.cart()).toHaveLength(1);
+});
+test("Editing a saved line temporarily reveals the right editor, then hides it after Enter",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");
+ expect(h.obj.screen()).toContain('kb-grid kb-view-only');
+ h.key("Enter");
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.obj.screen()).not.toContain('kb-grid kb-view-only');
+ expect(h.active()).toBe("kb-qty");
+ h.set("kb-qty","6");h.key("Enter");
+ expect(h.obj.kb.mode).toBe("view");
+ expect(h.obj.screen()).toContain('kb-grid kb-view-only');
+ expect(h.cart()[0].qty).toBe(6);
+ expect(h.active()).toBe("kb-line-0");
+ h.key("5");
+ expect(h.obj.kb.step).toBe("preview");
+ expect(h.obj.screen()).toContain('Bill Preview');
+ expect(h.cart()[0].qty).toBe(6);
 });
