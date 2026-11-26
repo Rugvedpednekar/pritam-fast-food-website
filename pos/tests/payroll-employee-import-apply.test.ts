@@ -14,7 +14,7 @@ function harness(saveAllowed=true){
  const document:any={
   addEventListener:()=>{},head:{appendChild:()=>{}},createElement:()=>({id:"",textContent:""})
  };
- const modified=ui.replace(/\}\)\(\);\s*$/, "return {impReview,impApply,impDetails,setPreview:function(v){impPreview=v;},getData:function(){return tpData;},page:function(){return tpEmployeesPage();}};})();");
+ const modified=ui.replace(/\}\)\(\);\s*$/, "return {impReview,impApply,impDetails,tpImportReadColumns,setPreview:function(v){impPreview=v;},getData:function(){return tpData;},page:function(){return tpEmployeesPage();}};})();");
  if(modified===ui)throw Error("Cannot expose employee importer for testing");
  const args=[
  "data","selected","tpData","tpPeriod","tpEmp","tpSerialValue","tpGetPeriod","tpId","tpSave",
