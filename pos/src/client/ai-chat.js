@@ -2,28 +2,31 @@ var aiChatView = (function () {
   var page = document.createElement("section");
   page.className = "tw-ai";
   page.innerHTML = `
-    <div class="heading"><div><h1>AI</h1><p class="sub">Ask about billing, reports, or payroll in Pritam Fast Food.</p></div></div>
+    <header class="tw-ai-toolbar">
+      <h1>AI Assistant</h1>
+      <button class="btn small tw-ai-clear" type="button">New chat</button>
+    </header>
     <div class="panel tw-ai-panel">
-      <div class="tw-ai-toolbar">
-        <h2 class="panel-title">Pritam Fast Food Assistant</h2>
-        <button class="btn small tw-ai-clear" type="button">New chat</button>
-      </div>
       <div class="tw-ai-log" role="log" aria-label="Chat messages" aria-relevant="additions"></div>
-      <div class="tw-ai-prompts" aria-label="Suggested questions">
-        <button class="btn small" type="button">How do I close the day?</button>
-        <button class="btn small" type="button">Where do I find sales reports?</button>
-        <button class="btn small" type="button">How do I print a salary sheet?</button>
+      <div class="tw-ai-starters">
+        <p class="sub">Ask about billing, reports, or payroll.</p>
+        <div class="tw-ai-prompts" role="group" aria-label="Suggested questions">
+          <button class="btn small" type="button" data-question="How do I close the day?">Close the day</button>
+          <button class="btn small" type="button" data-question="Where do I find sales reports?">Sales reports</button>
+          <button class="btn small" type="button" data-question="How do I print a salary sheet?">Salary sheets</button>
+        </div>
       </div>
       <p class="tw-ai-status sub" role="status"></p>
-      <form class="tw-ai-form">
+      <form class="tw-ai-form" aria-label="Ask the AI assistant">
         <label for="tw-ai-question" class="tw-ai-label">Your question</label>
-        <textarea id="tw-ai-question" class="input" rows="2" maxlength="1200" placeholder="Ask how to do something in Tablewise…" aria-describedby="tw-ai-note" required></textarea>
+        <textarea id="tw-ai-question" class="input" rows="2" maxlength="1200" placeholder="Ask a question…" aria-describedby="tw-ai-note" required></textarea>
         <button class="btn primary" type="submit">Send</button>
       </form>
-      <p class="help" id="tw-ai-note">Powered by Gemini. Leave out customer details, employee records, and private sales figures.</p>
+      <p class="help" id="tw-ai-note">Keep private business and personal details out of chat.</p>
     </div>`;
 
   var log = page.querySelector(".tw-ai-log");
+  var starters = page.querySelector(".tw-ai-starters");
   var prompts = page.querySelector(".tw-ai-prompts");
   var status = page.querySelector(".tw-ai-status");
   var form = page.querySelector("form");
@@ -48,15 +51,16 @@ var aiChatView = (function () {
 
   function updateControls() {
     send.disabled = busy || !input.value.trim();
-    clear.disabled = busy || (!messages.length && !input.value && !status.textContent);
-    prompts.hidden = messages.length > 0;
+    clear.hidden = !messages.length && !input.value && !status.textContent;
+    clear.disabled = busy;
+    starters.hidden = busy || messages.length > 0;
     log.hidden = !log.childElementCount;
   }
 
   prompts.addEventListener("click", function (event) {
     var button = event.target.closest("button");
     if (!button || busy) return;
-    input.value = button.textContent;
+    input.value = button.dataset.question;
     updateControls();
     form.requestSubmit();
   });
@@ -106,7 +110,9 @@ var aiChatView = (function () {
       status.textContent = "";
     } catch (error) {
       questionBubble.remove();
-      status.textContent = error.message || "Could not reach the app. Try again.";
+      status.textContent = error.message === "Failed to fetch" || error instanceof TypeError
+        ? "Could not connect. Check your connection and try again."
+        : error.message || "Could not reach the app. Try again.";
     } finally {
       busy = false;
       input.readOnly = false;

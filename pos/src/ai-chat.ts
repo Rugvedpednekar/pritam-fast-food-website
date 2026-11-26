@@ -41,7 +41,10 @@ function parseMessages(value: unknown): ChatMessage[] | undefined {
 }
 
 export async function answerAppQuestion(request: Request, apiKey: string | undefined) {
-  if (!apiKey) return { status: 503, body: { error: "AI chat needs a Gemini API key. Add GEMINI_API_KEY to the app service to enable it." } };
+  if (!apiKey) {
+    console.warn("AI chat unavailable: GEMINI_API_KEY is missing");
+    return { status: 503, body: { error: "The assistant is temporarily unavailable. Please try again later." } };
+  }
   if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) {
     return { status: 413, body: { error: "The conversation is too long. Start a new chat." } };
   }
