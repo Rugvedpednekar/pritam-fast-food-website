@@ -32,6 +32,7 @@ test("Tables & Orders counters become dark while New Parcel and Zomato stay colo
  const {styleText}=setup();
  expect(styleText).toContain(".fl-stats > :not(.tw-pos-quick-actions)");
  expect(styleText).toContain("background:#233942!important");
+ expect(styleText).toContain("background:transparent!important");
  expect(styleText).toContain("color:#ffffff!important");
  expect(styleText).toContain(":not(.tw-pos-action-btn)");
  expect(styleText).toContain(":not(.tw-new-zomato)");
