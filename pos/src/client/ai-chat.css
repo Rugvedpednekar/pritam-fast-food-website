@@ -1,99 +1,258 @@
 .tw-ai {
-  max-width: 760px;
+  --ai-border: #dce8e2;
+  --ai-surface: #fff;
+  --ai-canvas: #f4f8f5;
+  --ai-assistant: #e2f2e9;
+  --ai-assistant-line: #d2e7dc;
+  --ai-user: #e3e9ec;
+  --ai-badge: #d9eee2;
+  --ai-accent: #17674f;
+  --ai-muted: #597169;
+  --ai-send: #146c55;
+  --ai-link: #f6fbf8;
+  --ai-error: #a63838;
+  --ai-shadow: 0 14px 40px #204e3e10;
+  width: 100%;
+  max-width: 900px;
   margin-inline: auto;
 }
 
-.tw-ai-toolbar {
+html[data-theme="dark"] .tw-ai {
+  --ai-border: #334950;
+  --ai-surface: #192830;
+  --ai-canvas: #142329;
+  --ai-assistant: #1e3b35;
+  --ai-assistant-line: #2c5047;
+  --ai-user: #2c404a;
+  --ai-badge: #294a41;
+  --ai-accent: #a2e4c7;
+  --ai-muted: #adc1bd;
+  --ai-send: #16785e;
+  --ai-link: #213b36;
+  --ai-error: #ffadad;
+  --ai-shadow: 0 14px 40px #0003;
+}
+
+.tw-ai-toolbar,
+.tw-ai-heading {
   display: flex;
   align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tw-ai-toolbar {
   justify-content: space-between;
-  gap: 12px;
   min-height: 44px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .tw-ai-toolbar h1 {
   margin: 0;
-  font-size: clamp(1.3rem, 4vw, 1.85rem);
-  line-height: 1.25;
+  font-size: clamp(1.23rem, 4vw, 1.8rem);
+  line-height: 1.2;
+  letter-spacing: -.035em;
 }
 
-.tw-ai-toolbar .btn {
+.tw-ai-mark,
+.tw-ai-avatar,
+.tw-ai-report-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--ai-badge);
+  color: var(--ai-accent);
+}
+
+.tw-ai-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  font-size: 20px;
+}
+
+.tw-ai-clear,
+.tw-ai-prompts button,
+.tw-ai-report,
+.tw-ai-send {
+  border: 1px solid var(--ai-border);
+  font: inherit;
+  font-weight: 700;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.tw-ai-clear,
+.tw-ai-prompts button {
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 13px;
+  background: var(--ai-surface);
+  color: var(--ai-accent);
+  white-space: nowrap;
+  font-size: .8rem;
+}
+
+.tw-ai-clear {
   flex-shrink: 0;
 }
 
+.tw-ai :is(button, textarea, .tw-ai-log):focus-visible {
+  outline: 2px solid var(--ai-accent);
+  outline-offset: 2px;
+}
+
+.tw-ai :is(.tw-ai-clear, .tw-ai-prompts button, .tw-ai-report):hover:not(:disabled) {
+  background: var(--ai-badge);
+  border-color: var(--ai-assistant-line);
+}
+
 .tw-ai-panel {
-  display: grid;
-  gap: 12px;
   min-width: 0;
-}
-
-.tw-ai-starters {
-  display: grid;
-  gap: 8px;
-}
-
-.tw-ai-prompts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tw-ai-prompts .btn {
-  min-height: 44px;
-  padding-inline: 12px;
-  border-radius: 999px;
-}
-
-.tw-ai :is(.help, .sub, .tw-ai-message p) {
-  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--ai-border);
+  border-radius: 22px;
+  box-shadow: var(--ai-shadow);
+  background: var(--ai-canvas);
 }
 
 .tw-ai-log {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  max-height: min(52vh, 540px);
-  max-height: min(52dvh, 540px);
+  gap: 15px;
+  height: clamp(230px, 54vh, 580px);
+  height: clamp(230px, 54dvh, 580px);
+  padding: 22px clamp(14px, 3vw, 30px);
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+  background: radial-gradient(ellipse at top left, var(--ai-assistant), transparent 58%);
 }
 
-.tw-ai [hidden], .tw-ai-status:empty {
-  display: none;
+.tw-ai-log:focus-visible {
+  outline-offset: -3px;
+}
+
+.tw-ai-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  flex: none;
+  min-width: 0;
+}
+
+.tw-ai-turn-user {
+  justify-content: flex-end;
+}
+
+.tw-ai-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  font-size: 16px;
+  margin-top: 3px;
 }
 
 .tw-ai-message {
-  align-self: flex-start;
-  max-width: 92%;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-alt, #f4f7f5);
+  max-width: min(84%, 610px);
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--ai-assistant-line);
+  border-radius: 5px 16px 16px;
+  color: var(--ink);
+  background: var(--ai-assistant);
   overflow-wrap: anywhere;
+  font-size: .91rem;
+  line-height: 1.5;
 }
 
 .tw-ai-user {
-  align-self: flex-end;
-  background: #e1f3ea;
-  color: #154735;
+  max-width: 80%;
+  border-color: var(--ai-border);
+  border-radius: 16px 5px 16px 16px;
+  background: var(--ai-user);
 }
 
-html[data-theme="dark"] .tw-ai-user {
-  background: #16463d;
-  color: #ebf8f3;
-}
-
-.tw-ai-message strong {
-  display: block;
-  margin-bottom: 3px;
-  font-size: .78rem;
+.tw-ai-message p,
+.tw-ai-prompt-label,
+.tw-ai-status,
+.tw-ai-note {
+  margin: 0;
 }
 
 .tw-ai-message p {
   white-space: pre-wrap;
-  line-height: 1.5;
+}
+
+.tw-ai-report-title {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.tw-ai-report {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 9px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: var(--ai-link);
+  color: var(--ai-accent);
+  text-align: left;
+  font-size: .8rem;
+  line-height: 1.25;
+}
+
+.tw-ai-report span:last-child {
+  margin-left: auto;
+}
+
+.tw-ai-report-icon {
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+}
+
+.tw-ai-composer {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 14px clamp(12px, 3vw, 22px) 13px;
+  border-top: 1px solid var(--ai-border);
+  background: var(--ai-surface);
+}
+
+.tw-ai-starters {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tw-ai-prompt-label {
+  color: var(--ai-muted);
+  font-size: .79rem;
+  font-weight: 700;
+}
+
+.tw-ai-prompts {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 3px;
+  margin: -3px;
+}
+
+.tw-ai-prompts::-webkit-scrollbar {
+  display: none;
+}
+
+.tw-ai-prompts button {
+  flex-shrink: 0;
+  min-height: 38px;
 }
 
 .tw-ai-form {
@@ -115,30 +274,120 @@ html[data-theme="dark"] .tw-ai-user {
 .tw-ai-form textarea {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
-  resize: vertical;
+  min-height: 46px;
+  padding: 11px 12px;
+  resize: none;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-canvas);
+  color: var(--ink);
+  font: inherit;
   font-size: 16px;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
-.tw-ai-form .btn, .tw-ai-toolbar .btn {
-  min-height: 44px;
+.tw-ai-form textarea::placeholder {
+  color: var(--ai-muted);
+}
+
+.tw-ai-send {
+  min-height: 46px;
+  padding: 0 15px;
+  border-radius: 12px;
+  background: var(--ai-send);
+  border-color: var(--ai-send);
+  color: white;
+  font-size: .86rem;
+}
+
+.tw-ai-send span {
+  margin-inline-start: 3px;
+}
+
+.tw-ai-send:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.tw-ai-status,
+.tw-ai-note {
+  font-size: .75rem;
+  color: var(--ai-muted);
+  line-height: 1.4;
+}
+
+.tw-ai-error {
+  color: var(--ai-error);
+}
+
+.tw-ai [hidden],
+.tw-ai-status:empty {
+  display: none;
 }
 
 @media (max-width: 760px) {
   #content.tw-ai-workspace {
-    padding-top: 12px !important;
+    padding: 12px 10px 84px !important;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
   }
 
   .tw-ai-toolbar {
-    margin-bottom: 8px;
+    margin-bottom: 9px;
   }
 
-  .tw-ai .tw-ai-panel {
-    padding: 12px !important;
+  .tw-ai-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+
+  .tw-ai-panel {
+    border-radius: 17px;
+  }
+
+  .tw-ai-log {
+    gap: 12px;
+    height: clamp(176px, calc(100vh - 425px), 515px);
+    height: clamp(176px, calc(100dvh - 425px), 515px);
+    padding: 14px 10px;
+  }
+
+  .tw-ai-turn {
+    gap: 6px;
+  }
+
+  .tw-ai-avatar {
+    width: 23px;
+    height: 23px;
+    border-radius: 8px;
   }
 
   .tw-ai-message {
-    max-width: 96%;
+    max-width: calc(100% - 36px);
+    padding: 9px 11px;
+    font-size: .88rem;
+  }
+
+  .tw-ai-user {
+    max-width: 83%;
+  }
+
+  .tw-ai-composer {
+    gap: 7px;
+    padding: 9px 10px 10px;
+  }
+
+  .tw-ai-prompts button,
+  .tw-ai-clear {
+    min-height: 44px;
+  }
+
+  .tw-ai-send {
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-ai :is(button, textarea) {
+    transition: none;
   }
 }
