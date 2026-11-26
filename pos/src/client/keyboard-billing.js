@@ -166,7 +166,7 @@ var old=JSON.parse(JSON.stringify(cart)),view=kb.mode==="view";
 if(kb.edit>=0&&cart[kb.edit]){cart[kb.edit].qty=v;cart[kb.edit].comment=comment;}
 else cart.push(Object.assign({},kb.item,{qty:v,comment:comment,addedAt:new Date().toISOString()}));
 if(!preserve()){cart=old;return;}
-kb.item=null;kb.edit=-1;kb.step="code";kb.mode=view?"view":"add";paint();
+kb.item=null;kb.edit=-1;kb.step=view?"list":"code";kb.mode=view?"view":"add";paint();
 }
 function openPreview(){if(!cart.length){showToast("Add an item before printing.");return;}kb.step="preview";kb.discount="";kb.discountType="amount";paint();}
 function invoice(calc){
