@@ -63,7 +63,7 @@ function harness(popupAllowed=true){
   state.discountKind,state.discountValue,state.discountReason,true,false,false,false,
   (fn:()=>void)=>{fn();return 0;}
  ];
- const obj:any=new Function(...params,outer)(...args);
+ const obj:any=new Function(...params,"return "+outer)(...args);
  function key(k:string){const ev:any={key:k,preventDefault:()=>{},stopImmediatePropagation:()=>{},
    ctrlKey:false,metaKey:false,altKey:false};obj.key(ev);}
  function set(id:string,value:string){document.getElementById(id).value=value;}
