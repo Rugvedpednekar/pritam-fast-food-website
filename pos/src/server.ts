@@ -3,7 +3,6 @@ import {normalizeRestaurantNames} from "./restaurant-name";
 import {createOwnerResetController} from "./owner-reset";
 import {runRestaurantDeletionSmoke} from "./restaurant-deletion-smoke";
 import {answerAppQuestion} from "./ai-chat";
-import {runDemoBillSeed} from "./demo-bill-seed";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const darkThemeCSS = await Bun.file(new URL("./client/dark-theme.css", import.meta.url)).text();
 const aiChatJS = await Bun.file(new URL("./client/ai-chat.js", import.meta.url)).text();
@@ -189,11 +188,6 @@ const automaticDayEndTimer=setInterval(() => {
 },30000);
 automaticDayEndTimer.unref?.();
 runAutomaticDayEnd().catch(err => console.error("Auto day-end startup:",err.message));
-if(Bun.env.TABLEWISE_DEMO_BILL_BATCH==="400-2026-11-26"){
- ready().then(()=>runDemoBillSeed(db))
-  .then(result=>console.info("Tablewise demo bill batch:",JSON.stringify(result)))
-  .catch(error=>console.error("Tablewise demo bill batch failed:",error.message));
-}
 
 const ownerReset=createOwnerResetController({db,ready,photosReady,checkOwnerPassword:p=>checkLogin(user,p)});
 // Verify deletion using a real PostgreSQL transaction containing two fake
