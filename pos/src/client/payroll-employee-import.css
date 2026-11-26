@@ -1,0 +1,32 @@
+/* Employee importer in Payroll: mobile-friendly, accessible dark review table. */
+html[data-theme="dark"] .tp-app .tp-import-root{background:#192830!important;color:#eff7f3!important;border:1px solid #39505a!important}
+html[data-theme="dark"] .tp-app .tp-import-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+html[data-theme="dark"] .tp-app .tp-import-heading h3{margin:0 0 4px;color:#f2faf7!important}
+html[data-theme="dark"] .tp-app .tp-import-heading .tp-actions{flex:0 1 auto}
+html[data-theme="dark"] .tp-app .tp-import-hint{font-size:12px;line-height:1.6;color:#b8cbd1!important;margin:4px 0 10px}
+html[data-theme="dark"] .tp-app .tp-import-panel{margin-top:14px;border-top:1px solid #3a535c;padding-top:14px}
+html[data-theme="dark"] .tp-app .tp-import-control{display:grid;gap:7px;max-width:420px}
+html[data-theme="dark"] .tp-app .tp-import-control label{font-weight:750;font-size:12px;color:#e8f6f1!important}
+html[data-theme="dark"] .tp-app .tp-import-control input{padding:11px;background:#152934!important;border:1px solid #4b6570;border-radius:9px;color:#f1faf5!important;max-width:100%;font-size:13px}
+html[data-theme="dark"] .tp-app .tp-import-control input::file-selector-button{background:#27443e;color:#e7faf0;border:1px solid #507e70;border-radius:6px;padding:7px;margin-right:10px;cursor:pointer}
+html[data-theme="dark"] .tp-app .tp-import-review-head{margin:17px 0 10px}
+html[data-theme="dark"] .tp-app .tp-import-review-head h3{font-size:17px;color:#f1f9f5!important}
+html[data-theme="dark"] .tp-app .tp-import-table-wrap{width:100%;max-width:100%;overflow-x:auto;border:1px solid #39535d;border-radius:11px}
+html[data-theme="dark"] .tp-app .tp-import-table{border-collapse:collapse;width:100%;min-width:875px;font-size:12px}
+html[data-theme="dark"] .tp-app .tp-import-table th,
+html[data-theme="dark"] .tp-app .tp-import-table td{padding:11px 9px;text-align:left;border-bottom:1px solid #36515b;vertical-align:top;white-space:normal}
+html[data-theme="dark"] .tp-app .tp-import-table th{background:#253f49!important;color:#eaf6f1!important;font-weight:800}
+html[data-theme="dark"] .tp-app .tp-import-table td{background:#192e37!important;color:#eaf5f0!important}
+html[data-theme="dark"] .tp-app .tp-import-table tbody tr:nth-child(even) td{background:#203540!important}
+html[data-theme="dark"] .tp-app .tp-import-table td small{display:block;color:#b8ccd1!important;font-size:10px;margin-top:5px;line-height:1.45}
+html[data-theme="dark"] .tp-app .tp-import-status{display:inline-block;font-weight:800;font-size:11px}
+html[data-theme="dark"] .tp-app .tp-import-add{color:#8ff0bd!important}
+html[data-theme="dark"] .tp-app .tp-import-skip{color:#f3d18b!important}
+html[data-theme="dark"] .tp-app .tp-import-error{color:#ffbdc6!important}
+html[data-theme="dark"] .tp-app .tp-import-panel>p.tp-import-error{background:#482e38;border:1px solid #89545f;border-radius:9px;padding:10px;font-size:12px}
+html[data-theme="dark"] .tp-app .tp-import-actions{margin-top:13px}
+@media(max-width:760px){
+ html[data-theme="dark"] .tp-app .tp-import-heading .tp-actions{width:100%}
+ html[data-theme="dark"] .tp-app .tp-import-heading .tp-button{flex:1 1 auto}
+ html[data-theme="dark"] .tp-app .tp-import-table{min-width:760px}
+}
