@@ -29,7 +29,7 @@ function mount(overrides:{auto?:boolean,closedDay?:string,version?:number}={}){
  "cloudReady","cloudBusy","cloudConflict","cloudPending","cloudVersion","cloudReq",
  "valid","activeOrderId","ensureReferenceModel","localStorage","KEY","uxAlert",
  "draw","document","tab","showToast","saveTheData","e",
- "return "+code
+ "return ("+code.trim().replace(/;\s*$/, "")+");"
  );
  const runtime:any=fn(FixedDate,()=>"settings",()=>null,async()=>"bill-completed",
   ()=>local.branchSettings.r1,local,selected,()=>"2026-11-26",
