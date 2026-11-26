@@ -92,8 +92,16 @@ const payrollBonusWithTransfers=payrollBonusList.replace(/\}\)\(\);\s*$/,payroll
 if(payrollBonusWithTransfers===payrollBonusList)throw Error("Payroll transfer insertion point missing");
 const payrollArchiveWithBonus=payrollArchiveIncrements.replace(/\}\)\(\);\s*$/,payrollBonusWithTransfers+"\n})();");
 if(payrollArchiveWithBonus===payrollArchiveIncrements)throw Error("Payroll bonus insertion point missing");
-const twExtension2=payrollBase.replace(/\}\)\(\);\s*$/,payrollArchiveWithBonus+"\n})();");
+// Employee import is injected after the archive, bonus and transfer enhancements
+// so it can reuse payroll's live employee validation and selected outlet.
+const employeeImportCore=await Bun.file(new URL("./client/payroll-employee-import-core.js",import.meta.url)).text();
+const employeeImportUI=await Bun.file(new URL("./client/payroll-employee-import-ui.js",import.meta.url)).text();
+const employeeImportCSS=await Bun.file(new URL("./client/payroll-employee-import.css",import.meta.url)).text();
+new Function(employeeImportCore+"\n"+employeeImportUI);
+const twExtension2=payrollBase.replace(/\}\)\(\);\s*$/,
+ payrollArchiveWithBonus+"\n"+employeeImportCore+"\n"+employeeImportUI+"\n})();");
 if(twExtension2===payrollBase)throw Error("Payroll archive insertion point missing");
+html=html.replace("</head>",'<style id="tp-employee-import-style">'+employeeImportCSS+"</style></head>");
 if(!html.includes("startupFinished=true;\ncloudStart();\n})();"))throw Error("payroll-preview.js insertion point missing");
 html=html.replace("startupFinished=true;\ncloudStart();\n})();",twExtension2+"\n"+"startupFinished=true;\ncloudStart();\n})();");
 
