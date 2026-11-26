@@ -31,7 +31,7 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<section class="kb-box kb-edit"><h3>'+((kb.step==="qty"&&kb.edit>=0)?'Edit Item':'Item Entry')+'</h3>'+
 '<label for="kb-code">Item Code</label><input id="kb-code" inputmode="numeric" autocomplete="off" placeholder="'+(viewing?'Press 0 to add another item':'Type code or alphabet')+
 '" '+(viewing&&kb.step!=="qty"?'readonly':'')+'>'+
-'<div class="kb-item"><small>Selected Item</small><strong>'+e(item?.name||"—")+'</strong><small>'+(item?money(item.price):"Enter code to select")+'</small></div>'+
+'<div class="kb-item"><small>Selected Item</small><strong id="kb-live-name">'+e(item?.name||"—")+'</strong><small id="kb-live-price">'+(item?money(item.price):"Enter code to select")+'</small></div>'+
 '<label for="kb-qty">Quantity</label><input id="kb-qty" inputmode="numeric" maxlength="3" autocomplete="off" value="'+(item?.qty||1)+'"'+(kb.step==="qty"?'':' readonly')+'>'+
 '<label for="kb-comment">Item comment (optional)</label><input id="kb-comment" maxlength="150" autocomplete="off" value="'+e(item?.comment||"")+'"'+(kb.step==="qty"?'':' readonly')+'>'+
 '<div class="kb-actions">'+button('0 · Add new','add')+button('Esc / - · View','view')+'</div>'+button('5 · Print Bill','preview')+
@@ -86,6 +86,18 @@ function pick(item,index){
 kb.edit=index;kb.item={id:item.id,name:item.name,code:item.code,price:index>=0?cart[index].price:sectionPrice(item,sectionId),
  qty:index>=0?cart[index].qty:1,comment:index>=0?cart[index].comment||"":"",cgstBP:item.cgstBP,sgstBP:item.sgstBP,priceType:item.priceType};
 kb.step="qty";paint();
+}
+// Show an exact code match immediately, without moving focus or adding an order line.
+// Only Enter advances to the highlighted Quantity field.
+function previewCode(){
+ if(kb.mode!=="add"||kb.step!=="code")return;
+ var code=document.getElementById("kb-code")?.value||"";
+ var match=findCode(code);
+ var name=document.getElementById("kb-live-name");
+ var price=document.getElementById("kb-live-price");
+ if(name)name.textContent=match?match.name:"—";
+ if(price)price.textContent=match?money(sectionPrice(match,sectionId)):
+   (code.trim()?"No exact item code yet":"Enter code to select");
 }
 function lookup(){
 var code=document.getElementById("kb-code")?.value||"",item=findCode(code);
@@ -279,6 +291,7 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 document.addEventListener("click",function(ev){var el=ev.target?.closest?.("[data-kba]");
 if(!el||!current())return;ev.preventDefault();ev.stopImmediatePropagation();action(el.dataset.kba,el);},true);
 document.addEventListener("input",function(ev){var t=ev.target;if(!current())return;
+if(t.id==="kb-code"){previewCode();return;}
 if(t.id==="kb-search"){var at=t.selectionStart;kb.search=t.value;kb.cursor=0;paint();
 var fresh=document.getElementById("kb-search");fresh?.focus();try{fresh?.setSelectionRange(at,at);}catch(ex){}}
 if(t.id==="kb-discount"){kb.discount=t.value;document.getElementById("kb-preview-total").innerHTML=previewAmount();}
