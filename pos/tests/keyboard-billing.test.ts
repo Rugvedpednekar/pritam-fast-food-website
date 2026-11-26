@@ -3,13 +3,13 @@ import {readFileSync} from "node:fs";
 const source=readFileSync(new URL("../src/client/keyboard-billing.js",import.meta.url),"utf8");
 
 function harness(popupAllowed=true){
- const inputs:Record<string,any>={},selects:string[]=[],toasts:string[]=[];
+ const inputs:Record<string,any>={},selects:string[]=[],toasts:string[]=[],listeners:Record<string,Function[]>={};
  let activeId="",saved=0,printed=0;
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
  const document:any={
   head:{appendChild:()=>{}},
   createElement:()=>({id:"",textContent:""}),
-  addEventListener:()=>{},
+  addEventListener:(name:string,handler:Function)=>{(listeners[name]??=[]).push(handler);},
   get activeElement(){return {id:activeId};},
   querySelector:(q:string)=>q==="#content .fl-billing"?content.innerHTML.includes("fl-billing")?{}:null:null,
   getElementById:(id:string)=>{
@@ -67,11 +67,36 @@ function harness(popupAllowed=true){
  function key(k:string){const ev:any={key:k,preventDefault:()=>{},stopImmediatePropagation:()=>{},
    ctrlKey:false,metaKey:false,altKey:false};obj.key(ev);}
  function set(id:string,value:string){document.getElementById(id).value=value;}
+ function typeCode(value:string){set("kb-code",value);for(const handler of listeners.input||[])handler({target:document.getElementById("kb-code")});}
+ function getText(id:string){return document.getElementById(id).textContent;}
  function draw(){obj.getDraw()();}
  draw();
- return {obj,data,draw,set,key,selects,toasts,saved:()=>saved,printed:()=>printed,
+ return {obj,data,draw,set,key,typeCode,getText,selects,toasts,saved:()=>saved,printed:()=>printed,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
+
+test("Typing an exact numeric code immediately previews the item and rate before Enter",()=>{
+ const h=harness();
+ h.typeCode("6");
+ expect(h.getText("kb-live-name")).toBe("—");
+ expect(h.getText("kb-live-price")).toContain("No exact item code");
+ h.typeCode("615");
+ expect(h.getText("kb-live-name")).toBe("MINERAL WATER 500ML");
+ expect(h.getText("kb-live-price")).toBe("₹15.00");
+ expect(h.obj.kb.step).toBe("code");
+ expect(h.active()).toBe("kb-code");
+ expect(h.cart()).toHaveLength(0);
+ h.typeCode("61");
+ expect(h.getText("kb-live-name")).toBe("—");
+ h.typeCode("");
+ expect(h.getText("kb-live-price")).toBe("Enter code to select");
+ h.typeCode("615");
+ h.key("Enter");
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.active()).toBe("kb-qty");
+ expect(h.cart()).toHaveLength(0);
+});
+
 test("Numeric lookup selects Quantity, then Enter saves with the typed replacement",()=>{
  const h=harness();
  h.set("kb-code","615");h.key("Enter");
