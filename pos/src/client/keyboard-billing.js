@@ -93,8 +93,10 @@ function highlightSelection(kind){
   rows[i].classList.toggle("kb-on",active);
   rows[i].classList.toggle("kb-current",active);
   rows[i].setAttribute("aria-selected",String(active));
-  if(active&&typeof rows[i].scrollIntoView==="function"){
-   rows[i].scrollIntoView({block:"nearest",inline:"nearest"});
+  if(active){
+   // The visible selected line and actual keyboard focus should match.
+   if(kind==="order"&&typeof rows[i].focus==="function")rows[i].focus({preventScroll:true});
+   if(typeof rows[i].scrollIntoView==="function")rows[i].scrollIntoView({block:"nearest",inline:"nearest"});
   }
  }
 }
