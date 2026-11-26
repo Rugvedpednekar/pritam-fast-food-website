@@ -6,8 +6,10 @@
  style.id="tw-tables-orders-dark-contrast";
  style.textContent=`
   html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-stats{
-   background:#1b2d35!important;
-   border-color:#36515a!important;
+   background:transparent!important;
+   border:0!important;
+   box-shadow:none!important;
+   padding:0!important;
   }
   html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-stats > :not(.tw-pos-quick-actions):not(.tw-pos-action-btn):not(.tw-new-zomato){
    background:#233942!important;
