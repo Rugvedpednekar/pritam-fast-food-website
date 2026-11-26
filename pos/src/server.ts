@@ -6,6 +6,7 @@ import {answerAppQuestion} from "./ai-chat";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const darkThemeCSS = await Bun.file(new URL("./client/dark-theme.css", import.meta.url)).text();
 const aiChatJS = await Bun.file(new URL("./client/ai-chat.js", import.meta.url)).text();
+const aiLiveDataJS = await Bun.file(new URL("./client/ai-live-data.js", import.meta.url)).text();
 const aiChatCSS = await Bun.file(new URL("./client/ai-chat.css", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
@@ -129,7 +130,7 @@ if(!html.includes(ownerBoot))throw Error("Tables & Orders contrast injection poi
 html=html.replace(ownerBoot,twTablesDarkContrast+"\n"+ownerBoot);
 // Scope dark styles to the selected theme, including styles injected at runtime.
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
-html=html.replace("/*__AI_CHAT_JS__*/",()=>aiChatJS)
+html=html.replace("/*__AI_CHAT_JS__*/",()=>aiLiveDataJS+"\n"+aiChatJS)
  .replace("</head>",()=>`<style>${aiChatCSS}</style></head>`);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");

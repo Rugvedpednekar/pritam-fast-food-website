@@ -9,11 +9,12 @@ var aiChatView = (function () {
     <div class="panel tw-ai-panel">
       <div class="tw-ai-log" role="log" aria-label="Chat messages" aria-relevant="additions"></div>
       <div class="tw-ai-starters">
-        <p class="sub">Ask about billing, reports, or payroll.</p>
+        <p class="sub">Ask about the selected outlet or how to use Tablewise.</p>
         <div class="tw-ai-prompts" role="group" aria-label="Suggested questions">
           <button class="btn small" type="button" data-question="How do I close the day?">Close the day</button>
-          <button class="btn small" type="button" data-question="Where do I find sales reports?">Sales reports</button>
-          <button class="btn small" type="button" data-question="How do I print a salary sheet?">Salary sheets</button>
+          <button class="btn small" type="button" data-question="How much sales today?">Today’s sales</button>
+          <button class="btn small" type="button" data-question="Any open bills?">Open orders</button>
+          <button class="btn small" type="button" data-question="Give me a payroll overview">Payroll overview</button>
         </div>
       </div>
       <p class="tw-ai-status sub" role="status"></p>
@@ -33,7 +34,7 @@ var aiChatView = (function () {
   var input = form.querySelector("textarea");
   var send = form.querySelector('button[type="submit"]');
   var clear = page.querySelector(".tw-ai-clear");
-  var messages = [];
+  var modelMessages = [];
   var busy = false;
 
   function appendMessage(role, text) {
@@ -51,9 +52,9 @@ var aiChatView = (function () {
 
   function updateControls() {
     send.disabled = busy || !input.value.trim();
-    clear.hidden = !messages.length && !input.value && !status.textContent;
+    clear.hidden = !modelMessages.length && !input.value && !status.textContent;
     clear.disabled = busy;
-    starters.hidden = busy || messages.length > 0;
+    starters.hidden = busy || modelMessages.length > 0;
     log.hidden = !log.childElementCount;
   }
 
@@ -67,7 +68,7 @@ var aiChatView = (function () {
 
   clear.addEventListener("click", function () {
     if (busy) return;
-    messages = [];
+    modelMessages = [];
     log.replaceChildren();
     input.value = "";
     status.textContent = "";
@@ -86,26 +87,40 @@ var aiChatView = (function () {
     event.preventDefault();
     var question = input.value.trim();
     if (!question || busy) return;
+    var outletAtSubmit = selected;
 
     busy = true;
     input.readOnly = true;
-    status.textContent = "Waiting for Gemini…";
+    status.textContent = "Looking up your answer…";
     var turn = { role: "user", text: question };
     var questionBubble = appendMessage(turn.role, turn.text);
     updateControls();
     log.scrollTop = log.scrollHeight;
     try {
-      var result = await cloudReq("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: messages.slice(-8).concat(turn) }),
-      });
-      if (!result.ok || typeof result.body.reply !== "string") {
-        throw new Error(result.body.error || "Could not get an answer. Try again.");
+      var intent = aiLiveData.quickIntent(question);
+      var reply;
+      if (!intent) {
+        var result = await cloudReq("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: modelMessages.slice(-8).concat(turn) }),
+        });
+        if (!result.ok) throw Error(result.body.error || "Could not get an answer. Try again.");
+        intent = result.body.intent;
+        reply = result.body.reply;
       }
-      var answer = { role: "assistant", text: result.body.reply };
-      messages = messages.slice(-8).concat(turn, answer);
-      appendMessage(answer.role, answer.text);
+      var historyTurn = turn;
+      var historyReply = reply;
+      if (intent) {
+        var topic = aiLiveData.topic(intent);
+        if (selected !== outletAtSubmit) throw Error("The selected outlet changed. Send your question again for this outlet.");
+        reply = await aiLiveData.answer(intent);
+        historyTurn = { role: "user", text: "Show me " + topic + " for the selected outlet." };
+        historyReply = "Tablewise displayed " + topic + " from the app. The underlying figures are private.";
+      }
+      if (typeof reply !== "string" || !reply) throw Error("Could not get an answer. Try again.");
+      modelMessages = modelMessages.slice(-8).concat(historyTurn, { role: "assistant", text: historyReply });
+      appendMessage("assistant", reply);
       input.value = "";
       status.textContent = "";
     } catch (error) {

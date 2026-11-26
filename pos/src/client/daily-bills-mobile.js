@@ -5,8 +5,8 @@
  navnames.reports="Reports";
  // Daily history follows each outlet's configured IST business-day cutoff.
  // The live list rolls over immediately at cutoff, without deleting old invoices.
- function activeBillDay(){
-  var existing=data.openDays&&data.openDays[selected],cfg=data.branchSettings&&data.branchSettings[selected]||{};
+ function activeBillDay(snapshot=data,restaurantId=selected){
+  var existing=snapshot.openDays&&snapshot.openDays[restaurantId],cfg=snapshot.branchSettings&&snapshot.branchSettings[restaurantId]||{};
   if(cfg.autoDayEndEnabled===true&&/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(cfg.autoDayEndTime)){
    var now=Date.now(),offset=330*60000,local=new Date(now+offset),parts=cfg.autoDayEndTime.split(":").map(Number);
    var cutoff=Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate(),parts[0],parts[1])-offset;
@@ -15,6 +15,7 @@
   }
   return existing&&existing.date||today();
  }
+ if(typeof aiLiveData!=="undefined")aiLiveData.setBusinessDay(activeBillDay);
  var twBillHistoryMode="today",twBillHistoryDate="",twBillHistoryOutlet="";
  function twBillHistoryDateOf(b){return String(b.businessDate||b.day||"");}
  function twBillHistoryPastDates(current){

@@ -8,7 +8,11 @@ const APP_HELP = `You are the app-help assistant for Pritam Fast Food's Tablewis
 Answer app questions in a few clear steps, in the language of the question.
 Use the workflows below as your source for app instructions. If there is not enough information, say so.
 You can calculate totals, comparisons, and other arithmetic from fictional or sample figures explicitly supplied in the conversation. Use those figures exactly and label the result as sample data. Reuse the same sample figures for follow-up questions when asked. Before answering, check each sum and verify each difference by adding it back to the smaller value.
-You cannot view live sales, orders, menus, staff records, or payroll figures, and cannot make changes. For requests about live figures, direct the user to the relevant screen. Never present sample figures as live records or invent figures, actions, shortcuts, or screens.
+The signed-in app can show three live summaries for the currently selected restaurant. When the question asks for one, respond with the exact report token and nothing else:
+LIVE_SALES_TODAY — total sales or bill count for the current business day.
+LIVE_OPEN_ORDERS — current open bills, pending orders or open tables.
+LIVE_PAYROLL_OVERVIEW — overview of the selected payroll month, including pay totals and advances.
+Use a report token only for a matching request about the selected restaurant. You cannot retrieve other dates, other outlets, individual employee records, or arbitrary data. For those requests, explain what the app can show and direct the user to the relevant screen. Requests for instructions such as how to find reports, close the day, or print salary sheets should get normal app help. Never present sample figures as live records or invent figures, actions, shortcuts, or screens.
 Keep replies concise and use plain text without Markdown formatting. Do not request passwords or personal details.
 
 - New Bill opens Tables & Orders. Select a table for dine-in, or start a parcel with the parcel button or P. Use + Zomato for a Zomato order. Add items and complete the bill. Printing starts from the receipt's Print control.
@@ -88,6 +92,9 @@ export async function answerAppQuestion(request: Request, apiKey: string | undef
       .map(part => part.text)
       .join("")
       .trim();
+    if (reply === "LIVE_SALES_TODAY" || reply === "LIVE_OPEN_ORDERS" || reply === "LIVE_PAYROLL_OVERVIEW") {
+      return { status: 200, body: { intent: reply } };
+    }
     if (reply) return { status: 200, body: { reply: reply.slice(0, MAX_ASSISTANT_CHARS) } };
     return { status: 422, body: { error: "Gemini could not answer that question. Try rephrasing it." } };
   } catch (error) {
