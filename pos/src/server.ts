@@ -1,4 +1,4 @@
-import {closeDueBusinessDays} from "./day-end";
+import {closeDueBusinessDays,parseRestaurantSnapshot} from "./day-end";
 import {normalizeRestaurantNames} from "./restaurant-name";
 import {createOwnerResetController} from "./owner-reset";
 import {runRestaurantDeletionSmoke} from "./restaurant-deletion-smoke";
@@ -162,7 +162,7 @@ async function runAutomaticDayEnd() {
   for (let attempt=0;attempt<5;attempt++) {
     const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");
     if (!rows.length) return;
-    const current=rows[0],state=JSON.parse(current.payload);
+    const current=rows[0],state=parseRestaurantSnapshot(current.payload);
     const renamed=normalizeRestaurantNames(state);
     const due=closeDueBusinessDays(state,new Date());
     if (!due.length&&!renamed) return;
@@ -264,7 +264,7 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
    return res({ok:true});
   }catch(err){console.error("Payroll photo save:",err.message);return res({error:"Could not store employee photo"},503);}
  }
- if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");const security=await ownerReset.status();return res({...rows.length?{version:Number(rows[0].version),state:JSON.parse(rows[0].payload)}:{version:0,state:null},resetGeneration:security.resetGeneration,deletedRestaurants:security.deletedRestaurants})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
+ if(path==="/api/state"&&req.method==="GET"){try{await ready();await runAutomaticDayEnd();const rows=await db.unsafe("SELECT version,payload::text AS payload FROM demo_snapshots WHERE account_key='owner'");const security=await ownerReset.status();return res({...rows.length?{version:Number(rows[0].version),state:parseRestaurantSnapshot(rows[0].payload)}:{version:0,state:null},resetGeneration:security.resetGeneration,deletedRestaurants:security.deletedRestaurants})}catch(e){console.error("read",e.message);return res({error:"Database unavailable"},503)}}
  if(path==="/api/state"&&req.method==="PUT"){
   if(!origin(req))return res({error:"Origin rejected"},403);
   const text=await req.text();if(text.length>2500000)return res({error:"Payload too large"},413);
