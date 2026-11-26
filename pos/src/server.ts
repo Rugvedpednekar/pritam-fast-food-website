@@ -136,6 +136,11 @@ html=html.replace(ownerBoot,twReportsSettings+"\n"+ownerBoot);
 const twTablesDarkContrast=await Bun.file(new URL("./client/tables-dark-contrast.js",import.meta.url)).text();
 if(!html.includes(ownerBoot))throw Error("Tables & Orders contrast injection point missing");
 html=html.replace(ownerBoot,twTablesDarkContrast+"\n"+ownerBoot);
+// Keyboard-first billing and Onyx-style item entry/viewing/print flow.
+const keyboardBillingClient=await Bun.file(new URL("./client/keyboard-billing.js",import.meta.url)).text();
+new Function(keyboardBillingClient);
+if(!html.includes(ownerBoot))throw Error("Keyboard billing insertion point missing");
+html=html.replace(ownerBoot,keyboardBillingClient+"\n"+ownerBoot);
 // Scope dark styles to the selected theme, including styles injected at runtime.
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
 html=html.replace("/*__AI_CHAT_JS__*/",()=>aiLiveDataJS+"\n"+aiChatJS)
