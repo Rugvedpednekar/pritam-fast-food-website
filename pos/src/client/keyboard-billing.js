@@ -166,9 +166,13 @@ try{
  if(order)order.status="billed";data.bills.push(b);data.audit.push({action:"bill_completed",billNumber:b.number,restaurantId:selected,at:b.time});
  if(!saveTheData(old))throw Error("Bill could not be saved.");
  saved=true;
- if(!printable(b,popup))throw Error("Invoice saved, but printing could not start. Reprint from Bill History.");
+ // An invoice must never remain editable once saved, even if its print window fails.
+ // Otherwise retrying Print could issue a duplicate invoice for the same order.
+ var printOpened=printable(b,popup);
  cart=[];tableId="";activeOrderId="";discountKind="none";discountValue="";discountReason="";
- kb.context="";kb.mode="add";kb.step="code";draw();showToast("Bill "+b.number+" completed. Table is free.");
+ kb.context="";kb.mode="add";kb.step="code";draw();
+ if(!printOpened){showToast("Bill "+b.number+" completed, but receipt printing failed. Reprint from Bill History.");return;}
+ showToast("Bill "+b.number+" completed. Table is free.");
 }catch(ex){if(!saved){data=JSON.parse(old);if(popup)try{popup.close();}catch(ignored){}}showToast(ex.message||"Print failed.");}
 finally{kb.busy=false;if(!saved){discountKind=oldDiscount[0];discountValue=oldDiscount[1];discountReason=oldDiscount[2];}}
 }
