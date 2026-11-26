@@ -208,3 +208,71 @@ function tpImportNormalizeEmployee(raw,restaurants,selectedId){
   method:method,leaveAllowance:days,commissionGstRate:gst,monthlyId:serial,
   active:true,photo:"",aadhaarLast4:""};
 }
+
+/** Create a standards-compatible .xlsx template locally; no external library or upload. */
+function tpImportMakeXlsxTemplate(){
+ var encoder=new TextEncoder();
+ function xmlEscape(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+ var sheet='<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+  '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
+  '<cols>'+[26,25,18,24,18,22,20,18,21,15].map(function(width,i){
+   return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+width+'" customWidth="1"/>';
+  }).join("")+'</cols>'+
+  '<sheetData><row r="1">'+TP_IMPORT_COLUMNS.map(function(column,i){
+   return '<c r="'+String.fromCharCode(65+i)+'1" s="1" t="inlineStr"><is><t>'+xmlEscape(column.label)+'</t></is></c>';
+  }).join("")+'</row></sheetData><autoFilter ref="A1:J1"/></worksheet>';
+ var styles='<?xml version="1.0" encoding="UTF-8"?>'+
+ '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+ '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts>'+
+ '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
+ '<fill><patternFill patternType="solid"><fgColor rgb="FF156F5A"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+ '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'+
+ '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+ '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+ '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>'+
+ '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+ var files={
+  "[Content_Types].xml":'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+   '<Default Extension="xml" ContentType="application/xml"/>'+
+   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+   '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+   '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+  "_rels/.rels":'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+  "xl/workbook.xml":'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+   '<sheets><sheet name="Employees" sheetId="1" r:id="rId1"/></sheets></workbook>',
+  "xl/_rels/workbook.xml.rels":'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+  "xl/styles.xml":styles,
+  "xl/worksheets/sheet1.xml":sheet
+ };
+ function crc32(bytes){
+  var crc=-1;
+  for(var i=0;i<bytes.length;i++){
+   crc^=bytes[i];
+   for(var j=0;j<8;j++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);
+  }
+  return (crc^(-1))>>>0;
+ }
+ var local=[],central=[],total=0;
+ function u16(view,pos,n){view.setUint16(pos,n,true);}
+ function u32(view,pos,n){view.setUint32(pos,n,true);}
+ Object.keys(files).forEach(function(name){
+  var nameBytes=encoder.encode(name),body=encoder.encode(files[name]),crc=crc32(body),offset=total;
+  var localEntry=new Uint8Array(30+nameBytes.length+body.length),view=new DataView(localEntry.buffer);
+  u32(view,0,0x04034b50);u16(view,4,20);u32(view,14,crc);u32(view,18,body.length);u32(view,22,body.length);u16(view,26,nameBytes.length);
+  localEntry.set(nameBytes,30);localEntry.set(body,30+nameBytes.length);local.push(localEntry);total+=localEntry.length;
+  var centralEntry=new Uint8Array(46+nameBytes.length),centralView=new DataView(centralEntry.buffer);
+  u32(centralView,0,0x02014b50);u16(centralView,4,20);u16(centralView,6,20);
+  u32(centralView,16,crc);u32(centralView,20,body.length);u32(centralView,24,body.length);
+  u16(centralView,28,nameBytes.length);u32(centralView,42,offset);centralEntry.set(nameBytes,46);central.push(centralEntry);
+ });
+ var directoryOffset=total,directorySize=central.reduce(function(n,b){return n+b.length;},0);
+ var buffer=new Uint8Array(total+directorySize+22),pos=0;
+ local.concat(central).forEach(function(b){buffer.set(b,pos);pos+=b.length;});
+ var end=new DataView(buffer.buffer),count=central.length;
+ u32(end,pos,0x06054b50);u16(end,pos+8,count);u16(end,pos+10,count);u32(end,pos+12,directorySize);u32(end,pos+16,directoryOffset);
+ return buffer.buffer;
+}
