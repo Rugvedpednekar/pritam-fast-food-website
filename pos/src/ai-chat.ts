@@ -5,11 +5,11 @@ const MAX_ASSISTANT_CHARS = 3200;
 const MAX_BODY_BYTES = 48_000;
 
 const APP_HELP = `You are the app-help assistant for Pritam Fast Food's Tablewise POS.
-Answer questions about using the app in a few clear steps, in the language of the question.
-Use the workflows below as your source. If there is not enough information, say so.
-You cannot view live sales, orders, menus, staff records, or payroll figures, and cannot make changes.
-For live figures, direct the user to the relevant screen. Never invent figures, actions, shortcuts, or screens.
-Use plain text and keep replies concise. Do not request passwords or personal details.
+Answer app questions in a few clear steps, in the language of the question.
+Use the workflows below as your source for app instructions. If there is not enough information, say so.
+You can calculate totals, comparisons, and other arithmetic from fictional or sample figures explicitly supplied in the conversation. Use those figures exactly and label the result as sample data. Reuse the same sample figures for follow-up questions when asked. Before answering, check each sum and verify each difference by adding it back to the smaller value.
+You cannot view live sales, orders, menus, staff records, or payroll figures, and cannot make changes. For requests about live figures, direct the user to the relevant screen. Never present sample figures as live records or invent figures, actions, shortcuts, or screens.
+Keep replies concise and use plain text without Markdown formatting. Do not request passwords or personal details.
 
 - New Bill opens Tables & Orders. Select a table for dine-in, or start a parcel with the parcel button or P. Use + Zomato for a Zomato order. Add items and complete the bill. Printing starts from the receipt's Print control.
 - Bill History shows completed bills. Select the restaurant first when working with one outlet.
@@ -69,7 +69,7 @@ export async function answerAppQuestion(request: Request, apiKey: string | undef
           role: role === "assistant" ? "model" : "user",
           parts: [{ text }],
         })),
-        generationConfig: { maxOutputTokens: 650, thinkingConfig: { thinkingLevel: "MINIMAL" } },
+        generationConfig: { maxOutputTokens: 1200, thinkingConfig: { thinkingLevel: "LOW" } },
       }),
     });
     if (response.status === 429) {
