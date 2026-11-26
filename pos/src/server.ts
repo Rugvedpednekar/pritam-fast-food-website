@@ -47,7 +47,7 @@ let tableDeleteExtension=Bun.env.TABLE_DELETE_JS||"";
 try{if(!tableDeleteExtension.includes("sectionsView=function()"))throw Error("Table deletion asset missing");new Function(tableDeleteExtension);}catch(error){console.error("Table deletion unavailable",error);tableDeleteExtension="";}
 let html=htmlTemplate.replace("/*__TABLEWISE_MENU_JS__*/",replaceNativeDialogs(menuExtension)).replace("/*__EMP_MODAL_JS__*/",replaceNativeDialogs(employeeExtension)).replace("/*__CATEGORY_DELETE_JS__*/",replaceNativeDialogs(categoryDeleteExtension)).replace("/*__UX_DIALOG_JS__*/",uxExtension).replace("/*__MENU_EXCEL_IMPORT_JS__*/",excelImportExtension).replace("/*__POS_KEYBOARD_JS__*/","try{\n"+posKeyboard+"\n}catch(bootError){console.error('Keyboard shortcut startup failed',bootError);\n}").replace("/*__REPORT_WORKSPACE_JS__*/","try{\n"+reportExtension+"\n}catch(reportError){console.error('Report workspace failed',reportError);\n}").replace("/*__RECEIPT_PRINT_JS__*/","try{\n"+receiptExtension+"\n}catch(receiptError){console.error('Receipt module failed',receiptError);\n}").replace("/*__BILLING_TABLE_TOOLS_JS__*/","try{\n"+billingTablesExtension+"\n}catch(billingError){console.error('Billing table module failed',billingError);\n}").replace("/*__TABLE_DELETE_JS__*/","try{\n"+tableDeleteExtension+"\n}catch(tableDeleteError){console.error('Table delete module failed',tableDeleteError);\n}");
 
-html=html.replace("</style>",((Bun.env.TW_POS_CSS||"")+(Bun.env.TW_POS_OPTIONS_CSS||""))+"</style>").replace("startupFinished=true;\ncloudStart();\n})();",((Bun.env.TW_POS_OPTIONS_JS||"")+(Bun.env.TW_POS_JS||"")+(Bun.env.TW_POS_CLOSE_JS||""))+"\nstartupFinished=true;\ncloudStart();\n})();").replace('if(typeof showSavedBillModal==="function")showSavedBillModal(inv);else showToast("Bill "+inv.number+" saved.");','showToast("Bill "+inv.number+" saved.");');
+html=html.replace("</style>",(Bun.env.TW_POS_CSS||"")+"</style>").replace("startupFinished=true;\ncloudStart();\n})();",((Bun.env.TW_POS_JS||"")+(Bun.env.TW_POS_CLOSE_JS||""))+"\nstartupFinished=true;\ncloudStart();\n})();").replace('if(typeof showSavedBillModal==="function")showSavedBillModal(inv);else showToast("Bill "+inv.number+" saved.");','showToast("Bill "+inv.number+" saved.");');
 html=html.replace("Save & go to tables","Close table (auto-save)");
 // Only the receipt modal print button should invoke browser printing.
 html=html.replace('if(printOnSave)requestAnimationFrame(function(){document.body.classList.add("fl-printing");window.print();});','');
@@ -57,7 +57,7 @@ const twPrintFlagsBefore=html.split("printOnSave=true").length-1;
 html=html.split("printOnSave=true").join("printOnSave=false");
 html=html.replace('if(printOnSave)requestAnimationFrame(function(){document.body.classList.add("fl-printing");window.print();});','');
 html=html.replace("Generate bill & print","Generate bill");
-console.log("TW_POS_PRINT_OPTION_V3", "autoPrintFlagsDisabled="+twPrintFlagsBefore, "option5="+html.includes('else if(n===5){flHideOptions();printOnSave=false;await saveBill();}'));
+console.log("TW_POS_PRINT_OPTION_V3", "autoPrintFlagsDisabled="+twPrintFlagsBefore, "legacyNumberedOptionsRemoved=true");
 // GitHub-managed menu bulk delete UI (runs after Railway-injected extensions).
 const fullMenuDeleteModule=await Bun.file(new URL("./client/delete-full-menu.js",import.meta.url)).text();
 const bulkMenuBootMarker="startupFinished=true;\ncloudStart();\n})();";
