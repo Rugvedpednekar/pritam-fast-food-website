@@ -51,16 +51,28 @@
    showToast(cfg.autoDayEndEnabled?"Saving daily auto day-end at "+value+" IST.":"Automatic day-end disabled.");
  },true);
 
- // The server closes the old shift on schedule. The first subsequent bill opens the next day.
+ // On every completed day-end, scheduled or manual, the next bill opens a
+ // new business day. The older invoices and any pending orders remain intact.
+ function afterLastClosedDay(baseDate){
+   var latest="";
+   (data.closings||[]).forEach(function(c){
+     if(c.restaurantId===selected&&/^\d{4}-\d{2}-\d{2}$/.test(c.day||"")&&c.day>latest)latest=c.day;
+   });
+   if(latest&&baseDate<=latest){
+     return new Date(Date.parse(latest+"T00:00:00Z")+86400000).toISOString().slice(0,10);
+   }
+   return baseDate;
+ }
  var baseOpenDay=getOpenDay;
  getOpenDay=function(create){
    if(!create)return baseOpenDay(create);
-   var cfg=branchCfg();
-   if(cfg.autoDayEndEnabled!==true||!validTime(cfg.autoDayEndTime))return baseOpenDay(create);
-   var existing=data.openDays[selected];
+   var existing=data.openDays&&data.openDays[selected];
    if(existing)return existing;
-   var now=new Date(),date=shiftDate(now,cfg.autoDayEndTime);
-   var opened={id:selected+"d"+data.seq++,date:date,opened:now.toISOString()};
+   var cfg=branchCfg(),now=new Date(),baseDate=
+     cfg.autoDayEndEnabled===true&&validTime(cfg.autoDayEndTime)?
+       shiftDate(now,cfg.autoDayEndTime):today();
+   var opened={id:selected+"d"+data.seq++,date:afterLastClosedDay(baseDate),opened:now.toISOString()};
+   if(!data.openDays)data.openDays={};
    data.openDays[selected]=opened;
    return opened;
  };
