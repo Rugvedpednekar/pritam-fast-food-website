@@ -1,5 +1,5 @@
 import {test,expect} from "bun:test";
-import {businessDateFor,closeDueBusinessDays} from "../src/day-end";
+import {businessDateFor,closeDueBusinessDays,parseRestaurantSnapshot} from "../src/day-end";
 
 test("business-date boundary is IST, not browser local time",()=>{
   expect(businessDateFor(new Date("2026-11-25T02:59:00+05:30"),"03:00")).toBe("2026-11-24");
@@ -32,4 +32,30 @@ test("disabled day-end does not close any business day",()=>{
     branchSettings:{a:{autoDayEndEnabled:false,autoDayEndTime:"03:00"}},closings:[],audit:[],bills:[]};
   expect(closeDueBusinessDays(state,new Date("2026-11-25T04:00:00+05:30"))).toEqual([]);
   expect(state.openDays.a).toBeDefined();
+});
+
+test("Realistic double-encoded legacy snapshots are decoded before day-end",()=>{
+ const state={
+  schema:1,restaurants:[{id:"r1",name:"Pritam Fast Food"}],
+  menus:{r1:[]},bills:[{id:"bill1",restaurantId:"r1",businessDayId:"r1day1",status:"paid",total:13000}],
+  employees:[],closings:[],orders:[{id:"openOrder",restaurantId:"r1",status:"open"}],audit:[],
+  openDays:{r1:{id:"r1day1",date:"2026-11-25",opened:"2026-11-25T04:00:00+05:30"}},
+  branchSettings:{r1:{autoDayEndEnabled:true,autoDayEndTime:"03:00"}}
+ };
+ const raw=JSON.stringify(JSON.stringify(state));
+ const parsed=parseRestaurantSnapshot(raw);
+ expect(Array.isArray(parsed.restaurants)).toBe(true);
+ expect(closeDueBusinessDays(parsed,new Date("2026-11-26T03:05:00+05:30"))).toEqual(["r1"]);
+ expect(parsed.openDays.r1).toBeUndefined();
+ expect(parsed.closings).toHaveLength(1);
+ expect(parsed.closings[0].day).toBe("2026-11-25");
+ expect(parsed.bills[0].total).toBe(13000);
+ expect(parsed.orders[0].status).toBe("open");
+ expect(parseRestaurantSnapshot(JSON.stringify(parsed)).closings).toHaveLength(1);
+});
+
+test("Invalid saved snapshot fails closed without erasing bills",()=>{
+ for(const value of ["not-json",JSON.stringify("not-json"),JSON.stringify({restaurants:[],bills:[]}),"null"]){
+  expect(()=>parseRestaurantSnapshot(value)).toThrow();
+ }
 });
