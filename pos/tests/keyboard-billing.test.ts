@@ -4,12 +4,29 @@ const source=readFileSync(new URL("../src/client/keyboard-billing.js",import.met
 
 function harness(popupAllowed=true){
  const inputs:Record<string,any>={},selects:string[]=[],toasts:string[]=[],listeners:Record<string,Function[]>={};
+ const selectionNodes:Record<string,any[]>={search:[],order:[]};
+ function selectedRows(which:string){
+  const selector=which==="search"?'data-kba="choose"':'data-kba="line"';
+  const count=content.innerHTML.split(selector).length-1;
+  if(selectionNodes[which].length!==count){
+   selectionNodes[which]=Array.from({length:count},()=>({
+    current:false,ariaSelected:"false",scrolls:0,
+    classList:{toggle:function(name:string,enabled:boolean){if(name==="kb-current")this.owner.current=enabled;}},
+    setAttribute:function(name:string,val:string){if(name==="aria-selected")this.ariaSelected=val;},
+    scrollIntoView:function(){this.scrolls++;}
+   }));
+   selectionNodes[which].forEach(n=>n.classList.owner=n);
+  }
+  return selectionNodes[which];
+ }
  let activeId="",saved=0,printed=0;
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
  const document:any={
   head:{appendChild:()=>{}},
   createElement:()=>({id:"",textContent:""}),
   addEventListener:(name:string,handler:Function)=>{(listeners[name]??=[]).push(handler);},
+  querySelectorAll:(selector:string)=>selector.includes("kb-results")?selectedRows("search"):
+                                   selector.includes("kb-lines")?selectedRows("order"):[],
   get activeElement(){return {id:activeId};},
   querySelector:(q:string)=>q==="#content .fl-billing"?content.innerHTML.includes("fl-billing")?{}:null:null,
   getElementById:(id:string)=>{
@@ -71,7 +88,7 @@ function harness(popupAllowed=true){
  function getText(id:string){return document.getElementById(id).textContent;}
  function draw(){obj.getDraw()();}
  draw();
- return {obj,data,draw,set,key,typeCode,getText,selects,toasts,saved:()=>saved,printed:()=>printed,
+ return {obj,data,draw,set,key,typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
 
@@ -150,4 +167,53 @@ test("A blocked print popup keeps the table's open order and creates no bill",()
  expect(h.data.orders[0].status).toBe("open");
  expect(h.currentTable()).toBe("t1");
  expect(h.cart()).toHaveLength(1);
+});
+
+test("Arrow keys visibly highlight Search Assistant rows and Enter chooses highlighted row",()=>{
+ const h=harness();
+ h.key("m");
+ expect(h.obj.kb.step).toBe("search");
+ expect(h.selection("search").map((x:any)=>x.ariaSelected)).toEqual(["true","false"]);
+ h.key("ArrowDown");
+ expect(h.obj.kb.cursor).toBe(1);
+ expect(h.selection("search").map((x:any)=>x.ariaSelected)).toEqual(["false","true"]);
+ expect(h.selection("search")[1].scrolls).toBeGreaterThan(0);
+ h.key("Enter");
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.obj.kb.item.name).toBe("MASALA DOSA");
+ expect(h.active()).toBe("kb-qty");
+});
+test("Viewing Mode arrows visibly highlight the existing order line",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.set("kb-code","37");h.key("Enter");h.key("Enter");
+ expect(h.cart()).toHaveLength(2);
+ h.key("Escape");
+ expect(h.obj.kb.mode).toBe("view");
+ expect(h.selection("order").map((x:any)=>x.ariaSelected)).toEqual(["true","false"]);
+ h.key("ArrowDown");
+ expect(h.obj.kb.selected).toBe(1);
+ expect(h.selection("order").map((x:any)=>x.ariaSelected)).toEqual(["false","true"]);
+ expect(h.selection("order")[1].scrolls).toBeGreaterThan(0);
+ h.key("Enter");
+ expect(h.obj.kb.item.name).toBe("MASALA DOSA");
+});
+test("Esc and minus close alphabetic Search Assistant without leaving the current table",()=>{
+ for(const exitKey of ["Escape","-","Subtract"]){
+  const h=harness();
+  h.set("kb-code","615");h.key("Enter");h.key("Enter");
+  const before=h.cart().map((row:any)=>({id:row.id,qty:row.qty}));
+  const orderId=h.obj.getActiveOrder();
+  h.key("m");
+  expect(h.obj.kb.step).toBe("search");
+  h.key(exitKey);
+  expect(h.obj.kb.step).toBe("code");
+  expect(h.obj.kb.mode).toBe("add");
+  expect(h.active()).toBe("kb-code");
+  expect(h.currentTable()).toBe("t1");
+  expect(h.obj.getActiveOrder()).toBe(orderId);
+  expect(h.cart().map((row:any)=>({id:row.id,qty:row.qty}))).toEqual(before);
+  h.set("kb-code","37");h.key("Enter");
+  expect(h.obj.kb.item.name).toBe("MASALA DOSA");
+ }
 });
