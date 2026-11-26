@@ -1,0 +1,19 @@
+.tw-ai{max-width:860px;margin-inline:auto}
+.tw-ai-panel{display:grid;gap:16px;min-width:0}
+.tw-ai-toolbar,.tw-ai-prompts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tw-ai-toolbar{justify-content:space-between}
+.tw-ai-toolbar .panel-title,.tw-ai .help,.tw-ai .sub,.tw-ai-message p{margin:0}
+.tw-ai-log{display:flex;flex-direction:column;gap:12px;min-width:0;max-height:min(52vh,540px);overflow-y:auto}
+.tw-ai-log[hidden],.tw-ai-prompts[hidden],.tw-ai-status:empty{display:none}
+.tw-ai-message{align-self:flex-start;max-width:90%;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-alt,var(--bg));overflow-wrap:anywhere}
+.tw-ai-user{align-self:flex-end;background:#16463d;color:#ebf8f3}
+.tw-ai-message strong,.tw-ai-label{font-size:.82rem}
+.tw-ai-message p{white-space:pre-wrap;line-height:1.5}
+.tw-ai-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+.tw-ai-label{grid-column:1/-1;font-weight:600}
+.tw-ai-form textarea{width:100%;min-width:0;resize:vertical;line-height:1.4}
+.tw-ai-form .btn{min-height:44px}
+@media(max-width:520px){
+ .tw-ai-message{max-width:96%}
+ .tw-ai-form textarea{font-size:16px}
+}

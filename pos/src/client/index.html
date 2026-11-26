@@ -49,8 +49,8 @@ window.addEventListener("error",function(ev){
  }
 });
 var KEY="tablewise-cloud-v1";
-var icons={dashboard:"▦",pos:"▣",menu:"☷",bills:"▤",reports:"▥",payroll:"₹",settings:"⚙"};
-var navnames={dashboard:"Overview",pos:"New Bill",menu:"Menu Management",bills:"Bill History",reports:"Reports & Day-End",payroll:"Payroll",settings:"Settings & Backup"};
+var icons={dashboard:"▦",pos:"▣",menu:"☷",bills:"▤",reports:"▥",payroll:"₹",ai:"✦",settings:"⚙"};
+var navnames={dashboard:"Overview",pos:"New Bill",menu:"Menu Management",bills:"Bill History",reports:"Reports & Day-End",payroll:"Payroll",ai:"AI",settings:"Settings & Backup"};
 var samples=[];
 function initial(){var r=[],m={};for(var i=1;i<=5;i++){var id="r"+i;r.push({id:id,name:"Restaurant "+String(i).padStart(2,"0")});m[id]=samples.map(function(x,j){return{id:id+"m"+j,code:x[0],name:x[1],category:x[2],price:Number(x[3])*100,active:true};});}return{schema:1,restaurants:r,menus:m,bills:[],employees:[],closings:[],seq:1};}
 function valid(d){return d&&d.schema===1&&Array.isArray(d.restaurants)&&d.restaurants.length>=1&&d.restaurants.length<=50&&d.restaurants.some(function(r){return r.active!==false;})&&d.menus&&Array.isArray(d.bills)&&Array.isArray(d.employees)&&Array.isArray(d.closings)&&Number.isSafeInteger(d.seq);}
@@ -223,7 +223,11 @@ draw=function(){
  document.getElementById("restaurant").innerHTML=data.restaurants.filter(function(r){return r.active!==false;}).map(function(r){return'<option value="'+e(r.id)+'" '+(selected===r.id?"selected":"")+'>'+e(r.name)+'</option>';}).join("");
  document.getElementById("crumb").textContent=tab==="reports"?"Workspace / Settings / Reports":"Workspace / "+(navnames[tab]||tab);
  var pages={dashboard:dashboard,pos:pos,menu:menu,bills:bills,reports:reports,employees:employees,payroll:payroll,settings:settings,sections:sectionsView};
- document.getElementById("content").innerHTML=(pages[tab]||dashboard)();
+ var content=document.getElementById("content");
+ if(tab==="ai"){
+  var chat=aiChatView();
+  if(content.firstElementChild!==chat)content.replaceChildren(chat);
+ }else content.innerHTML=(pages[tab]||dashboard)();
 };
 var oldPos=pos;
 pos=function(){
@@ -583,6 +587,7 @@ window.addEventListener("focus",refreshFromCloud);setInterval(refreshFromCloud,3
 /*__RECEIPT_PRINT_JS__*/
 /*__BILLING_TABLE_TOOLS_JS__*/
 /*__TABLE_DELETE_JS__*/
+/*__AI_CHAT_JS__*/
 document.addEventListener("click",function(ev){var button=ev.target.closest("button[data-overview]");if(!button)return;ev.preventDefault();ev.stopImmediatePropagation();overviewScope=button.getAttribute("data-overview")==="all"?"all":"selected";tab="dashboard";draw();},true);
 try{draw();}catch(err){document.getElementById("content").innerHTML="<div class='notice'>Preview failed to load: "+e(err.message)+"</div>";console.error(err);}
 startupFinished=true;

@@ -2,8 +2,11 @@ import {closeDueBusinessDays,parseRestaurantSnapshot} from "./day-end";
 import {normalizeRestaurantNames} from "./restaurant-name";
 import {createOwnerResetController} from "./owner-reset";
 import {runRestaurantDeletionSmoke} from "./restaurant-deletion-smoke";
+import {answerAppQuestion} from "./ai-chat";
 const htmlTemplate = await Bun.file(new URL("./client/index.html", import.meta.url)).text();
 const darkThemeCSS = await Bun.file(new URL("./client/dark-theme.css", import.meta.url)).text();
+const aiChatJS = await Bun.file(new URL("./client/ai-chat.js", import.meta.url)).text();
+const aiChatCSS = await Bun.file(new URL("./client/ai-chat.css", import.meta.url)).text();
 const menuExtension = Bun.env.MENU_EXTENSION_JS;
 if(!menuExtension || !menuExtension.includes('var mView=')) throw Error('Menu assets unavailable');
 const employeeExtension=Bun.env.EMPLOYEE_EXTENSION_JS;
@@ -127,6 +130,8 @@ html=html.replace(ownerBoot,twTablesDarkContrast+"\n"+ownerBoot);
 // Dark mode is the default for every workspace, including styles injected at runtime.
 html=html.replace('<html lang="en">','<html lang="en" data-theme="dark">');
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
+html=html.replace("/*__AI_CHAT_JS__*/",()=>aiChatJS)
+ .replace("</head>",()=>`<style>${aiChatCSS}</style></head>`);
 const clientScript=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if(!clientScript)throw Error("Compiled client code missing");
 new Function(clientScript);
@@ -204,7 +209,7 @@ const ownerReset=createOwnerResetController({db,ready,photosReady,checkOwnerPass
 })();
 
 const failures=new Map();
-Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
+Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req,server){
  const path=new URL(req.url).pathname;
  if(path==="/health"){try{await ready();await db.unsafe("SELECT 1");return res({ok:true,database:true});}catch(e){console.error("Health DB",e.message);return res({ok:false,database:false},503)}}
  if(path==="/"&&req.method==="GET")return new Response(html,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","x-frame-options":"DENY","content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"}});
@@ -221,6 +226,14 @@ Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
   return res({authenticated:true},200,{"set-cookie":cookie+"="+token+"; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800"});
  }
  if(!auth(req))return res({error:"Authentication required"},401);
+ if(path==="/api/ai/chat"&&req.method==="POST"){
+  const requestOrigin=req.headers.get("origin");
+  const sameOriginFetch=(!requestOrigin||requestOrigin==="null")&&req.headers.get("sec-fetch-site")==="same-origin";
+  if(!origin(req)&&!sameOriginFetch)return res({error:"Origin rejected"},403);
+  server.timeout(req,25);
+  const result=await answerAppQuestion(req,Bun.env.GEMINI_API_KEY?.trim());
+  return res(result.body,result.status);
+ }
  if(path==="/api/logout"&&req.method==="POST"){if(!origin(req))return res({error:"Origin rejected"},403);return res({ok:true},200,{"set-cookie":cookie+"=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"});}
  if(path==="/api/owner/status"&&req.method==="GET"){
   try{return res(await ownerReset.status());}
