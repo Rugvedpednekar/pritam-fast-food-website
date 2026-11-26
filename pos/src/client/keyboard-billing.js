@@ -17,7 +17,8 @@ return t?.name||o?.label||"Parcel";}
 function button(label,act){return '<button type="button" data-kba="'+act+'">'+label+'</button>';}
 function screen(){
 var viewing=kb.mode==="view",item=kb.item,p=total(),section=selSection();
-var lines=cart.map(function(v,i){return '<button type="button" class="kb-line '+(viewing&&kb.selected===i?'kb-on':'')+
+var lines=cart.map(function(v,i){var active=viewing&&kb.selected===i;
+return '<button type="button" role="option" aria-selected="'+active+'" class="kb-line '+(active?'kb-on kb-current':'')+
 '" data-kba="line" data-index="'+i+'"><span><b>'+e(v.name)+'</b><small>#'+e(v.code)+(v.comment?' · '+e(v.comment):'')+
 '</small></span><span>'+v.qty+'</span><strong>'+money(v.price*v.qty)+'</strong></button>';}).join("");
 var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+button('← Tables','floor')+
@@ -37,9 +38,10 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<div class="kb-actions">'+button('0 · Add new','add')+button('Esc / - · View','view')+'</div>'+button('5 · Print Bill','preview')+
 '<p class="kb-help">No Tab navigation. Enter moves the keyboard focus automatically.</p></section></div>';
 if(kb.step==="search"){
- body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Search Assistant</h3><p>↑ / ↓ to navigate · Enter to choose · Esc to close</p>'+
+ body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Search Assistant</h3><p>↑ / ↓ to highlight · Enter to choose · Esc / − returns to this table</p>'+
  '<label for="kb-search">Search Code or Item Name</label><input id="kb-search" autocomplete="off" value="'+e(kb.search)+'">'+
- '<div class="kb-results">'+(matches().map(function(m,i){return '<button type="button" class="'+(i===kb.cursor?'kb-on':'')+
+ '<div class="kb-results" role="listbox" aria-label="Matching menu items">'+(matches().map(function(m,i){var active=i===kb.cursor;
+return '<button type="button" role="option" aria-selected="'+active+'" class="'+(active?'kb-on kb-current':'')+
  '" data-kba="choose" data-index="'+i+'"><span><b>'+e(m.name)+'</b><small>#'+e(m.code)+' · '+e(m.category||"")+'</small></span><strong>'+
  money(sectionPrice(m,sectionId))+'</strong></button>';}).join("")||'<p class="kb-empty">No matching items</p>')+'</div></section></div>';
 }
@@ -73,7 +75,26 @@ var id=kb.step==="qty"?"kb-qty":kb.step==="search"?"kb-search":kb.step==="previe
 kb.step==="gst"?"kb-gstin":"kb-code";
 var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="kb-qty"||id==="kb-discount")f.select();}
 }
-function paint(){if(!eligible())return;document.getElementById("content").innerHTML=screen();refocus();}
+// Keep a visible selection while keyboard focus remains on Item Code / Search.
+function highlightSelection(kind){
+ if(typeof document.querySelectorAll!=="function")return;
+ var selector=kind==="search"?'#twkb .kb-results button[data-kba="choose"]':'#twkb .kb-lines button[data-kba="line"]';
+ var rows=document.querySelectorAll(selector);
+ var selectedIndex=kind==="search"?kb.cursor:kb.selected;
+ for(var i=0;i<rows.length;i++){
+  var active=i===selectedIndex;
+  rows[i].classList.toggle("kb-on",active);
+  rows[i].classList.toggle("kb-current",active);
+  rows[i].setAttribute("aria-selected",String(active));
+  if(active&&typeof rows[i].scrollIntoView==="function"){
+   rows[i].scrollIntoView({block:"nearest",inline:"nearest"});
+  }
+ }
+}
+function paint(){if(!eligible())return;document.getElementById("content").innerHTML=screen();refocus();
+ if(kb.step==="search")highlightSelection("search");
+ else if(kb.mode==="view"&&kb.step==="list")highlightSelection("order");
+}
 function reset(){
 var key=selected+"|"+sectionId+"|"+tableId+"|"+activeOrderId;
 if(key===kb.context)return;
@@ -82,6 +103,12 @@ kb.discount="";kb.discountType="amount";kb.instruction="";kb.gstin="";kb.gstName
 }
 function enterView(){kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();}
 function enterAdd(){kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;paint();}
+function closeSearchToTable(){
+ // Do not navigate to the floor or switch to Viewing Mode when cancelling a search.
+ // The same table/order stays open and Item Code is ready again.
+ kb.search="";kb.cursor=0;kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
+ paint();
+}
 function pick(item,index){
 kb.edit=index;kb.item={id:item.id,name:item.name,code:item.code,price:index>=0?cart[index].price:sectionPrice(item,sectionId),
  qty:index>=0?cart[index].qty:1,comment:index>=0?cart[index].comment||"":"",cgstBP:item.cgstBP,sgstBP:item.sgstBP,priceType:item.priceType};
@@ -229,8 +256,12 @@ if(kb.step==="preview"){
  return;
 }
 if(kb.step==="search"){
- if(k==="Escape"){stop();kb.step="code";kb.search="";paint();return;}
- if(k==="ArrowDown"||k==="ArrowUp"){stop();var a=matches();kb.cursor=Math.max(0,Math.min(a.length-1,kb.cursor+(k==="ArrowDown"?1:-1)));paint();return;}
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();return closeSearchToTable();}
+ if(k==="ArrowDown"||k==="ArrowUp"){
+  stop();var a=matches();
+  if(a.length){kb.cursor=Math.max(0,Math.min(a.length-1,kb.cursor+(k==="ArrowDown"?1:-1)));highlightSelection("search");}
+  return;
+ }
  if(k==="Enter"){stop();var m=matches()[kb.cursor];if(m){kb.search="";pick(m,-1);}return;}
  return;
 }
@@ -243,7 +274,10 @@ if(k==="Escape"||k==="-"){stop();return enterView();}
 if(kb.mode==="view"){
  if(k==="0"){stop();return enterAdd();}
  if(k==="5"){stop();return openPreview();}
- if(k==="ArrowDown"||k==="ArrowUp"){stop();if(cart.length){kb.selected=(kb.selected+(k==="ArrowDown"?1:-1)+cart.length)%cart.length;kb.step="list";paint();}return;}
+ if(k==="ArrowDown"||k==="ArrowUp"){stop();if(cart.length){
+  kb.selected=(kb.selected+(k==="ArrowDown"?1:-1)+cart.length)%cart.length;
+  kb.step="list";highlightSelection("order");
+ }return;}
  if(k==="Enter"){stop();var row=cart[kb.selected];if(row){var m=menu().find(function(x){return x.id===row.id;})||row;pick(m,kb.selected);}return;}
  if(k==="Delete"){stop();var row=cart[kb.selected];if(!row)return;
   if(!window.confirm("Remove "+row.name+" from this order?"))return;
@@ -270,6 +304,8 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-lines{min-height:180px;max-height:55dvh;overflow:auto}",
 "#twkb .kb-line{width:100%;border:1px solid transparent;border-bottom-color:#38525c;color:#eef9f5;background:transparent;padding:12px;text-align:left;cursor:pointer}",
 "#twkb .kb-line small{display:block;font-size:11px;margin-top:3px}#twkb .kb-on{background:#19563e!important;border-color:#5bcc91!important}",
+"#twkb .kb-lines button.kb-current,#twkb .kb-results button.kb-current{background:#16714c!important;color:#ffffff!important;border:2px solid #a6ffc0!important;border-left:6px solid #c4ff80!important;box-shadow:0 0 0 2px #38b77f99,inset 0 0 0 1px #165a43!important;font-weight:800!important}",
+"#twkb .kb-lines button.kb-current :is(b,span,strong,small),#twkb .kb-results button.kb-current :is(b,span,strong,small){color:#ffffff!important}",
 "#twkb .kb-totals{border-top:1px solid #3f5961;padding-top:10px}#twkb .kb-totals div{display:flex;justify-content:space-between;margin:9px 0;font-size:13px}",
 "#twkb .kb-totals .kb-grand{font-size:18px;font-weight:800;border-top:1px solid #43595e;padding-top:12px;color:#81f1ba}",
 "#twkb label{display:block;margin:14px 0 6px;font-weight:750;font-size:12px;color:#c1dad1}",
