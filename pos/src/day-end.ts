@@ -2,6 +2,25 @@
 // Pure functions allow us to test the dates without touching live data.
 export const IST_OFFSET_MS = 330 * 60 * 1000;
 
+/** PostgreSQL stores some older POS snapshots as JSONB strings containing JSON.
+ * Decode either representation without changing the saved content. Fail closed
+ * rather than treating a JSON string as a valid restaurant object.
+ */
+export function parseRestaurantSnapshot(raw) {
+ let state=raw;
+ for(let attempt=0;attempt<4&&typeof state==="string";attempt++){
+  try{state=JSON.parse(state);}
+  catch{throw Error("Saved restaurant snapshot could not be decoded");}
+ }
+ if(!state||typeof state!=="object"||Array.isArray(state)||
+    !Array.isArray(state.restaurants)||!Array.isArray(state.bills)||
+    !Array.isArray(state.closings)||!state.openDays||typeof state.openDays!=="object"||
+    !state.branchSettings||typeof state.branchSettings!=="object")
+  throw Error("Saved restaurant snapshot has an invalid structure");
+ return state;
+}
+
+
 export function validDayEndTime(time) {
   return typeof time === "string" && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time);
 }
