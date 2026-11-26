@@ -29,7 +29,8 @@ function harness(saveAllowed=true){
  (p:any)=>"₹"+(p/100),()=>month,()=>"<section>Manual roster remains visible</section>",
  (s:string)=>toasts.push(s),()=>{draws++;},document,"payroll","employees"
  ];
- const api:any=new Function(...args,core+"\nreturn "+modified)(...vals);
+ const body=modified.replace(/^\/\*[\s\S]*?\*\/\s*/,"");
+ const api:any=new Function(...args,core+"\nreturn "+body)(...vals);
  function raw(entries:any[]){
   const h=["Employee Name","Designation","Joining Date","Restaurant","Employee Type","Monthly Salary (INR)","Payment Method","Paid Leave Days","Commission GST (%)","Monthly ID"];
   const lines=entries.map((e:any)=>[
