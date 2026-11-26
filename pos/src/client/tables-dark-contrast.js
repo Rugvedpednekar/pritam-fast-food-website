@@ -125,16 +125,16 @@
     var button=buttons[i];
     // The POS already displays "Occupied" for tables holding open orders.
     // Use that existing status rather than changing any order state.
-    var occupied=/\\boccupied\\b/i.test(button.textContent||"")||
+    var occupied=/\boccupied\b/i.test(button.textContent||"")||
       button.classList.contains("occupied")||
       button.getAttribute("data-status")==="occupied";
     button.classList.toggle("tw-table-occupied",occupied);
    }
   }
   var unwanted=[
-   /^white\\s*=\\s*available\\s*[·•.\\-]\\s*green\\s*=\\s*open\\s+order$/i,
-   /^resume\\s+any\\s+saved\\s+parcel$/i,
-   /^type\\s+table\\s+number\\s*\\+\\s*enter\\s*[·•.\\-]\\s*press\\s*p\\s+for\\s+parcel$/i
+   /^white\s*=\s*available\s*[·•.\-]\s*green\s*=\s*open\s+order$/i,
+   /^resume\s+any\s+saved\s+parcel$/i,
+   /^type\s+table\s+number\s*\+\s*enter\s*[·•.\-]\s*press\s*p\s+for\s+parcel$/i
   ];
   // Match the entire instruction in its smallest enclosing element; this
   // keeps DINE-IN / OPEN PARCEL ORDERS headings and the editable input.
@@ -142,7 +142,7 @@
   for(var j=0;j<candidates.length;j++){
    var el=candidates[j];
    if(el.classList.contains("tw-unwanted-pos-hint"))continue;
-   var content=(el.textContent||"").replace(/\\s+/g," ").trim();
+   var content=(el.textContent||"").replace(/\s+/g," ").trim();
    if(!unwanted.some(function(rule){return rule.test(content);}))continue;
    if(el.querySelector("input,button,select,textarea"))continue;
    el.classList.add("tw-unwanted-pos-hint");
