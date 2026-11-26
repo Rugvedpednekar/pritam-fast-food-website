@@ -17,9 +17,9 @@ function mount({ authenticated = true } = {}) {
       { restaurantId: "pvt", status: "open" },
     ],
     bills: [
-      { restaurantId: "cv", businessDate: today, status: "paid", total: 1234500, items: [{ name: "Pav Bhaji", qty: 5 }] },
-      { restaurantId: "cv", day: today, status: "cancelled", total: 99900, items: [{ name: "Dosa", qty: 12 }] },
-      { restaurantId: "cv", day: "2026-11-25", status: "paid", total: 250000, items: [{ name: "Pav Bhaji", qty: 2 }, { name: "Dosa", qty: 4 }] },
+      { restaurantId: "cv", businessDate: today, status: "paid", total: 1234500, items: [{ name: "Pav Bhaji", qty: 5 }], payments:[{ method: "UPI", amount: 500000 }, { method: "Credit card", amount: 300000 }, { method: "Cash", amount: 434500 }] },
+      { restaurantId: "cv", day: today, status: "cancelled", total: 99900, items: [{ name: "Dosa", qty: 12 }], payment: "Online" },
+      { restaurantId: "cv", day: "2026-11-25", status: "paid", total: 250000, items: [{ name: "Pav Bhaji", qty: 2 }, { name: "Dosa", qty: 4 }], payment: "Card" },
       { restaurantId: "cv", day: "2026-11-02", status: "paid", total: 500000 },
       { restaurantId: "cv", day: "2026-10-31", status: "paid", total: 650000 },
       { restaurantId: "pvt", day: "2026-11-25", status: "paid", total: 800000 },
@@ -58,6 +58,9 @@ test("Common owner questions route to the right report without a Gemini call", (
     ["What is our average bill for the last 7 days?", "sales last_7 selected summary"],
     ["Turnover in the past 30 days", "sales last_30 selected summary"],
     ["How many cancelled bills today?", "sales today selected summary"],
+    ["Hoe many online payments?", "sales today selected online"],
+    ["UPI payments this month", "sales this_month selected upi"],
+    ["Cash sales yesterday", "sales yesterday selected cash"],
     ["Sales this year across all outlets", "sales this_year all summary"],
     ["Revenue last year", "sales last_year selected summary"],
     ["Compare this month vs last month sales", "sales month_compare selected summary"],
@@ -136,4 +139,15 @@ test("Open orders are current and scoped; payroll totals stay browser-local", as
   expect(requests).toHaveLength(before);
   const expired = mount({ authenticated: false }).live;
   await expect(expired.answer(expired.parse("sales this_month selected summary"))).rejects.toThrow("session expired");
+});
+
+test("Payment lookup counts online tender entries without counting a split bill twice", async () => {
+  const { live } = mount();
+  const today = await live.answer(live.parse(live.quickIntent("Hoe many online payments?", null)));
+  expect(today).toContain("2 recorded payments · ₹8,000.00 across 1 bill");
+  expect(today).toContain("UPI: 1 recorded payment");
+  expect(today).toContain("Card: 1 recorded payment");
+  const month = await live.answer(live.parse("sales this_month selected online"));
+  expect(month).toContain("3 recorded payments · ₹10,500.00 across 2 bills");
+  expect(month).toContain("1 of 3 completed bills have no recorded payment method");
 });

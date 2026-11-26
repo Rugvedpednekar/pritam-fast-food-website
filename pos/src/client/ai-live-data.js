@@ -21,6 +21,7 @@ var aiLiveData = (function () {
   var salesPeriods = new Set(intervals.map(function (p) { return p[0]; }).concat("dates"));
   var payrollPeriods = new Set(["selected_month", "this_month", "last_month", "month"]);
   var orderKinds = new Set(["summary", "dine_in", "parcel", "zomato"]);
+  var paymentKinds = { online: "Online", cash: "Cash", upi: "UPI", card: "Card" };
   var monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
   function validDate(value) {
@@ -33,7 +34,8 @@ var aiLiveData = (function () {
     if (typeof code !== "string") return null;
     var parts = code.split(" "), [kind, period, scope, detail, from, to] = parts;
     if (kind === "sales" && salesPeriods.has(period) && ["selected", "all"].includes(scope) &&
-        ["summary", "items"].includes(detail)) {
+        (["summary", "items", "payments"].includes(detail) || Object.hasOwn(paymentKinds, detail)) &&
+        (!Object.hasOwn(comparison, period) || detail === "summary")) {
       if (period === "dates" ? parts.length === 6 && validDate(from) && validDate(to) && from <= to : parts.length === 4) {
         return { kind, period, scope, detail, from, to };
       }
@@ -51,7 +53,7 @@ var aiLiveData = (function () {
   function quickIntent(question, previous) {
     var q = question.toLowerCase().replace(/[’']/g, "").replace(/[?!.,]+$/g, "").replace(/\s+/g, " ").trim();
     // Leave instructions, hypothetical examples, edits and unsupported slices to app help.
-    if (/\b(?:sample|fictional|hypothetical|forecast|projected|profit|expense|refund|discount|payment method|cash sales|gst collected|stock|inventory|delete|edit|change|export|print|cancel a|close a|close the|how (?:do|can|should) (?:i|we)|where (?:do|can|is|are))\b/.test(q)) return null;
+    if (/\b(?:sample|fictional|hypothetical|forecast|projected|profit|expense|refund|discount|gst collected|stock|inventory|delete|edit|change|export|print|cancel a|close a|close the|how (?:do|can|should) (?:i|we)|where (?:do|can|is|are))\b/.test(q)) return null;
     var all = /\b(?:all|every|across|each) (?:\d+ )?(?:outlets?|restaurants?|branches?|locations?)\b|\b(?:outlet|branch) wise\b|\bby (?:outlet|branch)\b/.test(q);
     var scope = all ? "all" : "selected";
     var periodEntry = intervals.find(function (entry) { return entry[1].test(q); });
@@ -69,7 +71,12 @@ var aiLiveData = (function () {
     var payroll = /\b(?:payroll|salary|salaries|staff payable|employee advances)\b/.test(q);
     var orders = /\b(?:open|pending|unbilled|occupied)\b/.test(q) && /\b(?:bills?|orders?|tables?|parcels?|zomato)\b/.test(q);
     var items = /\b(?:top|best|most)[ -]?(?:selling|sellers?|sold)\b|\b(?:top|best) (?:\d+ )?items\b|\bitems sold the most\b/.test(q);
-    var sales = items || /\b(?:sales|revenue|turnover|avg bill|average bill|cancelled bills?|canceled bills?|completed bills?)\b/.test(q) ||
+    var hasPaymentWord = /\b(?:payments?|transactions?|paid|collections?|sales|bills?)\b/.test(q);
+    var payment = hasPaymentWord && (
+      /\b(?:online|digital|cashless)\b/.test(q) ? "online" :
+      /\bupi\b/.test(q) ? "upi" : /\bcards?\b/.test(q) ? "card" :
+      /\bcash\b/.test(q) ? "cash" : /\b(?:payments?|transactions?|collections?)\b/.test(q) ? "payments" : null);
+    var sales = items || payment || /\b(?:sales|revenue|turnover|avg bill|average bill|cancelled bills?|canceled bills?|completed bills?)\b/.test(q) ||
       /\b(?:bill count|bills (?:did|have|were)|how many bills|how much (?:did|have) we (?:make|made|sell|sold|take in|taken in)|what have we taken in)\b/.test(q);
 
     if (payroll || (followUp && previous && previous.kind === "payroll" && (period || dates))) {
@@ -86,10 +93,11 @@ var aiLiveData = (function () {
     }
     if (sales || (followUp && previous && previous.kind === "sales" && (period || dates || all))) {
       if ((unknownPeriod && !period && !month) || (!dates && /\b(?:since|between|from)\b/.test(q)) ||
-          /\b(?:zomato|parcel|dine[ -]?in|cash|cheque|card|upi)\b/.test(q) ||
+          /\b(?:zomato|parcel|dine[ -]?in)\b/.test(q) ||
           (items && /\bby (?:sales|revenue|amount|value)\b/.test(q))) return null;
       scope = all ? "all" : (followUp && previous && previous.kind === "sales" ? previous.scope : scope);
-      var metric = items || (followUp && previous && previous.detail === "items") ? "items" : "summary";
+      var metric = payment || (items ? "items" : null) ||
+        (followUp && previous && previous.kind === "sales" ? previous.detail : "summary");
       if (dates && dates.length <= 2) return "sales dates " + scope + " " + metric + " " + dates[0] + " " + (dates[1] || dates[0]);
       if (dates) return null;
       if (month) {
@@ -209,6 +217,60 @@ var aiLiveData = (function () {
     return { rows, ranges, differentDates, label: differentDates ? "each outlet’s business day" : formatWindow(ranges.values().next().value) };
   }
 
+  function classifyPayment(value) {
+    var method = String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (method === "cash") return "cash";
+    if (/upi|gpay|googlepay|phonepe|bhim/.test(method)) return "upi";
+    if (/card|visa|mastercard|rupay/.test(method)) return "card";
+    if (/^(online|digital|netbanking|banktransfer|wallet|paytm|imps|neft|rtgs)$/.test(method)) return "digital";
+    return method ? "other" : null;
+  }
+
+  function formatPayments(rows, heading, detail) {
+    var totals = {};
+    ["online", "cash", "upi", "card", "digital", "other"].forEach(function (key) {
+      totals[key] = { transactions: 0, amount: 0 };
+    });
+    var unknown = 0, count = 0, onlineBills = 0;
+    rows.forEach(function (bill) {
+      if (bill.status !== "paid") return;
+      count++;
+      var entries = Array.isArray(bill.payments) && bill.payments.length ? bill.payments :
+        bill.payment ? [{ method: bill.payment, amount: bill.total }] : [];
+      var recorded = false, online = false;
+      entries.forEach(function (entry) {
+        var kind = classifyPayment(entry && entry.method), amount = Number(entry && entry.amount);
+        if (!kind || !Number.isFinite(amount) || amount <= 0) return;
+        recorded = true;
+        totals[kind].transactions++;
+        totals[kind].amount += amount;
+        if (kind === "upi" || kind === "card" || kind === "digital") {
+          online = true;
+          totals.online.transactions++;
+          totals.online.amount += amount;
+        }
+      });
+      if (!recorded) unknown++;
+      if (online) onlineBills++;
+    });
+    function line(key, name) {
+      var total = totals[key];
+      return name + ": " + total.transactions + " recorded " + (total.transactions === 1 ? "payment" : "payments") + " · " + money(total.amount);
+    }
+    var lines = [heading];
+    if (detail === "payments" || detail === "online") {
+      lines.push(line("online", "Online") + " across " + onlineBills + " " + (onlineBills === 1 ? "bill." : "bills."));
+      lines.push(line("upi", "UPI"), line("card", "Card"));
+      if (totals.digital.transactions) lines.push(line("digital", "Other digital"));
+      if (detail === "payments") lines.push(line("cash", "Cash"), line("other", "Other recorded methods"));
+    } else {
+      lines.push(line(detail, paymentKinds[detail]));
+    }
+    if (!count) lines.push("No completed bills in this period.");
+    else if (unknown) lines.push(unknown + " of " + count + " completed bills have no recorded payment method.");
+    return lines.join("\n");
+  }
+
   function formatSales(snapshot, outlets, plan) {
     if (!businessDay) throw Error("Business-day sales are unavailable.");
     var calendarDay = today();
@@ -228,6 +290,9 @@ var aiLiveData = (function () {
     }
 
     var result = salesRows(snapshot, outlets, plan, calendarDay);
+    if (plan.detail === "payments" || Object.hasOwn(paymentKinds, plan.detail)) {
+      return formatPayments(result.rows, name + " — payments · " + result.label, plan.detail);
+    }
     var totals = stats(result.rows);
     var heading = name + " — " + (plan.detail === "items" ? "top items by quantity" : "sales") + " · " + result.label;
     if (plan.detail === "items") {

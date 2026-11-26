@@ -90,7 +90,7 @@ function closed(id,day){return data.closings.some(function(c){return c.restauran
 function showToast(msg){var x=document.getElementById("toast");x.textContent=msg;x.classList.add("show");window.clearTimeout(showToast.t);showToast.t=setTimeout(function(){x.classList.remove("show")},3400);}
 function header(title,desc,actions){return '<div class="heading"><div><div class="eyebrow">'+e(selectedName())+' • '+e(today())+'</div><h1>'+e(title)+'</h1><div class="sub">'+e(desc)+'</div></div><div class="quick">'+(actions||"")+'</div></div>';}
 function metric(label,value,foot,ico){return '<div class="card"><div class="card-ico">'+ico+'</div><div class="card-label">'+e(label)+'</div><div class="card-value">'+value+'</div><div class="card-foot">'+e(foot)+'</div></div>';}
-function statusPill(b){return'<span class="pill '+(b.status==="paid"?"ok":"bad")+'">'+e(b.status==="paid"?"Paid":"Cancelled")+'</span>';}
+function statusPill(b){return'<span class="pill '+(b.status==="paid"?"ok":"bad")+'">'+e(b.status==="paid"?"Paid":"Cancelled")+'</span>'+(b.demoBatch?' <span class="pill">Demo</span>':"");}
 function smallTable(){return '';}
 
 var overviewScope="selected";

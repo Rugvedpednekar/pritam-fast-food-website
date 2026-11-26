@@ -14,6 +14,7 @@ var aiChatView = (function () {
           <div class="tw-ai-prompts" role="group" aria-labelledby="tw-ai-prompt-label">
             <button type="button" data-question="How much sales today?">Today’s sales</button>
             <button type="button" data-question="This month what is the total sales?">This month’s sales</button>
+            <button type="button" data-question="How many online payments today?">Online payments</button>
             <button type="button" data-question="Give me a payroll overview">Payroll overview</button>
             <button type="button" data-question="Any open bills?">Open orders</button>
             <button type="button" data-question="How do I close the day?">Close the day</button>
