@@ -46,7 +46,7 @@ function harness(popupAllowed=true){
  if(outer===source)throw Error("Could not instrument keyboard billing source");
  const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill",
   "sectionPrice","selSection","selectedName","money","e","showToast","calculatePreview","saveTheData","getOpenDay",
-  "newInvoiceNumber","discountKind","discountValue","discountReason","cloudReady","cloudBusy","cloudPending",
+  "newInvoiceNumber","branchCfg","discountKind","discountValue","discountReason","cloudReady","cloudBusy","cloudPending",
   "cloudConflict","setTimeout"];
  const args:any[]=[document,window,"pos","r1","s1",tableId,activeOrderId,cart,data,
   ()=>{content.innerHTML="<div class='fl-billing'></div>";},()=>{},
@@ -59,7 +59,7 @@ function harness(popupAllowed=true){
       const subtotal=lines.reduce((s,x)=>s+x.total,0);
       return {lines,subtotal,discount:0,taxable:subtotal,cgst:0,sgst:0,roundOff:0,grand:subtotal};},
   ()=>{saved++;return true;},
-  ()=>({id:"day1",date:"2026-11-26"}),()=>String(data.bills.length+1),
+  ()=>({id:"day1",date:"2026-11-26"}),()=>String(data.bills.length+1),()=>({legalName:"Pritam Fast Food"}),
   state.discountKind,state.discountValue,state.discountReason,true,false,false,false,
   (fn:()=>void)=>{fn();return 0;}
  ];
