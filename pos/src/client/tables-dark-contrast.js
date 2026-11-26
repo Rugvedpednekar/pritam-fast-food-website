@@ -118,7 +118,7 @@
   if(tab!=="pos")return;
   var floor=document.querySelector("#content .fl-root:not(.fl-billing)");
   if(!floor)return;
-  var grid=floor.querySelector(".fl-table-grid");
+  var grid=typeof floor.querySelector==="function"?floor.querySelector(".fl-table-grid"):null;
   if(grid){
    var buttons=grid.querySelectorAll("button");
    for(var i=0;i<buttons.length;i++){
