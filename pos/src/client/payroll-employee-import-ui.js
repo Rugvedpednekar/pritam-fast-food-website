@@ -33,10 +33,11 @@ function impCounts(rows){
   skip:rows.filter(x=>x.status==="skip").length,error:rows.filter(x=>x.status==="error").length};
 }
 function impTemplate(){
- var csv="\uFEFF"+TP_IMPORT_COLUMNS.map(function(c){return '"'+c.label.replace(/"/g,'""')+'"';}).join(",")+"\r\n";
- var url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
- var a=document.createElement("a");a.href=url;a.download="Employee_Import_Template.csv";
- document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},2000);
+ var bytes=tpImportMakeXlsxTemplate();
+ var url=URL.createObjectURL(new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+ var anchor=document.createElement("a");anchor.href=url;anchor.download="Employee_Import_Template.xlsx";
+ document.body.appendChild(anchor);anchor.click();anchor.remove();
+ setTimeout(function(){URL.revokeObjectURL(url);},2000);
 }
 function impDetails(){
  if(!impOpen)return "";
@@ -78,7 +79,7 @@ tpEmployeesPage=function(){
  var box='<section class="tp-panel tp-import-root"><div class="tp-import-heading"><div><h3>Import Employees from Excel</h3>'+
  '<p class="tp-import-hint">Upload → Review → Apply &amp; Save. Existing employees and previous payroll records are never overwritten.</p></div>'+
  '<div class="tp-actions"><button class="tp-button tp-primary" type="button" data-tp-import="toggle">'+(impOpen?'Close Import':'Import Employees')+'</button>'+
- '<button class="tp-button" type="button" data-tp-import="template">Download Excel Template (CSV)</button></div></div>'+
+ '<button class="tp-button" type="button" data-tp-import="template">Download Excel Template (.xlsx)</button></div></div>'+
  impDetails()+'</section>';
  return box+roster;
 };
