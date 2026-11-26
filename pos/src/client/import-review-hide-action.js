@@ -35,10 +35,8 @@
    if(!table)return;
    var index=actionColumnIndex(table);
    if(index<0)return;
-   if(table.classList.contains(CLASS_NAME))return;
-   table.classList.add(CLASS_NAME);
-   // Use only this one table as the CSS target.
-   table.style.setProperty("--tw-import-action-column",index+1);
+   if(!table.classList.contains(CLASS_NAME))table.classList.add(CLASS_NAME);
+   // Re-apply to newly rendered rows, without changing unrelated tables.
    table.querySelectorAll("tr").forEach(function(row){
     var cell=row.children[index];
     if(cell&&(cell.tagName==="TD"||cell.tagName==="TH"))cell.classList.add("tw-import-review-action-cell");
