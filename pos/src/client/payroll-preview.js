@@ -410,9 +410,11 @@ function tpTotals(rows){
  });return t;
 }
 if(typeof aiLiveData!=="undefined"){
- aiLiveData.setPayrollOverview(function(){
-  var rows=tpRows(tpPeriod);
-  return {month:tpMonthLabel(tpPeriod),count:rows.length,totals:tpTotals(rows)};
+ aiLiveData.setPayrollOverview(function(period,requestedMonth){
+  var current=tpMonth(0);
+  var month=period==="this_month"?current:period==="last_month"?tpMonth(-1):requestedMonth||tpPeriod;
+  var rows=month<current&&!tpData.periods[month]?[]:tpRows(month,month<current);
+  return {month:tpMonthLabel(month),count:rows.length,totals:tpTotals(rows)};
  });
 }
 function tpCard(label,amount,foot,icon){return'<div class="tp-stat"><div class="tp-stat-head"><span>'+tpEscape(label)+'</span><span class="tp-stat-icon">'+icon+'</span></div><strong>'+amount+'</strong><small>'+tpEscape(foot||"")+'</small></div>';}

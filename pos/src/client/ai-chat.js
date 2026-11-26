@@ -13,6 +13,7 @@ var aiChatView = (function () {
         <div class="tw-ai-prompts" role="group" aria-label="Suggested questions">
           <button class="btn small" type="button" data-question="How do I close the day?">Close the day</button>
           <button class="btn small" type="button" data-question="How much sales today?">Today’s sales</button>
+          <button class="btn small" type="button" data-question="This month what is the total sales?">This month’s sales</button>
           <button class="btn small" type="button" data-question="Any open bills?">Open orders</button>
           <button class="btn small" type="button" data-question="Give me a payroll overview">Payroll overview</button>
         </div>
@@ -35,6 +36,7 @@ var aiChatView = (function () {
   var send = form.querySelector('button[type="submit"]');
   var clear = page.querySelector(".tw-ai-clear");
   var modelMessages = [];
+  var previousReport = null;
   var busy = false;
 
   function appendMessage(role, text) {
@@ -69,6 +71,7 @@ var aiChatView = (function () {
   clear.addEventListener("click", function () {
     if (busy) return;
     modelMessages = [];
+    previousReport = null;
     log.replaceChildren();
     input.value = "";
     status.textContent = "";
@@ -97,7 +100,7 @@ var aiChatView = (function () {
     updateControls();
     log.scrollTop = log.scrollHeight;
     try {
-      var intent = aiLiveData.quickIntent(question);
+      var intent = aiLiveData.quickIntent(question, previousReport);
       var reply;
       if (!intent) {
         var result = await cloudReq("/api/ai/chat", {
@@ -112,11 +115,13 @@ var aiChatView = (function () {
       var historyTurn = turn;
       var historyReply = reply;
       if (intent) {
-        var topic = aiLiveData.topic(intent);
+        var report = aiLiveData.parse(intent);
+        if (!report) throw Error("I couldn’t match that to a live report. Try a date range such as this month or last month.");
         if (selected !== outletAtSubmit) throw Error("The selected outlet changed. Send your question again for this outlet.");
-        reply = await aiLiveData.answer(intent);
-        historyTurn = { role: "user", text: "Show me " + topic + " for the selected outlet." };
-        historyReply = "Tablewise displayed " + topic + " from the app. The underlying figures are private.";
+        reply = await aiLiveData.answer(report);
+        previousReport = report;
+        historyTurn = { role: "user", text: "Show a Tablewise report." };
+        historyReply = "REPORT " + intent;
       }
       if (typeof reply !== "string" || !reply) throw Error("Could not get an answer. Try again.");
       modelMessages = modelMessages.slice(-8).concat(historyTurn, { role: "assistant", text: historyReply });

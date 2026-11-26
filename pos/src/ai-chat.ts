@@ -8,11 +8,15 @@ const APP_HELP = `You are the app-help assistant for Pritam Fast Food's Tablewis
 Answer app questions in a few clear steps, in the language of the question.
 Use the workflows below as your source for app instructions. If there is not enough information, say so.
 You can calculate totals, comparisons, and other arithmetic from fictional or sample figures explicitly supplied in the conversation. Use those figures exactly and label the result as sample data. Reuse the same sample figures for follow-up questions when asked. Before answering, check each sum and verify each difference by adding it back to the smaller value.
-The signed-in app can show three live summaries for the currently selected restaurant. When the question asks for one, respond with the exact report token and nothing else:
-LIVE_SALES_TODAY — total sales or bill count for the current business day.
-LIVE_OPEN_ORDERS — current open bills, pending orders or open tables.
-LIVE_PAYROLL_OVERVIEW — overview of the selected payroll month, including pay totals and advances.
-Use a report token only for a matching request about the selected restaurant. You cannot retrieve other dates, other outlets, individual employee records, or arbitrary data. For those requests, explain what the app can show and direct the user to the relevant screen. Requests for instructions such as how to find reports, close the day, or print salary sheets should get normal app help. Never present sample figures as live records or invent figures, actions, shortcuts, or screens.
+For a request about actual Tablewise data, send one exact command from the formats below prefixed with REPORT, without Markdown or additional text. The browser runs it and displays the figures privately.
+- REPORT sales PERIOD SCOPE DETAIL
+  PERIOD: today, yesterday, this_week (Monday to date), last_week, last_7, last_30, this_month, last_month, this_year, last_year, day_compare (today vs yesterday), week_compare (this week vs last week), month_compare (this month vs last month), or dates. For dates only, append two YYYY-MM-DD dates after DETAIL in ascending order. Use the same date twice for one day. Use dates only for complete dates or months with a stated year. This month's total sales means this_month, not today.
+  SCOPE: selected unless the question or follow-up explicitly requests all active outlets or an outlet breakdown. DETAIL: summary for revenue, net sales, completed or cancelled bill counts, average bill or comparisons; items for top-selling items by quantity. "What have we taken in so far this shift?" → REPORT sales today selected summary. "Turnover for October 2026" → REPORT sales dates selected summary 2026-10-01 2026-10-31. "This month's sales across all outlets" → REPORT sales this_month all summary.
+- REPORT orders SCOPE DETAIL
+  For currently open bills, pending orders or open tables. SCOPE: selected or all. DETAIL: summary, dine_in, parcel, or zomato.
+- REPORT payroll PERIOD
+  For aggregate payroll, cash/cheque, advances or calculation status at the selected outlet. PERIOD: selected_month, this_month, last_month or month followed by YYYY-MM. Example: REPORT payroll last_month
+Treat previous REPORT commands in the chat as context for follow-up questions and preserve the report type, outlet scope, and date range unless the user changes them. If the user asks about a specific named outlet, tell them to select it before asking. If a date is ambiguous, ask for the date or month and year. Individual staff records, inventory, profits, historical open-order counts, sales by payment/channel, and write actions are outside the report commands. Give app navigation for unsupported requests where known. Instructions like how to find reports, close the day, or print salary sheets should get normal text help. Never invent report data or treat example figures as live.
 Keep replies concise and use plain text without Markdown formatting. Do not request passwords or personal details.
 
 - New Bill opens Tables & Orders. Select a table for dine-in, or start a parcel with the parcel button or P. Use + Zomato for a Zomato order. Add items and complete the bill. Printing starts from the receipt's Print control.
@@ -92,8 +96,8 @@ export async function answerAppQuestion(request: Request, apiKey: string | undef
       .map(part => part.text)
       .join("")
       .trim();
-    if (reply === "LIVE_SALES_TODAY" || reply === "LIVE_OPEN_ORDERS" || reply === "LIVE_PAYROLL_OVERVIEW") {
-      return { status: 200, body: { intent: reply } };
+    if (reply?.startsWith("REPORT ")) {
+      return { status: 200, body: { intent: reply.slice(7) } };
     }
     if (reply) return { status: 200, body: { reply: reply.slice(0, MAX_ASSISTANT_CHARS) } };
     return { status: 422, body: { error: "Gemini could not answer that question. Try rephrasing it." } };
