@@ -4,7 +4,7 @@ import {deflateRawSync} from "node:zlib";
 const core=readFileSync(new URL("../src/client/payroll-employee-import-core.js",import.meta.url),"utf8");
 const ui=readFileSync(new URL("../src/client/payroll-employee-import-ui.js",import.meta.url),"utf8");
 const server=readFileSync(new URL("../src/server.ts",import.meta.url),"utf8");
-const api:any=new Function(core+";return {tpImportCSV,tpImportReadColumns,tpImportNormalizeEmployee,tpImportReadWorkbook,tpImportZipRead,tpImportExcelDate,TP_IMPORT_COLUMNS};")();
+const api:any=new Function(core+";return {tpImportCSV,tpImportReadColumns,tpImportNormalizeEmployee,tpImportReadWorkbook,tpImportZipRead,tpImportExcelDate,tpImportMakeXlsxTemplate,TP_IMPORT_COLUMNS};")();
 const restaurants=[{id:"r1",name:"Pritam Fast Food",active:true},{id:"r2",name:"Classic Veg",active:true}];
 const headings=api.TP_IMPORT_COLUMNS.map((x:any)=>x.label);
 function csv(rows:string[][]){return [headings,...rows].map(row=>row.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(",")).join("\r\n");}
@@ -82,4 +82,16 @@ test("Employee import file does not modify the existing menu importer",()=>{
  expect(server).toContain("/*__MENU_EXCEL_IMPORT_JS__*/");
  expect(ui).toContain("Upload → Review → Apply");
  expect(ui).toContain("Apply &amp; Save");
+});
+
+test("Downloadable employee XLSX template can be opened by the same importer",async()=>{
+ const workbook=api.tpImportMakeXlsxTemplate();
+ expect(new Uint8Array(workbook).slice(0,2).join(",")).toBe("80,75");
+ const rows=await api.tpImportReadWorkbook(workbook);
+ expect(rows).toHaveLength(1);
+ expect(rows[0]).toEqual(headings);
+ const sheet=await api.tpImportZipRead(workbook);
+ expect(await sheet.get("xl/styles.xml")).toContain("styleSheet");
+ expect(await sheet.get("xl/worksheets/sheet1.xml")).toContain("autoFilter");
+ expect(ui).toContain("Employee_Import_Template.xlsx");
 });
