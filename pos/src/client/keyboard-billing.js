@@ -16,7 +16,7 @@ var o=(data.orders||[]).find(function(v){return v.id===activeOrderId&&v.status==
 return t?.name||o?.label||"Parcel";}
 function button(label,act){return '<button type="button" data-kba="'+act+'">'+label+'</button>';}
 function screen(){
-var viewing=kb.mode==="view",item=kb.item,p=total(),section=selSection();
+var viewing=kb.mode==="view",showEditor=!viewing||kb.step==="qty",item=kb.item,p=total(),section=selSection();
 var lines=cart.map(function(v,i){var active=viewing&&kb.selected===i;
 return '<button type="button" role="option" aria-selected="'+active+'" class="kb-line '+(active?'kb-on kb-current':'')+
 '" data-kba="line" data-index="'+i+'"><span><b>'+e(v.name)+'</b><small>#'+e(v.code)+(v.comment?' · '+e(v.comment):'')+
@@ -25,7 +25,7 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<div><small>'+e(selectedName())+' · '+e(section?.name||"")+'</small><h2>'+e(detail())+'</h2></div><b class="kb-mode">'+
 (viewing?'VIEWING MODE — 0 TO ADD':'ADD ITEM — CODE OR NAME')+'</b></div>'+
 '<div class="kb-shortcuts">[0] Add new item &nbsp; [Esc / -] Viewing mode &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill</div>'+
-'<div class="kb-grid"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
+'<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
 '<div class="kb-lines">'+(lines||'<p class="kb-empty">No items yet. Enter an item code.</p>')+'</div>'+
 '<div class="kb-totals"><div>Subtotal <b>'+money(p?.subtotal||0)+'</b></div><div>CGST + SGST <b>'+money((p?.cgst||0)+(p?.sgst||0))+
 '</b></div><div class="kb-grand">Total <b>'+money(p?.grand||0)+'</b></div></div></section>'+
@@ -71,6 +71,13 @@ catch(ex){return '<small class="kb-error">'+e(ex.message)+'</small>';}
 finally{discountKind=a[0];discountValue=a[1];discountReason=a[2];}
 }
 function refocus(){
+ // When the editor is hidden in Viewing Mode, keep focus on the selected order.
+ if(kb.mode==="view"&&kb.step==="list"){
+  var rows=typeof document.querySelectorAll==="function"?
+   document.querySelectorAll('#twkb .kb-lines button[data-kba="line"]'):[];
+  var row=rows[kb.selected];
+  if(row&&typeof row.focus==="function"){row.focus({preventScroll:true});return;}
+ }
 var id=kb.step==="qty"?"kb-qty":kb.step==="search"?"kb-search":kb.step==="preview"?"kb-discount":
 kb.step==="gst"?"kb-gstin":"kb-code";
 var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="kb-qty"||id==="kb-discount")f.select();}
@@ -297,6 +304,8 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-mode{background:#176a50;color:#fff;padding:9px 12px;border-radius:8px;font-size:12px}",
 "#twkb .kb-shortcuts{background:#19313b;padding:13px;margin:10px 0 15px;border-radius:8px;color:#c4dbd5;font-size:13px}",
 "#twkb .kb-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.85fr);gap:15px}",
+"#twkb .kb-grid.kb-view-only{grid-template-columns:minmax(0,1fr)!important}",
+"#twkb .kb-grid.kb-view-only .kb-edit{display:none!important}",
 "#twkb .kb-box{background:#162c34;border:1px solid #36545b;border-radius:12px;padding:17px;min-width:0}",
 "#twkb .kb-table-head,#twkb .kb-line{display:grid;grid-template-columns:minmax(0,1fr) 45px 108px;gap:8px;align-items:center;text-align:left}",
 "#twkb .kb-table-head{background:#0e2029;color:#a5c9bc;border-radius:8px;padding:10px 12px;font-size:12px}",
