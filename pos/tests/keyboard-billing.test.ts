@@ -16,7 +16,7 @@ function harness(popupAllowed=true){
    if(id==="content")return content;
    if(id==="twkb")return content.innerHTML.includes('id="twkb"')?{}:null;
    if(!inputs[id])inputs[id]={
-    id,value:"",dataset:{},textContent:"",innerHTML:"",
+    id,value:id==="kb-qty"?"1":"",dataset:{},textContent:"",innerHTML:"",
     focus:()=>{activeId=id;},select:()=>{selects.push(id);},setSelectionRange:()=>{},selectionStart:0
    };
    return inputs[id];
@@ -87,7 +87,7 @@ test("Numeric lookup selects Quantity, then Enter saves with the typed replaceme
 test("Alphabetic search chooses an item with arrows and enters Quantity before saving",()=>{
  const h=harness();h.key("m");expect(h.obj.kb.step).toBe("search");
  expect(h.obj.kb.search).toBe("m");
- h.key("Enter");expect(h.obj.kb.step).toBe("qty");expect(h.obj.kb.item.name).toBe("MASALA DOSA");
+ h.key("ArrowDown");h.key("Enter");expect(h.obj.kb.step).toBe("qty");expect(h.obj.kb.item.name).toBe("MASALA DOSA");
  h.set("kb-qty","2");h.key("Enter");
  expect(h.cart()[0].qty).toBe(2);
  expect(h.cart()[0].name).toBe("MASALA DOSA");
