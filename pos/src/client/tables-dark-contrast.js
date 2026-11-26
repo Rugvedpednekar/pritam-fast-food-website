@@ -59,6 +59,22 @@
    color:#edf8f4!important;
    border:1px solid #59747b!important;
   }
+  /* Remove the broad gray backing panels while retaining individual table
+     cards, counters, entry fields, and Parcel/Zomato action buttons. */
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) :is(
+    .fl-shortcuts,.fl-lookup,.fl-section,.fl-table-grid,.fl-parcels,
+    .tw-table-jump-dark
+  ){
+   background:transparent!important;
+   border-color:transparent!important;
+   box-shadow:none!important;
+  }
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .tw-table-jump-dark{
+   border:0!important;
+  }
+  html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-section{
+   border:0!important;
+  }
   /* An occupied dine-in table must be visually green, not the neutral gray
      or amber shades inherited from older POS themes. */
   html[data-theme="dark"] #content .fl-root:not(.fl-billing) .fl-table-grid button.tw-table-occupied,
