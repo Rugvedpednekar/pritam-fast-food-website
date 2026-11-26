@@ -116,6 +116,10 @@ html=html.replace(ownerBoot,ownerResetClient+"\n"+ownerBoot);
 const twReportsSettings=await Bun.file(new URL("./client/reports-settings.js",import.meta.url)).text();
 if(!html.includes(ownerBoot))throw Error("Reports Settings insertion point missing");
 html=html.replace(ownerBoot,twReportsSettings+"\n"+ownerBoot);
+ // Hide the Excel import review's Action column, without touching other tables.
+ const twImportReviewHideAction=await Bun.file(new URL("./client/import-review-hide-action.js",import.meta.url)).text();
+ if(!html.includes(ownerBoot))throw Error("Menu import review insertion point missing");
+ html=html.replace(ownerBoot,twImportReviewHideAction+"\n"+ownerBoot);
 // Dark mode is the default for every workspace, including styles injected at runtime.
 html=html.replace('<html lang="en">','<html lang="en" data-theme="dark">');
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
