@@ -4,29 +4,30 @@ const source=readFileSync(new URL("../src/client/keyboard-billing.js",import.met
 
 function harness(popupAllowed=true){
  const inputs:Record<string,any>={},selects:string[]=[],toasts:string[]=[],listeners:Record<string,Function[]>={};
- const selectionNodes:Record<string,any[]>={search:[],order:[]};
+ const selectionNodes:Record<string,any[]>={search:[],order:[],shift:[]};
  function selectedRows(which:string){
-  const selector=which==="search"?'data-kba="choose"':'data-kba="line"';
+  const selector=which==="search"?'data-kba="choose"':which==="shift"?'data-kba="shift-to"':'data-kba="line"';
   const count=content.innerHTML.split(selector).length-1;
   if(selectionNodes[which].length!==count){
    selectionNodes[which]=Array.from({length:count},(_,index)=>({
     current:false,ariaSelected:"false",scrolls:0,
     classList:{toggle:function(name:string,enabled:boolean){if(name==="kb-current")this.owner.current=enabled;}},
     setAttribute:function(name:string,val:string){if(name==="aria-selected")this.ariaSelected=val;},
-    focus:function(){activeId=which==="order"?"kb-line-"+index:"kb-search-result-"+index;},
+    focus:function(){activeId=which==="order"?"kb-line-"+index:which==="shift"?"kb-shift-"+index:"kb-search-result-"+index;},
     scrollIntoView:function(){this.scrolls++;}
    }));
    selectionNodes[which].forEach(n=>n.classList.owner=n);
   }
   return selectionNodes[which];
  }
- let activeId="",saved=0,printed=0;
+ let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true;
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
  const document:any={
   head:{appendChild:()=>{}},
   createElement:()=>({id:"",textContent:""}),
   addEventListener:(name:string,handler:Function)=>{(listeners[name]??=[]).push(handler);},
   querySelectorAll:(selector:string)=>selector.includes("kb-results")?selectedRows("search"):
+                                   selector.includes("kb-shift-results")?selectedRows("shift"):
                                    selector.includes("kb-lines")?selectedRows("order"):[],
   get activeElement(){return {id:activeId};},
   querySelector:(q:string)=>q==="#content .fl-billing"?content.innerHTML.includes("fl-billing")?{}:null:null,
@@ -52,7 +53,7 @@ function harness(popupAllowed=true){
  let cart:any[]=[],activeOrderId="",tableId="t1";
  const state:any={discountKind:"none",discountValue:"",discountReason:""};
  const window:any={
-  addEventListener:()=>{},confirm:()=>true,
+  addEventListener:()=>{},confirm:()=>{confirmCalls++;return confirmAnswer;},
   open:()=>popupAllowed?{
    closed:false,document:{open:()=>{},write:()=>{},close:()=>{}},
    focus:()=>{},print:()=>{printed++;}
@@ -65,7 +66,7 @@ function harness(popupAllowed=true){
  const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill",
   "sectionPrice","selSection","selectedName","money","e","showToast","calculatePreview","saveTheData","getOpenDay",
   "newInvoiceNumber","branchCfg","discountKind","discountValue","discountReason","cloudReady","cloudBusy","cloudPending",
-  "cloudConflict","setTimeout"];
+  "cloudConflict","setTimeout","flBack"];
  const args:any[]=[document,window,"pos","r1","s1",tableId,activeOrderId,cart,data,
   ()=>{content.innerHTML="<div class='fl-billing'></div>";},()=>{},
   (m:any,id:string)=>m?.sectionPrices?.[id]??null,()=>data.sections.r1[0],
@@ -79,7 +80,7 @@ function harness(popupAllowed=true){
   ()=>{saved++;return true;},
   ()=>({id:"day1",date:"2026-11-26"}),()=>String(data.bills.length+1),()=>({legalName:"Pritam Fast Food"}),
   state.discountKind,state.discountValue,state.discountReason,true,false,false,false,
-  (fn:()=>void)=>{fn();return 0;}
+  (fn:()=>void)=>{fn();return 0;},()=>{backCalls++;}
  ];
  const obj:any=new Function(...params,"return "+outer.replace(/^\s*\/\*[\s\S]*?\*\/\s*/,""))(...args);
  function key(k:string){const ev:any={key:k,preventDefault:()=>{},stopImmediatePropagation:()=>{},
@@ -89,7 +90,9 @@ function harness(popupAllowed=true){
  function getText(id:string){return document.getElementById(id).textContent;}
  function draw(){obj.getDraw()();}
  draw();
- return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
+ return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
+  setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,
+  typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
 
@@ -302,7 +305,11 @@ test("Early Escape capture suppresses other handlers only inside keyboard billin
   getElementById:(id:string)=>id==="twkb"&&billing?{}:null,
   querySelector:()=>dialog?{}:null
  };
- const mockWin={twBillingHandleEscape:()=>handlers.push("minus-equivalent")};
+ const mockWin={
+  twBillingHandleEscape:()=>handlers.push("minus-equivalent"),
+  twBillingHandleShortcut:(k:string)=>handlers.push("key:"+k),
+  twBillingIsViewing:()=>false
+ };
  const capture=new Function("document","window",script+"; return twEarlyBillingEscape;")(mockDoc,mockWin);
  const event={key:"Escape",ctrlKey:false,altKey:false,metaKey:false,
   preventDefault:()=>prevented++,stopImmediatePropagation:()=>stopped++};
@@ -315,4 +322,126 @@ test("Early Escape capture suppresses other handlers only inside keyboard billin
  dialog=true;billing=true;capture(event);
  expect(handlers).toHaveLength(1);
  expect(index.indexOf('window.addEventListener("keydown",twEarlyBillingEscape,true)')).toBeLessThan(index.indexOf('window.addEventListener("error"'));
+});
+
+
+test("Viewing Mode Escape or minus saves the order and returns to Tables without billing",()=>{
+ for(const exitKey of ["Escape","-"]){
+  const h=harness();
+  h.set("kb-code","615");h.key("Enter");h.key("Enter");
+  const orderId=h.obj.getActiveOrder();
+  h.key("Escape"); // Add mode => Viewing Mode
+  h.key(exitKey); // Viewing Mode => Tables
+  expect(h.backCalls()).toBe(1);
+  expect(h.currentTable()).toBe("");
+  expect(h.cart()).toHaveLength(0);
+  expect(h.data.orders.find((x:any)=>x.id===orderId)).toMatchObject({
+   status:"open",tableId:"t1",cart:[{code:"615",qty:1}]
+  });
+  expect(h.data.bills).toHaveLength(0);
+ }
+});
+test("1 cancels the entire table only after explicit confirmation",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
+ h.setConfirm(false);h.shortcut("1");
+ expect(h.confirmCalls()).toBe(1);
+ expect(h.data.orders[0].status).toBe("open");
+ expect(h.currentTable()).toBe("t1");
+ expect(h.backCalls()).toBe(0);
+ h.setConfirm(true);h.shortcut("1");
+ expect(h.confirmCalls()).toBe(2);
+ expect(h.data.orders[0].status).toBe("void");
+ expect(h.data.bills).toHaveLength(0);
+ expect(h.currentTable()).toBe("");
+ expect(h.backCalls()).toBe(1);
+ expect(h.data.audit.some((x:any)=>x.action==="table_order_cancelled")).toBe(true);
+});
+test("Down/up highlights a saved line and Delete removes only that line without confirmation",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.set("kb-code","37");h.key("Enter");h.key("Enter");
+ h.key("Escape");
+ expect(h.selection("order").map((x:any)=>x.ariaSelected)).toEqual(["true","false"]);
+ h.shortcut("ArrowDown"); // early handler delegates here
+ expect(h.selection("order").map((x:any)=>x.ariaSelected)).toEqual(["false","true"]);
+ h.shortcut("Delete");
+ expect(h.confirmCalls()).toBe(0);
+ expect(h.cart()).toHaveLength(1);
+ expect(h.cart()[0].code).toBe("615");
+ expect(h.data.orders[0].cart.map((x:any)=>x.code)).toEqual(["615"]);
+ expect(h.obj.kb.mode).toBe("view");
+});
+test("3 shifts to an empty table without overwriting occupied tables",()=>{
+ const h=harness();
+ h.data.tables.r1.push({id:"t2",name:"Table 22",sectionId:"s1",active:true},
+ {id:"t3",name:"Table 23",sectionId:"s1",active:true},
+ {id:"t4",name:"Table 24",sectionId:"s1",active:true});
+ h.data.orders.push({id:"o-occupied",restaurantId:"r1",sectionId:"s1",tableId:"t3",status:"open",cart:[]});
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
+ h.shortcut("3");
+ expect(h.obj.kb.step).toBe("shift");
+ const shiftScreen=h.obj.screen();
+ expect(shiftScreen).toContain("Table 22");
+ expect(shiftScreen).toContain("Table 24");
+ expect(shiftScreen).not.toContain("Table 23");
+ expect(h.active()).toBe("kb-shift-0");
+ h.shortcut("ArrowDown");
+ expect(h.obj.kb.shiftIndex).toBe(1);
+ expect(h.selection("shift")[1].ariaSelected).toBe("true");
+ h.shortcut("Enter");
+ expect(h.currentTable()).toBe("t4");
+ expect(h.data.orders.find((x:any)=>x.tableId==="t4").cart[0].code).toBe("615");
+ expect(h.data.orders.find((x:any)=>x.id==="o-occupied").status).toBe("open");
+ expect(h.data.orders.some((x:any)=>x.status==="open"&&x.tableId==="t1")).toBe(false);
+ expect(h.data.audit.some((x:any)=>x.action==="table_shifted")).toBe(true);
+});
+test("No vacant target blocks shift and leaves the table unchanged",()=>{
+ const h=harness();
+ h.data.tables.r1.push({id:"t2",name:"Table 22",sectionId:"s1",active:true});
+ h.data.orders.push({id:"o-other",restaurantId:"r1",sectionId:"s1",tableId:"t2",status:"open",cart:[]});
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
+ h.shortcut("3");
+ expect(h.obj.kb.step).toBe("list");
+ expect(h.currentTable()).toBe("t1");
+ expect(h.data.orders.find((x:any)=>x.tableId==="t1").status).toBe("open");
+ expect(h.toasts.at(-1)).toContain("No empty");
+});
+test("5 opens print preview directly from Viewing Mode",()=>{
+ const h=harness();h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");h.shortcut("5");
+ expect(h.obj.kb.step).toBe("preview");
+ expect(h.active()).toBe("kb-discount");
+ expect(h.data.bills).toHaveLength(0);
+});
+test("Legacy handler capture routes Viewing Mode arrows, delete, 1, 3 and 5 before other listeners",()=>{
+ const index=readFileSync(new URL("../src/client/index.html",import.meta.url),"utf8");
+ const src=index.match(/function twEarlyBillingEscape\(ev\)\{[\s\S]*?\n\}/)?.[0];
+ expect(src).toBeTruthy();
+ let viewing=true,dialog=false,shown=true;
+ const calls:string[]=[];
+ const doc:any={
+  getElementById:()=>shown?{}:null,
+  querySelector:()=>dialog?{}:null
+ };
+ const host:any={
+  twBillingIsViewing:()=>viewing,
+  twBillingHandleEscape:()=>calls.push("escape"),
+  twBillingHandleShortcut:(key:string)=>calls.push(key)
+ };
+ const handler=new Function("document","window",src+";return twEarlyBillingEscape;")(doc,host);
+ function press(key:string){
+  let stopped=0;
+  handler({key,ctrlKey:false,altKey:false,metaKey:false,preventDefault:()=>{},stopImmediatePropagation:()=>stopped++});
+  return stopped;
+ }
+ for(const key of ["ArrowDown","ArrowUp","Delete","1","3","5","-"]){
+  expect(press(key)).toBe(1);
+  expect(calls.at(-1)).toBe(key);
+ }
+ expect(press("Escape")).toBe(1);
+ expect(calls.at(-1)).toBe("escape");
+ viewing=false;expect(press("ArrowDown")).toBe(0);
+ dialog=true;viewing=true;expect(press("Delete")).toBe(0);
+ shown=false;dialog=false;expect(press("Escape")).toBe(0);
 });
