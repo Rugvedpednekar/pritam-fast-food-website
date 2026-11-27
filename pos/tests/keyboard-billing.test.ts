@@ -2,7 +2,7 @@ import {test,expect} from "bun:test";
 import {readFileSync} from "node:fs";
 const source=readFileSync(new URL("../src/client/keyboard-billing.js",import.meta.url),"utf8");
 
-function harness(popupAllowed=true){
+function harness(popupAllowed=true,opts:{parcel?:boolean}={}){
  const inputs:Record<string,any>={},selects:string[]=[],toasts:string[]=[],listeners:Record<string,Function[]>={};
  const selectionNodes:Record<string,any[]>={search:[],order:[],shift:[]};
  function selectedRows(which:string){
@@ -49,10 +49,10 @@ function harness(popupAllowed=true){
   {id:"m10",code:"10",name:"SPL TEA",category:"Drinks",active:true,available:true,price:4500,sectionPrices:{s1:4500}}
  ];
  const data:any={seq:20,restaurants:[{id:"r1",name:"Pritam Fast Food"}],menus:{r1:menu},
-  sections:{r1:[{id:"s1",name:"NON AC",kind:"dine-in"}]},
+  sections:{r1:[{id:"s1",name:"NON AC",kind:"dine-in"},{id:"parcel",name:"Parcel",kind:"takeaway"}]},
   tables:{r1:[{id:"t1",name:"Table 21",sectionId:"s1"}]},
   orders:[],bills:[],audit:[]};
- let cart:any[]=[],activeOrderId="",tableId="t1";
+ let cart:any[]=[],activeOrderId="",tableId=opts.parcel?"":"t1";
  const state:any={discountKind:"none",discountValue:"",discountReason:""};
  const window:any={
   addEventListener:()=>{},confirm:()=>{confirmCalls++;return confirmAnswer;},
@@ -69,9 +69,9 @@ function harness(popupAllowed=true){
   "sectionPrice","selSection","selectedName","money","e","showToast","calculatePreview","saveTheData","getOpenDay",
   "newInvoiceNumber","branchCfg","discountKind","discountValue","discountReason","cloudReady","cloudBusy","cloudPending",
   "cloudConflict","setTimeout","flBack"];
- const args:any[]=[document,window,"pos","r1","s1",tableId,activeOrderId,cart,data,
+ const args:any[]=[document,window,"pos","r1",opts.parcel?"parcel":"s1",tableId,activeOrderId,cart,data,
   ()=>{content.innerHTML="<div class='fl-billing'></div>";},()=>{},()=>{legacyConfirmCalls++;},
-  (m:any,id:string)=>m?.sectionPrices?.[id]??null,()=>data.sections.r1[0],
+  (m:any,id:string)=>id==="parcel"?(m?.sectionPrices?.s1??null):(m?.sectionPrices?.[id]??null),()=>opts.parcel?data.sections.r1[1]:data.sections.r1[0],
   ()=>"Pritam Fast Food",(n:number)=>"₹"+((n||0)/100).toFixed(2),
   (s:any)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"),
   (s:string)=>toasts.push(s),
@@ -732,4 +732,39 @@ test("Shortcut labels reflect direct return for empty tables and Viewing Mode fo
  h.set("kb-code","615");h.key("Enter");h.key("Enter");
  expect(h.obj.screen()).toContain("[Esc / -] Viewing mode");
  expect(h.obj.screen()).toContain("Esc / - · View");
+});
+
+test("Saving a populated parcel with one Escape returns to Tables and leaves its order open",()=>{
+ const h=harness(true,{parcel:true});
+ h.set("kb-code","615");h.key("Enter");h.set("kb-qty","3");h.key("Enter");
+ expect(h.data.orders).toHaveLength(1);
+ const pendingId=h.data.orders[0].id;
+ expect(h.data.orders[0]).toMatchObject({status:"open",sectionId:"parcel",tableId:"",label:"Parcel"});
+ expect(h.data.orders[0].cart[0].qty).toBe(3);
+ expect(h.backCalls()).toBe(0);
+ h.key("Escape");
+ expect(h.backCalls()).toBe(1);
+ expect(h.backSnapshots).toEqual([{cartLength:0,tableId:"",activeOrderId:""}]);
+ expect(h.data.orders.find((o:any)=>o.id===pendingId)).toMatchObject({
+  status:"open",restaurantId:"r1",sectionId:"parcel",tableId:"",cart:[{code:"615",qty:3}]
+ });
+ expect(h.data.bills).toHaveLength(0);
+ expect(h.cart()).toHaveLength(0);
+ expect(h.toasts.at(-1)).toContain("Parcel saved");
+});
+test("Minus from a populated parcel saves it with the same one-key return behavior",()=>{
+ const h=harness(true,{parcel:true});
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("-");
+ expect(h.backCalls()).toBe(1);
+ expect(h.data.orders).toHaveLength(1);
+ expect(h.data.orders[0].status).toBe("open");
+ expect(h.data.orders[0].sectionId).toBe("parcel");
+ expect(h.data.orders[0].cart).toHaveLength(1);
+});
+test("Empty parcel is not saved as an open order when Escape closes it",()=>{
+ const h=harness(true,{parcel:true});
+ h.key("Escape");
+ expect(h.backCalls()).toBe(1);
+ expect(h.data.orders).toHaveLength(0);
 });
