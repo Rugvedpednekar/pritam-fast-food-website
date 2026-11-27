@@ -16,11 +16,14 @@ function harness(){
   focus:()=>{logs.focused=true;},
   parentElement:{textContent:"Table number",querySelectorAll:()=>[input]}
  };
- const parcelButtons:any[]=[];
+ const parcelButtons:any[]=[],tableButtons:any[]=[];
  const parcels:any={
-  querySelectorAll:(selector:string)=>selector==='button[data-fl="parcel-open"]'?parcelButtons:[]
+  querySelectorAll:(selector:string)=>selector==='button[data-fl="parcel-open"]'?parcelButtons:[],
+  replaceChildren:(...nodes:any[])=>{
+   parcelButtons.splice(0,parcelButtons.length,...nodes.filter(n=>n.dataset?.fl==="parcel-open"));
+  }
  };
- const tables:any={querySelectorAll:()=>[]};
+ const tables:any={querySelectorAll:(selector:string)=>selector==="button"?tableButtons:[]};
  const newParcel:any={textContent:"+ New parcel",click:()=>logs.clicks.push("new")};
  const floor:any={
   querySelector:(q:string)=>q===".fl-parcels"?parcels:q===".fl-table-grid"?tables:null,
@@ -30,20 +33,30 @@ function harness(){
  const doc:any={
   body:{tagName:"BODY"},
   head:{appendChild:(n:any)=>logs.style=n.textContent},
-  createElement:()=>({id:"",textContent:""}),
+  createElement:(tag:string)=>{
+   const handlers:Record<string,Function>={};
+   return {id:"",tagName:tag.toUpperCase(),textContent:"",dataset:{},className:"",
+    title:"",attributes:{} as Record<string,string>,
+    setAttribute:function(k:string,v:string){this.attributes[k]=v;},
+    getAttribute:function(k:string){return this.attributes[k]||null;},
+    addEventListener:function(k:string,fn:Function){handlers[k]=fn;},
+    click:function(){logs.clicks.push(this.dataset.id);handlers.click?.({stopImmediatePropagation:()=>{}});}
+   };
+  },
   querySelector:(q:string)=>q==="#content .fl-root:not(.fl-billing)"?floor:null
  };
  const window:any={};
  class EventMock{type:string;constructor(type:string){this.type=type;}}
  const src=source.replace(/\}\)\(\);\s*$/,
-  "return {ensureNumbers,sequenceFor,parcelOrders,displayNumbers,nextOrderCandidate,renderFloor,tableInput,keyFor,dayFor,jump, getDraw:function(){return draw;},getSave:function(){return saveTheData;}};})();");
+  "return {ensureNumbers,sequenceFor,parcelOrders,displayNumbers,nextOrderCandidate,renderFloor,tableInput,keyFor,dayFor,jump, getDraw:function(){return draw;},getSave:function(){return saveTheData;},getSelection:function(){return {sectionId,tableId,activeOrderId,cart};}};})();");
  if(src===source)throw Error("Missing module footer");
- const args=["document","window","Event","tab","data","selected","draw","saveTheData","getOpenDay","showToast"];
+ const args=["document","window","Event","tab","data","selected","draw","saveTheData","getOpenDay","showToast",
+  "sectionId","tableId","activeOrderId","cart"];
  const api:any=new Function(...args,"return "+src.replace(/^\s*\/\*[\s\S]*?\*\/\s*/,""))(
   doc,window,EventMock,"pos",data,"r1",()=>{logs.oldDraw++;},
   ()=>{logs.saves++;return true;},
   (create:boolean)=>data.openDays.r1,
-  (msg:string)=>logs.toasts.push(msg)
+  (msg:string)=>logs.toasts.push(msg),"s1","","",[]
  );
  function add(id:string,when:string,day="r1d1"){
   data.orders.push({id,restaurantId:"r1",sectionId:"parcel",tableId:"",
@@ -62,7 +75,7 @@ function harness(){
   const result=window.twFloorParcelShortcut(ev);
   return {result,prevented,stopped};
  }
- return {api,data,logs,input,window,doc,add,pendingButton,key,floor};
+ return {api,data,logs,input,window,doc,add,pendingButton,key,floor,parcelButtons,tableButtons};
 }
 test("Occupied table cards match the red outline size and free tiles remain hidden",()=>{
  const h=harness();
@@ -153,4 +166,59 @@ test("The keyboard invoice generator uses P parcel number in bill history and re
  expect(kb).toContain('var number=parcel||newInvoiceNumber(day);');
  expect(kb).toContain('tableName:parcel||table?.name||""');
  expect(kb).toContain("parcelDayId:parcel?open?.parcelDayId:null");
+});
+
+test("An open parcel is rendered as a P-number card even when legacy floor has no cards",()=>{
+ const h=harness();
+ h.add("saved-parcel","2026-11-28T09:00:00Z");
+ h.api.ensureNumbers();h.api.renderFloor();
+ expect(h.parcelButtons).toHaveLength(1);
+ expect(h.parcelButtons[0].textContent).toBe("P-1");
+ expect(h.parcelButtons[0].dataset.twParcelOrderId).toBe("saved-parcel");
+ expect(h.parcelButtons[0].attributes["aria-label"]).toContain("Open pending parcel P-1");
+ expect(h.logs.clicks).toHaveLength(0);
+});
+test("Newly rendered P-1 parcel card restores the saved order for continuing the bill",()=>{
+ const h=harness();h.add("saved","2026-11-28T09:00:00Z");
+ h.data.orders[0].cart=[{id:"m1",code:"615",name:"Item",qty:4,price:1500}];
+ h.api.ensureNumbers();h.api.renderFloor();
+ h.parcelButtons[0].click();
+ expect(h.api.getSelection()).toMatchObject({
+  sectionId:"parcel",tableId:"",activeOrderId:"saved",
+  cart:[{code:"615",qty:4}]
+ });
+ expect(h.logs.oldDraw).toBe(1);
+});
+test("Occupied table cards show only their table number and free tables stay hidden",()=>{
+ const h=harness();
+ function table(id:string,number:string){
+  const classes=new Set<string>(),el:any={dataset:{id},textContent:number+" NON AC · 5 items · ₹550.00",
+   labels:[] as any[],
+   classList:{toggle:(name:string,active:boolean)=>{active?classes.add(name):classes.delete(name);}},
+   querySelector:(selector:string)=>selector==="strong,b"?{textContent:number}:
+       selector===".tw-table-only-number"?el.labels[0]||null:null,
+   appendChild:(label:any)=>{el.labels.push(label);},
+   setAttribute:()=>{},getAttribute:()=>null};
+  return {el,classes};
+ }
+ const a=table("t1","1"),b=table("t21","21");
+ h.tableButtons.push(a.el,b.el);
+ h.data.orders.push({id:"dine",restaurantId:"r1",sectionId:"s1",tableId:"t1",
+  status:"open",cart:[{id:"m1",qty:5}]});
+ h.api.renderFloor();
+ expect(a.classes.has("tw-table-number-card")).toBe(true);
+ expect(a.classes.has("tw-table-occupied")).toBe(true);
+ expect(a.el.labels).toHaveLength(1);
+ expect(a.el.labels[0].textContent).toBe("1");
+ expect(b.classes.has("tw-table-hidden")).toBe(true);
+ expect(h.logs.style).toContain(">*:not(.tw-table-only-number){display:none!important}");
+});
+test("Legacy parcel orders without a matching section still remain visible by Parcel label",()=>{
+ const h=harness();
+ h.add("legacy","2026-11-28T09:00:00Z");
+ h.data.orders[0].sectionId="old-deleted-parcel-section";
+ expect(h.api.parcelOrders()).toHaveLength(1);
+ h.api.renderFloor();
+ expect(h.parcelButtons).toHaveLength(1);
+ expect(h.parcelButtons[0].textContent).toBe("P-1");
 });
