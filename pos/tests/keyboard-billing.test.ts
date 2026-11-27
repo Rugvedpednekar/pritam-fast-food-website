@@ -497,7 +497,7 @@ test("In-app shift price confirmation applies destination prices only on Enter",
  expect(h.confirmCalls()).toBe(0);
 });
 test("Billing module no longer calls native browser confirmation dialogs",()=>{
- expect(source).not.toMatch(/window\\.confirm\\s*\\(/);
+ expect(source).not.toMatch(/window\.confirm\s*\(/);
  expect(source).toContain("kb-confirm-dialog");
  expect(source).toContain('data-kba="cancel-confirm"');
  expect(source).toContain('data-kba="shift-confirm"');
