@@ -218,11 +218,18 @@ kb.context=key;kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=
 kb.discount="";kb.discountType="percent";kb.instruction="";kb.gstin="";kb.gstName="";
 }
 function enterView(){
- // Empty tables do not need Viewing Mode; Esc / minus returns to the floor.
- // Discard only the unsaved item currently in the editor.
+ // Empty orders return to Tables. For parcels, Esc is a one-key save-and-return
+ // shortcut: the order stays OPEN and must appear in Open Parcel Orders.
  if(!cart.length)return closeEmptyTable();
+ if(isCurrentParcel())return returnToTables();
  kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;
  kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();
+}
+function isCurrentParcel(){
+ var section=selSection();
+ return typeof window.twIsParcelSection==="function"?window.twIsParcelSection(section):
+  !!section&&(/^(takeaway|takeout|parcel)$/i.test(String(section.kind||""))||
+   /parcel|takeaway/i.test(String(section.name||"")));
 }
 function enterAdd(){kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;paint();}
 function closeSearchToTable(){
@@ -264,7 +271,11 @@ try{
    label:table?.name||((sec?.kind==="takeaway")?"Parcel":"Order"),createdAt:new Date().toISOString(),cart:[]};
   data.orders.push(order);
  }
- activeOrderId=order.id;order.cart=JSON.parse(JSON.stringify(cart));order.updatedAt=new Date().toISOString();
+ activeOrderId=order.id;
+ order.restaurantId=selected;order.sectionId=sectionId;
+ // A pending parcel is never a table; retain its parcel identity across saves.
+ if(isCurrentParcel()){order.tableId="";if(!order.label||order.label==="Order")order.label="Parcel";}
+ order.cart=JSON.parse(JSON.stringify(cart));order.updatedAt=new Date().toISOString();
  if(!saveTheData(prev)){activeOrderId=old;return false;}
  kb.context=selected+"|"+sectionId+"|"+tableId+"|"+activeOrderId;
  return true;
@@ -313,16 +324,18 @@ function closeEmptyTable(){
 // Return from Viewing Mode to the existing floor/table selector without billing.
 function returnToTables(){
  if(!cart.length)return closeEmptyTable();
- if((cart.length||activeOrderId)&&!preserve())return;
+ var parcel=isCurrentParcel();
+ if(!preserve())return;
  var saved=activeOrderId;
- kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
- // flBack is supplied by the existing Tables & Billing workspace, and sets its floor state.
- if(typeof flBack==="function"){
-  try{flBack();}catch(err){showToast("Could not open Tables: "+err.message);return;}
- }
+ // Clear the active editor BEFORE invoking the legacy floor navigator. Otherwise
+ // the navigator may save the cart again or leave an active parcel invisible.
  cart=[];tableId="";activeOrderId="";
+ kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
+ if(typeof flBack==="function"){
+  try{flBack();}catch(err){showToast("Order saved, but could not return to Tables: "+err.message);draw();return;}
+ }
  draw();
- if(saved)showToast("Order saved. Table remains occupied until billed or cancelled.");
+ if(saved)showToast(parcel?"Parcel saved under Open Parcel Orders.":"Order saved. Table remains occupied until billed or cancelled.");
 }
 function openPreview(){
  if(!cart.length){showToast("Add at least one item to print.");return;}
