@@ -212,6 +212,8 @@ test("Occupied table cards show only their table number and free tables stay hid
  expect(a.el.labels[0].textContent).toBe("1");
  expect(b.classes.has("tw-table-hidden")).toBe(true);
  expect(h.logs.style).toContain(">*:not(.tw-table-only-number){display:none!important}");
+ expect(h.logs.style).toContain(".fl-table-grid>button.tw-table-hidden{display:none!important}");
+ expect(h.logs.style).toContain("button.tw-table-number-card{font-size:0!important;color:transparent!important}");
 });
 test("Legacy parcel orders without a matching section still remain visible by Parcel label",()=>{
  const h=harness();
