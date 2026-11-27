@@ -433,9 +433,14 @@ function removeHighlighted(){
  kb.step="list";paint();showToast(removed.name+" removed.");
 }
 function invoice(calc){
-var sec=selSection(),table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;}),day=getOpenDay(true),number=newInvoiceNumber(day);
+var sec=selSection(),table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;}),day=getOpenDay(true);
+var open=(data.orders||[]).find(function(order){return order.id===activeOrderId&&order.status==="open";});
+var parcel=sec?.kind==="takeaway"&&typeof window.twParcelInvoiceNumber==="function"?
+ window.twParcelInvoiceNumber(open,day):"";
+var number=parcel||newInvoiceNumber(day);
 return {id:"b"+data.seq++,number:number,restaurantId:selected,day:day.date,businessDate:day.date,businessDayId:day.id,time:new Date().toISOString(),
-type:sec?.kind||"dine-in",sectionName:sec?.name||"",sectionId:sectionId,tableName:table?.name||"",status:"paid",payments:[],
+type:sec?.kind||"dine-in",sectionName:sec?.name||"",sectionId:sectionId,tableName:parcel||table?.name||"",
+parcelSeq:parcel?open?.parcelSeq:null,parcelDayId:parcel?open?.parcelDayId:null,status:"paid",payments:[],
 subtotal:calc.subtotal,discount:calc.discount,discountKind:discountKind,discountReason:discountReason,taxable:calc.taxable,
 cgst:calc.cgst,sgst:calc.sgst,roundOff:calc.roundOff,total:calc.grand,issuer:JSON.parse(JSON.stringify(branchCfg())),
 customerGstin:kb.gstin,customerGstName:kb.gstName,billInstruction:kb.instruction,
