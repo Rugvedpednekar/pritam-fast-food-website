@@ -6,7 +6,9 @@ css.id="tw-compact-occupied-parcels-v1";
 css.textContent=[
  // The old floor remains responsible for hit targets/order state.
  "#content .fl-root:not(.fl-billing) .fl-table-grid{display:grid!important;grid-template-columns:repeat(auto-fill,96px)!important;justify-content:start!important;align-items:start!important;gap:12px!important}",
- "#content .fl-root:not(.fl-billing) .fl-table-grid>button{box-sizing:border-box!important;width:96px!important;min-width:96px!important;max-width:96px!important;height:102px!important;min-height:102px!important;max-height:102px!important;padding:9px 7px!important;border-radius:10px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:4px!important;line-height:1.2!important;text-align:left!important}",
+ "#content .fl-root:not(.fl-billing) .fl-table-grid>button{box-sizing:border-box!important;width:96px!important;min-width:96px!important;max-width:96px!important;height:102px!important;min-height:102px!important;max-height:102px!important;padding:9px 7px!important;border-radius:10px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;line-height:1.1!important;text-align:center!important}",
+"#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-number-card>*:not(.tw-table-only-number){display:none!important}",
+"#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-number-card .tw-table-only-number{display:block!important;width:100%;color:#f1fff8!important;font-weight:850!important;font-size:32px!important;line-height:1!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}",
  "#content .fl-root:not(.fl-billing) .fl-table-grid>button :is(strong,b){font-size:26px!important;line-height:1.1!important}",
  "#content .fl-root:not(.fl-billing) .fl-table-grid>button :is(small,span){font-size:11px!important;max-width:100%;overflow:hidden!important;text-overflow:ellipsis!important}",
  // Free tables are reachable by typing the table number; only active orders show tiles.
@@ -20,9 +22,17 @@ css.textContent=[
 document.head.appendChild(css);
 function isTakeaway(order){
  if(!order||order.restaurantId!==selected)return false;
- var sec=(data.sections[selected]||[]).find(function(x){return x.id===order.sectionId;});
- return !!sec&&sec.kind==="takeaway";
+ var sec=(data.sections[selected]||[]).find(function(x){return String(x.id)===String(order.sectionId);});
+ if(sec&&(/^(takeaway|takeout|parcel)$/i.test(String(sec.kind||""))||/parcel|takeaway/i.test(String(sec.name||""))))return true;
+ // Older orders may retain the Parcel label even if a section was renamed or deleted.
+ return !order.tableId&&(/^(parcel|p-\d+)(\s|$)/i.test(String(order.label||""))||
+  /^(parcel|takeaway)$/i.test(String(order.channel||order.type||"")));
 }
+function isParcelSection(sec){
+ return !!sec&&(/^(takeaway|takeout|parcel)$/i.test(String(sec.kind||""))||
+  /parcel|takeaway/i.test(String(sec.name||"")));
+}
+window.twIsParcelSection=isParcelSection;
 function dayFor(iso){
  var d=new Date(iso||Date.now());
  return Number.isFinite(d.getTime())?new Date(d.getTime()+330*60000).toISOString().slice(0,10):"";
@@ -121,29 +131,83 @@ function tableInput(floor){
  }
  return null;
 }
+function applyTableNumbers(floor){
+ var grid=floor.querySelector(".fl-table-grid");if(!grid)return;
+ var tables=data.tables[selected]||[];
+ var openIds=new Set((data.orders||[]).filter(function(o){
+  return o.restaurantId===selected&&o.status==="open"&&o.tableId;
+ }).map(function(o){return String(o.tableId);}));
+ Array.from(grid.querySelectorAll("button")).forEach(function(btn){
+  var id=btn.dataset.tableId||btn.dataset.id||btn.getAttribute("data-table-id")||
+   btn.getAttribute("data-id")||"";
+  var first=btn.querySelector("strong,b");
+  var displayed=first?first.textContent.trim():btn.textContent.trim().match(/^\d+/)?.[0]||"";
+  var table=tables.find(function(t){return String(t.id)===String(id);})||
+   tables.find(function(t){return String(t.name).trim()===displayed;});
+  if(!table)return;
+  var occupied=openIds.has(String(table.id));
+  btn.classList.toggle("tw-table-number-card",occupied);
+  btn.classList.toggle("tw-table-occupied",occupied);
+  btn.classList.toggle("tw-table-hidden",!occupied);
+  if(!occupied)return;
+  var label=btn.querySelector(".tw-table-only-number");
+  if(!label){label=document.createElement("span");label.className="tw-table-only-number";btn.appendChild(label);}
+  if(label.textContent!==String(table.name))label.textContent=String(table.name);
+  btn.setAttribute("aria-label","Open occupied table "+table.name);
+ });
+}
 function renderFloor(){
  var floor=findFloor();if(!floor)return;
+ applyTableNumbers(floor);
  var lookup=tableInput(floor);
  if(lookup){
   lookup.setAttribute("autocomplete","off");
   lookup.setAttribute("aria-label","Table number or P parcel number");
   lookup.setAttribute("placeholder","Table no. / P / P1");
  }
- var parcels=floor.querySelector(".fl-parcels");
- if(!parcels)return;
- var orders=readPending(), tokens=displayNumbers();
- var buttons=Array.from(parcels.querySelectorAll('button[data-fl="parcel-open"]'));
- buttons.forEach(function(button,i){
-  var linked=button.dataset.id||button.dataset.orderId||button.getAttribute("data-order-id");
-  var order=linked?orders.find(function(o){return String(o.id)===String(linked);}):null;
-  if(!order&&buttons.length===orders.length)order=orders[i];
-  if(!order)return;
-  var token=tokens.get(String(order.id));if(!token)return;
-  button.dataset.twParcelOrderId=String(order.id);
-  if(button.textContent.trim()!==token.label)button.textContent=token.label;
-  button.title=token.label+" · "+(order.cart||[]).length+" item lines · "+token.dayDate;
-  button.setAttribute("aria-label","Open pending parcel "+token.label);
+ var parcels=floor.querySelector(".fl-parcels");if(!parcels)return;
+ var orders=readPending(),tokens=displayNumbers();
+ var existing=Array.from(parcels.querySelectorAll('button[data-fl="parcel-open"]'));
+ var used=new Set();
+ var cards=orders.map(function(order,i){
+  var id=String(order.id);
+  var original=existing.find(function(b){return b.dataset.id===id||b.dataset.orderId===id||
+   b.dataset.twParcelOrderId===id||b.getAttribute("data-order-id")===id;});
+  if(!original&&existing.length===orders.length)original=existing[i];
+  if(original&&used.has(original))original=null;
+  var btn=original||document.createElement("button");
+  used.add(btn);
+  btn.type="button";btn.dataset.fl="parcel-open";btn.dataset.id=id;
+  btn.dataset.orderId=id;btn.dataset.twParcelOrderId=id;
+  if(!original)btn.addEventListener("click",function(ev){
+   // New cards are linked directly to the saved order; no temporary bill is created.
+   if(ev&&typeof ev.stopImmediatePropagation==="function")ev.stopImmediatePropagation();
+   openPendingParcel(id);
+  },true);
+  var token=tokens.get(id);
+  btn.textContent=token?token.label:"Parcel";
+  btn.title=(token?token.label:"Parcel")+" · "+(order.cart||[]).length+" item lines";
+  btn.setAttribute("aria-label","Open pending parcel "+btn.textContent);
+  return btn;
  });
+ if(typeof parcels.replaceChildren==="function"){
+  if(cards.length)parcels.replaceChildren.apply(parcels,cards);
+  else {
+   var empty=document.createElement("span");
+   empty.className="tw-empty-parcel-message";
+   empty.textContent="No open parcel orders.";
+   parcels.replaceChildren(empty);
+  }
+ }
+}
+function openPendingParcel(orderId){
+ var order=(data.orders||[]).find(function(o){return String(o.id)===String(orderId)&&o.status==="open"&&isTakeaway(o);});
+ if(!order){showToast("This parcel is no longer pending.");return false;}
+ // Restore the saved order in the same billing workspace used for dine-in tables.
+ sectionId=order.sectionId;tableId="";
+ activeOrderId=order.id;cart=JSON.parse(JSON.stringify(order.cart||[]));
+ draw();
+ return true;
 }
 function nextOrderCandidate(number){
  var all=Array.from(displayNumbers().values()).filter(function(x){return x.number===number});
@@ -162,8 +226,8 @@ function clickParcelButton(floor,orderId){
    btn.dataset.id===orderId||btn.dataset.orderId===orderId||
    btn.getAttribute("data-order-id")===orderId;
  });
- if(!match){renderFloor();match=buttons.find(function(btn){return btn.dataset.twParcelOrderId===orderId;});}
- if(!match)return false;
+ if(!match){renderFloor();match=Array.from(floor.querySelectorAll('.fl-parcels button[data-fl="parcel-open"]')).find(function(btn){return btn.dataset.twParcelOrderId===orderId;});}
+ if(!match)return openPendingParcel(orderId);
  match.click();return true;
 }
 function newParcel(floor){
