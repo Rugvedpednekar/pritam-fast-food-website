@@ -217,7 +217,13 @@ if(key===kb.context)return;
 kb.context=key;kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=0;kb.shiftIndex=0;
 kb.discount="";kb.discountType="percent";kb.instruction="";kb.gstin="";kb.gstName="";
 }
-function enterView(){kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();}
+function enterView(){
+ // Empty tables do not need Viewing Mode; Esc / minus returns to the floor.
+ // Discard only the unsaved item currently in the editor.
+ if(!cart.length)return closeEmptyTable();
+ kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;
+ kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();
+}
 function enterAdd(){kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;paint();}
 function closeSearchToTable(){
  // Do not navigate to the floor or switch to Viewing Mode when cancelling a search.
@@ -275,8 +281,38 @@ else cart.push(Object.assign({},kb.item,{qty:v,comment:comment,addedAt:new Date(
 if(!preserve()){cart=old;return;}
 kb.item=null;kb.edit=-1;kb.step=view?"list":"code";kb.mode=view?"view":"add";paint();
 }
+// Leaving an empty table should release any legacy/saved empty open order
+// instead of creating another open order or keeping the table occupied.
+function closeEmptyTable(){
+ if(cart.length)return enterView();
+ var previous=JSON.stringify(data),now=new Date().toISOString();
+ var opens=(data.orders||[]).filter(function(o){
+  return o.restaurantId===selected&&o.status==="open"&&
+   ((activeOrderId&&o.id===activeOrderId)||(tableId&&o.tableId===tableId));
+ });
+ // Never discard a nonempty saved order just because a stale editor appears empty.
+ if(opens.some(function(o){return Array.isArray(o.cart)&&o.cart.length>0;})){
+  showToast("This table has a saved order. Reopen it before closing.");return;
+ }
+ if(opens.length){
+  opens.forEach(function(o){
+   o.status="void";o.voidAt=now;o.voidReason="Empty table closed";
+  });
+  data.audit.push({action:"empty_table_closed",restaurantId:selected,
+   tableId:tableId,orderId:activeOrderId||opens[0].id,at:now});
+  if(!saveTheData(previous)){showToast("Could not release the empty table.");return;}
+ }
+ // Clear the active selection before navigating, so flBack cannot re-save it.
+ cart=[];tableId="";activeOrderId="";kb.context="";
+ kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
+ if(typeof flBack==="function"){
+  try{flBack();}catch(err){showToast("Could not open Tables: "+err.message);}
+ }
+ draw();
+}
 // Return from Viewing Mode to the existing floor/table selector without billing.
 function returnToTables(){
+ if(!cart.length)return closeEmptyTable();
  if((cart.length||activeOrderId)&&!preserve())return;
  var saved=activeOrderId;
  kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
@@ -582,7 +618,9 @@ if(kb.step==="qty"){
  return;
 }
 if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){
- stop();return kb.mode==="view"?returnToTables():enterView();
+ stop();
+ if(!cart.length)return closeEmptyTable();
+ return kb.mode==="view"?returnToTables():enterView();
 }
 if(kb.mode==="view"){
  if(k==="0"){stop();return enterAdd();}
