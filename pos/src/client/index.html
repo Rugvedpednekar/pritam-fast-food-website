@@ -58,6 +58,26 @@
 <script>
 (function(){
 "use strict";
+// Capture Escape before legacy POS shortcuts. Within keyboard billing it must
+// behave like "-" and must not also trigger an older table/back handler.
+function twEarlyBillingEscape(ev){
+ if(ev.key!=="Escape"&&ev.key!=="Esc")return;
+ if(!document.getElementById("twkb")||ev.ctrlKey||ev.altKey||ev.metaKey)return;
+ if(document.querySelector("dialog[open],#cloudGate:not(.hidden)"))return;
+ if(typeof window.twBillingHandleEscape!=="function")return;
+ ev.preventDefault();
+ ev.stopImmediatePropagation();
+ window.twBillingHandleEscape();
+}
+window.addEventListener("keydown",twEarlyBillingEscape,true);
+window.addEventListener("keyup",function(ev){
+ if((ev.key==="Escape"||ev.key==="Esc")&&document.getElementById("twkb")&&
+    !document.querySelector("dialog[open],#cloudGate:not(.hidden)")&&
+    typeof window.twBillingHandleEscape==="function"){
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+ }
+},true);
 var startupFinished=false;
 window.addEventListener("error",function(ev){
  if(startupFinished)return;
