@@ -195,7 +195,9 @@ window.twFloorParcelShortcut=function(ev){
  if(key.toLowerCase()==="p"&&(!active||active===document.body||focused||
   (typeof active.closest==="function"&&active.closest("#content .fl-root:not(.fl-billing)")&&!/^(INPUT|TEXTAREA|SELECT)$/i.test(active.tagName||"")))){
   ev.preventDefault();ev.stopImmediatePropagation();
-  input.value="P";input.dispatchEvent(new Event("input",{bubbles:true}));
+  // Do not fire a synthetic input event for P: older POS listeners can
+  // treat that as an immediate Parcel shortcut. Enter is the only opener.
+  input.value="P";
   input.focus({preventScroll:true});
   return true;
  }
