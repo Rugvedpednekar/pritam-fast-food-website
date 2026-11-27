@@ -2,7 +2,7 @@
 /* Onyx-style keyboard billing for Pritam Fast Food. The data model stays unchanged. */
 (function(){
 "use strict";
-var kb={mode:"add",step:"code",selected:0,edit:-1,item:null,search:"",cursor:0,context:"",
+var kb={mode:"add",step:"code",selected:0,edit:-1,item:null,search:"",cursor:0,shiftIndex:0,context:"",
  discount:"",discountType:"amount",instruction:"",gstin:"",gstName:"",busy:false};
 function current(){return tab==="pos"&&!!document.getElementById("twkb");}
 function eligible(){return tab==="pos"&&!!document.querySelector("#content .fl-billing");}
@@ -24,7 +24,8 @@ return '<button type="button" role="option" aria-selected="'+active+'" class="kb
 var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+button('← Tables','floor')+
 '<div><small>'+e(selectedName())+' · '+e(section?.name||"")+'</small><h2>'+e(detail())+'</h2></div><b class="kb-mode">'+
 (viewing?'VIEWING MODE — 0 TO ADD':'ADD ITEM — CODE OR NAME')+'</b></div>'+
-'<div class="kb-shortcuts">[0] Add new item &nbsp; [Esc / -] Viewing mode &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill</div>'+
+'<div class="kb-shortcuts">'+(viewing?'[Esc / -] Save & Tables &nbsp; [1] Cancel table &nbsp; [3] Shift table &nbsp; [5] Print bill &nbsp; [↑ ↓] Choose &nbsp; [Del] Remove &nbsp; [0] Add item':
+'[0] Add new item &nbsp; [Esc / -] Viewing mode &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill')+'</div>'+
 '<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
 '<div class="kb-lines">'+(lines||'<p class="kb-empty">No items yet. Enter an item code.</p>')+'</div>'+
 '<div class="kb-totals"><div>Subtotal <b>'+money(p?.subtotal||0)+'</b></div><div>CGST + SGST <b>'+money((p?.cgst||0)+(p?.sgst||0))+
@@ -44,6 +45,18 @@ if(kb.step==="search"){
 return '<button type="button" role="option" aria-selected="'+active+'" class="'+(active?'kb-on kb-current':'')+
  '" data-kba="choose" data-index="'+i+'"><span><b>'+e(m.name)+'</b><small>#'+e(m.code)+' · '+e(m.category||"")+'</small></span><strong>'+
  money(sectionPrice(m,sectionId))+'</strong></button>';}).join("")||'<p class="kb-empty">No matching items</p>')+'</div></section></div>';
+}
+if(kb.step==="shift"){
+ var targets=shiftTargets();
+ body+='<div class="kb-overlay"><section class="kb-dialog" role="dialog" aria-modal="true" aria-label="Shift table">'+
+ '<h3>Shift Table</h3><p>Choose an empty table with ↑ / ↓, then press Enter. Esc / - goes back.</p>'+
+ '<div class="kb-shift-results" role="listbox" aria-label="Available empty tables">'+
+ (targets.length?targets.map(function(t,i){
+  var active=i===kb.shiftIndex,sec=(data.sections[selected]||[]).find(function(v){return v.id===t.sectionId;});
+  return '<button type="button" role="option" aria-selected="'+active+'" class="kb-shift-row '+(active?'kb-on kb-current':'')+
+  '" data-kba="shift-to" data-index="'+i+'">'+e(t.name)+' <small>'+e(sec?.name||"")+'</small></button>';
+ }).join(""):'<p class="kb-empty">No empty compatible tables are available.</p>')+
+ '</div><div class="kb-actions">'+button('Esc / - · Back','shift-back')+'</div></section></div>';
 }
 if(kb.step==="preview"){
  body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Bill Preview</h3><p>Enter → Discount → Instruction on Bill → Print</p>'+
@@ -78,6 +91,12 @@ function refocus(){
   var row=rows[kb.selected];
   if(row&&typeof row.focus==="function"){row.focus({preventScroll:true});return;}
  }
+if(kb.step==="shift"){
+ var choices=typeof document.querySelectorAll==="function"?
+  document.querySelectorAll('#twkb .kb-shift-results button[data-kba="shift-to"]'):[];
+ var target=choices[kb.shiftIndex];
+ if(target&&typeof target.focus==="function"){target.focus({preventScroll:true});return;}
+}
 var id=kb.step==="qty"?"kb-qty":kb.step==="search"?"kb-search":kb.step==="preview"?"kb-discount":
 kb.step==="gst"?"kb-gstin":"kb-code";
 var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="kb-qty"||id==="kb-discount")f.select();}
@@ -85,9 +104,11 @@ var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="k
 // Keep a visible selection while keyboard focus remains on Item Code / Search.
 function highlightSelection(kind){
  if(typeof document.querySelectorAll!=="function")return;
- var selector=kind==="search"?'#twkb .kb-results button[data-kba="choose"]':'#twkb .kb-lines button[data-kba="line"]';
+ var selector=kind==="search"?'#twkb .kb-results button[data-kba="choose"]':
+ kind==="shift"?'#twkb .kb-shift-results button[data-kba="shift-to"]':
+ '#twkb .kb-lines button[data-kba="line"]';
  var rows=document.querySelectorAll(selector);
- var selectedIndex=kind==="search"?kb.cursor:kb.selected;
+ var selectedIndex=kind==="search"?kb.cursor:kind==="shift"?kb.shiftIndex:kb.selected;
  for(var i=0;i<rows.length;i++){
   var active=i===selectedIndex;
   rows[i].classList.toggle("kb-on",active);
@@ -102,12 +123,13 @@ function highlightSelection(kind){
 }
 function paint(){if(!eligible())return;document.getElementById("content").innerHTML=screen();refocus();
  if(kb.step==="search")highlightSelection("search");
+ else if(kb.step==="shift")highlightSelection("shift");
  else if(kb.mode==="view"&&kb.step==="list")highlightSelection("order");
 }
 function reset(){
 var key=selected+"|"+sectionId+"|"+tableId+"|"+activeOrderId;
 if(key===kb.context)return;
-kb.context=key;kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=0;
+kb.context=key;kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=0;kb.shiftIndex=0;
 kb.discount="";kb.discountType="amount";kb.instruction="";kb.gstin="";kb.gstName="";
 }
 function enterView(){kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();}
@@ -168,7 +190,105 @@ else cart.push(Object.assign({},kb.item,{qty:v,comment:comment,addedAt:new Date(
 if(!preserve()){cart=old;return;}
 kb.item=null;kb.edit=-1;kb.step=view?"list":"code";kb.mode=view?"view":"add";paint();
 }
-function openPreview(){if(!cart.length){showToast("Add an item before printing.");return;}kb.step="preview";kb.discount="";kb.discountType="amount";paint();}
+// Return from Viewing Mode to the existing floor/table selector without billing.
+function returnToTables(){
+ if((cart.length||activeOrderId)&&!preserve())return;
+ var saved=activeOrderId;
+ kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
+ // flBack is supplied by the existing Tables & Billing workspace, and sets its floor state.
+ if(typeof flBack==="function"){
+  try{flBack();}catch(err){showToast("Could not open Tables: "+err.message);return;}
+ }
+ cart=[];tableId="";activeOrderId="";
+ draw();
+ if(saved)showToast("Order saved. Table remains occupied until billed or cancelled.");
+}
+function openPreview(){if(!cart.length){showToast("Add at least one item to print.");return;}kb.step="preview";kb.discount="";kb.discountType="amount";paint();}
+function openShift(){
+ if(!tableId||selSection()?.kind!=="dine-in"){showToast("Shifting is only available for dine-in tables.");return;}
+ if(!shiftTargets().length){showToast("No empty compatible tables are available.");return;}
+ kb.shiftIndex=0;kb.step="shift";paint();
+}
+function shiftTargets(){
+ var current=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
+ if(!current)return [];
+ var sections=data.sections[selected]||[];
+ var openIds=new Set((data.orders||[]).filter(function(o){
+  return o.restaurantId===selected&&o.status==="open"&&o.id!==activeOrderId&&o.tableId;
+ }).map(function(o){return o.tableId;}));
+ return (data.tables[selected]||[]).filter(function(t){
+  if(t.id===tableId||t.active===false||openIds.has(t.id))return false;
+  var section=sections.find(function(x){return x.id===t.sectionId&&x.active!==false&&x.kind==="dine-in";});
+  if(!section)return false;
+  // Only show tables whose sections support every current menu item.
+  return cart.every(function(line){
+   var item=(data.menus[selected]||[]).find(function(m){return m.id===line.id});
+   return !!item&&item.active!==false&&sectionPrice(item,t.sectionId)!==null;
+  });
+ });
+}
+function shiftTo(index){
+ var target=shiftTargets()[index];if(!target){showToast("Selected table is no longer available.");kb.step="list";paint();return;}
+ var oldData=JSON.stringify(data),oldCart=JSON.parse(JSON.stringify(cart)),oldTable=tableId,oldSection=sectionId,oldOrder=activeOrderId;
+ try{
+  // Recheck vacancy immediately before committing the transfer.
+  if(data.orders.some(function(o){return o.restaurantId===selected&&o.tableId===target.id&&o.status==="open"&&o.id!==activeOrderId;}))
+   throw Error("The destination table is occupied. Choose an empty table.");
+  var targetSec=(data.sections[selected]||[]).find(function(t){return t.id===target.sectionId;});
+  if(!targetSec||targetSec.active===false||targetSec.kind!=="dine-in")throw Error("Destination section is not available.");
+  var changed=oldSection!==target.sectionId;
+  var priced=cart.map(function(line){
+   var item=(data.menus[selected]||[]).find(function(m){return m.id===line.id&&m.active!==false;});
+   var newPrice=sectionPrice(item,target.sectionId);
+   if(!item||newPrice===null)throw Error("One of the items is unavailable at the destination.");
+   return Object.assign({},line,{price:newPrice});
+  });
+  if(changed&&priced.some(function(line,i){return line.price!==cart[i].price})&&
+    !window.confirm("Prices differ in "+targetSec.name+". Shift the order and apply the destination section prices?"))return;
+  var order=(data.orders||[]).find(function(o){return o.id===activeOrderId&&o.status==="open";});
+  if(!order&&cart.length){
+   order={id:"o"+data.seq++,restaurantId:selected,status:"open",createdAt:new Date().toISOString(),cart:[]};
+   data.orders.push(order);
+   activeOrderId=order.id;
+  }
+  if(order){
+   order.tableId=target.id;order.sectionId=target.sectionId;order.label=target.name;
+   order.cart=JSON.parse(JSON.stringify(priced));order.updatedAt=new Date().toISOString();
+  }
+  cart=priced;tableId=target.id;sectionId=target.sectionId;
+  data.audit.push({action:"table_shifted",restaurantId:selected,orderId:activeOrderId||"",fromTableId:oldTable,toTableId:target.id,at:new Date().toISOString()});
+  if(!saveTheData(oldData))throw Error("Could not save table transfer.");
+  kb.context=selected+"|"+sectionId+"|"+tableId+"|"+activeOrderId;
+  kb.step="list";kb.mode="view";kb.selected=0;paint();
+  showToast("Order shifted to "+target.name+".");
+ }catch(err){
+  data=JSON.parse(oldData);cart=oldCart;tableId=oldTable;sectionId=oldSection;activeOrderId=oldOrder;
+  showToast(err.message);kb.step="shift";paint();
+ }
+}
+function cancelTable(){
+ var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
+ var name=table?.name||"this table";
+ if(!window.confirm("Cancel the entire "+name+" order and remove all saved items?"))return;
+ var before=JSON.stringify(data);
+ var order=(data.orders||[]).find(function(o){
+  return o.restaurantId===selected&&o.status==="open"&&(o.id===activeOrderId||o.tableId===tableId);
+ });
+ if(order){order.status="void";order.voidAt=new Date().toISOString();order.voidReason="Cancelled from viewing mode";}
+ data.audit.push({action:"table_order_cancelled",restaurantId:selected,tableId:tableId,orderId:order?.id||"",at:new Date().toISOString()});
+ if(!saveTheData(before)){showToast("Cancellation was not saved.");return;}
+ // This action must release the table; never call preserve() after voiding it.
+ kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
+ if(typeof flBack==="function"){try{flBack();}catch(err){showToast(err.message);}}
+ cart=[];tableId="";activeOrderId="";draw();showToast(name+" cancelled and released.");
+}
+function removeHighlighted(){
+ if(!cart.length||kb.selected<0||kb.selected>=cart.length)return;
+ var old=JSON.parse(JSON.stringify(cart)),removed=cart[kb.selected];
+ cart.splice(kb.selected,1);kb.selected=Math.min(kb.selected,cart.length-1);
+ if(!preserve()){cart=old;return;}
+ kb.step="list";paint();showToast(removed.name+" removed.");
+}
 function invoice(calc){
 var sec=selSection(),table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;}),day=getOpenDay(true),number=newInvoiceNumber(day);
 return {id:"b"+data.seq++,number:number,restaurantId:selected,day:day.date,businessDate:day.date,businessDayId:day.id,time:new Date().toISOString(),
@@ -227,7 +347,9 @@ finally{kb.busy=false;if(!saved){discountKind=oldDiscount[0];discountValue=oldDi
 function action(name,el){
 if(name==="add")return enterAdd();
 if(name==="view")return enterView();
-if(name==="floor"){cart=[];tableId="";activeOrderId="";kb.context="";draw();return;}
+if(name==="floor")return returnToTables();
+if(name==="shift-to")return shiftTo(Number(el.dataset.index)||0);
+if(name==="shift-back"){kb.step="list";paint();return;}
 if(name==="line"){kb.selected=Number(el.dataset.index)||0;kb.mode="view";kb.step="list";paint();return;}
 if(name==="choose"){var m=matches()[Number(el.dataset.index)||0];if(m){kb.search="";pick(m,-1);}return;}
 if(name==="preview")return openPreview();
@@ -264,6 +386,15 @@ if(kb.step==="preview"){
  if(id==="kb-print"){kb.instruction=document.getElementById("kb-instruction")?.value||"";return printAndComplete();}
  return;
 }
+if(kb.step==="shift"){
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();kb.step="list";paint();return;}
+ if(k==="ArrowDown"||k==="ArrowUp"){stop();
+  var opts=shiftTargets();if(opts.length){kb.shiftIndex=(kb.shiftIndex+(k==="ArrowDown"?1:-1)+opts.length)%opts.length;highlightSelection("shift");}
+  return;
+ }
+ if(k==="Enter"){stop();return shiftTo(kb.shiftIndex);}
+ return;
+}
 if(kb.step==="search"){
  if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();return closeSearchToTable();}
  if(k==="ArrowDown"||k==="ArrowUp"){
@@ -275,24 +406,26 @@ if(kb.step==="search"){
  return;
 }
 if(kb.step==="qty"){
- if(k==="Escape"||k==="-"){stop();return enterView();}
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();return enterView();}
  if(k==="Enter"){stop();return saveQty();}
  return;
 }
-if(k==="Escape"||k==="-"){stop();return enterView();}
+if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){
+ stop();return kb.mode==="view"?returnToTables():enterView();
+}
 if(kb.mode==="view"){
  if(k==="0"){stop();return enterAdd();}
+ if(k==="1"){stop();return cancelTable();}
+ if(k==="3"){stop();return openShift();}
  if(k==="5"){stop();return openPreview();}
  if(k==="ArrowDown"||k==="ArrowUp"){stop();if(cart.length){
   kb.selected=(kb.selected+(k==="ArrowDown"?1:-1)+cart.length)%cart.length;
   kb.step="list";highlightSelection("order");
  }return;}
  if(k==="Enter"){stop();var row=cart[kb.selected];if(row){var m=menu().find(function(x){return x.id===row.id;})||row;pick(m,kb.selected);}return;}
- if(k==="Delete"){stop();var row=cart[kb.selected];if(!row)return;
-  if(!window.confirm("Remove "+row.name+" from this order?"))return;
-  var old=JSON.parse(JSON.stringify(cart));cart.splice(kb.selected,1);kb.selected=Math.max(0,Math.min(kb.selected,cart.length-1));
-  if(!preserve()){cart=old;return;}kb.step="list";paint();return;}
- if(/^[0-9a-z]$/i.test(k)){stop();if(k!=="0")showToast("Press 0 to add an item.");}return;
+ if(k==="Delete"||k==="Backspace"){stop();return removeHighlighted();}
+ if(/^[0-9a-z]$/i.test(k)){stop();if(!["0","1","3","5"].includes(k))showToast("Viewing Mode: use 0 to add, 1 to cancel, 3 to shift, or 5 to print.");}
+ return;
 }
 if(kb.mode==="add"){
  if(id==="kb-code"&&/^[a-z]$/i.test(k)){stop();kb.step="search";kb.search=k;kb.cursor=0;paint();return;}
@@ -330,6 +463,9 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-dialog{background:#1b313a;border:1px solid #53747c;border-radius:13px;padding:22px;width:min(560px,100%);box-shadow:0 15px 50px #0009}",
 "#twkb .kb-dialog p{font-size:13px;color:#adcbc1}#twkb .kb-pretotal{display:flex;justify-content:space-between;font-size:18px;background:#0e252e;padding:15px;border-radius:8px}",
 "#twkb .kb-results{max-height:55dvh;overflow:auto;margin-top:12px}#twkb .kb-results button{display:flex;justify-content:space-between;gap:10px;width:100%;border:0;border-bottom:1px solid #3b5760;border-radius:0;text-align:left}",
+"#twkb .kb-results small{display:block}#twkb .kb-shift-results{max-height:55dvh;overflow:auto;margin-top:12px}",
+"#twkb .kb-shift-results button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid #36535d;background:#132f36;color:#f1fff6;margin:6px 0}",
+"#twkb .kb-shift-results button.kb-current{background:#16714c!important;border:2px solid #a6ffc0!important}",
 "#twkb .kb-results small{display:block}#twkb .kb-discount-row{display:flex;gap:10px;align-items:center}#twkb .kb-discount-row span{min-width:30px;text-align:center;font-weight:bold;font-size:20px}",
 "#twkb .kb-error{color:#ffb9a2}",
 "@media(max-width:760px){#twkb .kb-grid{grid-template-columns:1fr}#twkb .kb-lines{max-height:32dvh}#twkb h2{font-size:21px}#twkb .kb-table-head,#twkb .kb-line{grid-template-columns:minmax(0,1fr) 34px 94px}}"
@@ -345,10 +481,13 @@ if(t.id==="kb-instruction")kb.instruction=t.value;},true);
 window.addEventListener("keydown",key,true);
 // The early Escape guard in index.html calls this before older POS key handlers.
 // Main billing modes execute precisely the same action as the minus shortcut.
-window.twBillingHandleEscape=function(){
- var equivalent=(kb.step==="preview"||kb.step==="gst")?"Escape":"-";
- key({key:equivalent,ctrlKey:false,metaKey:false,altKey:false,
+window.twBillingIsViewing=function(){return kb.mode==="view"&&kb.step==="list";};
+window.twBillingHandleShortcut=function(name){
+ key({key:name,ctrlKey:false,metaKey:false,altKey:false,
   preventDefault:function(){},stopImmediatePropagation:function(){}});
+};
+window.twBillingHandleEscape=function(){
+ window.twBillingHandleShortcut((kb.step==="preview"||kb.step==="gst")?"Escape":"-");
 };
 var oldDraw=draw;draw=function(){var result=oldDraw.apply(this,arguments);
 if(eligible()){reset();document.getElementById("content").innerHTML=screen();refocus();}else kb.context="";
