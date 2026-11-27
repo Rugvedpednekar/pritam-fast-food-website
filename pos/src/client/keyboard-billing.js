@@ -15,6 +15,10 @@ function detail(){var t=(data.tables[selected]||[]).find(function(v){return v.id
 var o=(data.orders||[]).find(function(v){return v.id===activeOrderId&&v.status==="open";});
 return t?.name||o?.label||"Parcel";}
 function button(label,act){return '<button type="button" data-kba="'+act+'">'+label+'</button>';}
+function tableDisplayName(raw){
+ var value=String(raw==null?"":raw).trim();
+ return /^\d+$/.test(value)?"Table "+value:(value||"this table");
+}
 function screen(){
 var viewing=kb.mode==="view",showEditor=!viewing||kb.step==="qty",item=kb.item,p=total(),section=selSection();
 var lines=cart.map(function(v,i){var active=viewing&&kb.selected===i;
@@ -60,7 +64,7 @@ if(kb.step==="shift"){
 }
 if(kb.step==="cancel"){
  var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
- var tableName=table?.name||"this order";
+ var tableName=tableDisplayName(table?.name);
  body+='<div class="kb-overlay kb-confirm-overlay"><section class="kb-dialog kb-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="kb-confirm-title" aria-describedby="kb-confirm-copy">'+
  '<div class="kb-confirm-symbol" aria-hidden="true">!</div>'+
  '<div class="kb-confirm-eyebrow">TABLE CANCELLATION</div>'+
@@ -304,7 +308,7 @@ function cancelTable(){
 function confirmCancelTable(){
  if(kb.step!=="cancel")return;
  var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
- var name=table?.name||"this table";
+ var name=tableDisplayName(table?.name);
  var before=JSON.stringify(data);
  var order=(data.orders||[]).find(function(o){
   return o.restaurantId===selected&&o.status==="open"&&(o.id===activeOrderId||o.tableId===tableId);
