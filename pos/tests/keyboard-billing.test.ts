@@ -724,3 +724,12 @@ test("An unexpectedly nonempty saved order cannot be discarded by closing an emp
  expect(h.data.orders.find((x:any)=>x.id==="legacy").status).toBe("open");
  expect(h.toasts.at(-1)).toContain("saved order");
 });
+
+test("Shortcut labels reflect direct return for empty tables and Viewing Mode for saved items",()=>{
+ const h=harness();
+ expect(h.obj.screen()).toContain("[Esc / -] Back to Tables");
+ expect(h.obj.screen()).toContain("Esc / - · Tables");
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ expect(h.obj.screen()).toContain("[Esc / -] Viewing mode");
+ expect(h.obj.screen()).toContain("Esc / - · View");
+});
