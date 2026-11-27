@@ -89,6 +89,9 @@ function twClearFloorTableNumber(ev){
  return true;
 }
 function twEarlyBillingEscape(ev){
+ // P inserts a parcel token into the Table number field; Enter opens P/Pn.
+ // Capture before the older global "P = New Parcel" shortcut is evaluated.
+ if(typeof window.twFloorParcelShortcut==="function"&&window.twFloorParcelShortcut(ev))return;
  if(twClearFloorTableNumber(ev))return;
  if(!document.getElementById("twkb")||ev.ctrlKey||ev.altKey||ev.metaKey)return;
  if(document.querySelector("dialog[open],#cloudGate:not(.hidden)"))return;
@@ -103,6 +106,7 @@ function twEarlyBillingEscape(ev){
 }
 window.addEventListener("keydown",twEarlyBillingEscape,true);
 window.addEventListener("keyup",function(ev){
+ if(typeof window.twFloorParcelKeyup==="function"&&window.twFloorParcelKeyup(ev))return;
  if(!document.getElementById("twkb"))return;
  if(document.querySelector("dialog[open],#cloudGate:not(.hidden)"))return;
  var escape=ev.key==="Escape"||ev.key==="Esc";
