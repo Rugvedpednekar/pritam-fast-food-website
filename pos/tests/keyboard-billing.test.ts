@@ -20,7 +20,7 @@ function harness(popupAllowed=true,opts:{parcel?:boolean}={}){
   }
   return selectionNodes[which];
  }
- let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true,legacyConfirmCalls=0;
+ let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true,legacyConfirmCalls=0,printedReceipt="";
  let fixtureApi:any=null;
  const backSnapshots:any[]=[];
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
@@ -57,12 +57,12 @@ function harness(popupAllowed=true,opts:{parcel?:boolean}={}){
  const window:any={
   addEventListener:()=>{},confirm:()=>{confirmCalls++;return confirmAnswer;},
   open:()=>popupAllowed?{
-   closed:false,document:{open:()=>{},write:()=>{},close:()=>{}},
+   closed:false,document:{open:()=>{},write:(str:string)=>{printedReceipt=str;},close:()=>{}},
    focus:()=>{},print:()=>{printed++;}
   }:null
  };
  const outer=source.replace(/\}\)\(\);\s*$/,
-   "return {kb,screen,pick,paint,key,action,saveQty,openPreview,printAndComplete,enterView,enterAdd,lookup,"+
+   "return {kb,screen,pick,paint,key,action,saveQty,openPreview,printAndComplete,enterView,enterAdd,lookup,aggregateReceiptLines,taxRateLabel,"+
    "getDraw:function(){return draw;},getSaveBill:function(){return saveBill;},getCart:function(){return cart;},getActiveOrder:function(){return activeOrderId;},getTable:function(){return tableId;}};})();");
  if(outer===source)throw Error("Could not instrument keyboard billing source");
  const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill","saveBill",
@@ -100,7 +100,7 @@ function harness(popupAllowed=true,opts:{parcel?:boolean}={}){
  return {obj,data,draw,set,key,window,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
   setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,backSnapshots,
   typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
-  legacyConfirmCalls:()=>legacyConfirmCalls,
+  legacyConfirmCalls:()=>legacyConfirmCalls,receipt:()=>printedReceipt,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
 
@@ -608,8 +608,10 @@ test("Bill preview is itemized with rate, qty, separate CGST and SGST, discount 
  const html=h.obj.screen();
  expect(html).toContain("kb-preview-paper");
  expect(html).toContain("MINERAL WATER 500ML");
- expect(html).toContain("3 × ₹15.00 each");
- expect(html).toContain("₹45.00");
+ expect(html).toContain('class="kb-receipt-rate">₹15.00</span>');
+ expect(html).toContain('class="kb-receipt-qty">3</span>');
+ expect(html).toContain('class="kb-receipt-amount">₹45.00</strong>');
+ expect(html).toContain('<span>Item</span><span>Rate</span><span>Qty</span><span>Amount</span>');
  for(const label of ["Subtotal","Discount","CGST","SGST","Grand total"]){
   expect(html).toContain(label);
  }
@@ -788,4 +790,75 @@ test("Reopening a saved parcel restores its line items and subsequent changes up
  expect(h.backCalls()).toBe(1);
  expect(h.data.orders).toHaveLength(1);
  expect(h.data.orders[0].cart[1].code).toBe("37");
+});
+
+
+test("Three identical noodles entries appear as one preview row with summed quantity and pre-tax amount",()=>{
+ const h=harness();
+ const add=(quantity:string)=>{
+  h.set("kb-code","37");h.key("Enter");h.set("kb-qty",quantity);h.key("Enter");
+ };
+ add("1");add("2");add("1");
+ expect(h.cart()).toHaveLength(3);
+ expect(h.data.orders[0].cart).toHaveLength(3);
+ h.key("Escape");h.key("5");
+ const preview=h.obj.screen();
+ expect((preview.match(/class="kb-receipt-item kb-receipt-columns"/g)||[])).toHaveLength(1);
+ expect(preview).toContain('class="kb-receipt-qty">4</span>');
+ expect(preview).toContain('class="kb-receipt-rate">₹99.00</span>');
+ expect(preview).toContain('class="kb-receipt-amount">₹396.00</strong>');
+ expect(preview).toContain('<span>Subtotal</span><strong>₹396.00</strong>');
+ expect(h.active()).toBe("kb-instruction");
+});
+test("Same item with a changed rate remains a separate receipt row",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.data.menus.r1[0].sectionPrices.s1=2000;
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");h.key("5");
+ const html=h.obj.screen();
+ expect((html.match(/class="kb-receipt-item kb-receipt-columns"/g)||[])).toHaveLength(2);
+ expect(html).toContain('class="kb-receipt-rate">₹15.00</span>');
+ expect(html).toContain('class="kb-receipt-rate">₹20.00</span>');
+ expect(html).toContain('class="kb-receipt-amount">₹15.00</strong>');
+ expect(html).toContain('class="kb-receipt-amount">₹20.00</strong>');
+ expect(h.cart()).toHaveLength(2);
+});
+test("Bill labels accurately display CGST and SGST 2.5% rates",()=>{
+ const h=harness();
+ const lines=[{name:"Veg Hakka Noodles",qty:2,price:11000,cgstBP:250,sgstBP:250}];
+ const calc={taxable:22000,cgst:550,sgst:550};
+ expect(h.obj.taxRateLabel("CGST",calc,lines)).toBe("CGST (2.5%)");
+ expect(h.obj.taxRateLabel("SGST",calc,lines)).toBe("SGST (2.5%)");
+ expect(h.obj.taxRateLabel("CGST",calc,[{qty:1,cgstBP:250},{qty:1,cgstBP:500}])).toBe("CGST");
+ expect(h.obj.taxRateLabel("SGST",calc,[{qty:1}])).toBe("SGST (2.5%)");
+});
+test("Aggregation combines only matching rates and tax types without changing original invoice lines",()=>{
+ const h=harness();
+ const lines=[
+  {id:"veg",name:"Veg Hakka Noodles",price:11000,qty:1,cgstBP:250,sgstBP:250,priceType:"exclusive"},
+  {id:"veg",name:"Veg Hakka Noodles",price:11000,qty:1,cgstBP:250,sgstBP:250,priceType:"exclusive"},
+  {id:"veg",name:"Veg Hakka Noodles",price:11000,qty:1,cgstBP:500,sgstBP:500,priceType:"exclusive"},
+  {id:"veg",name:"Veg Hakka Noodles",price:11000,qty:2,cgstBP:250,sgstBP:250,priceType:"inclusive"}
+ ];
+ const result=h.obj.aggregateReceiptLines(lines);
+ expect(result.map((x:any)=>[x.qty,x.amount])).toEqual([
+  [2,22000],[1,11000],[2,22000]
+ ]);
+ expect(lines.map(x=>x.qty)).toEqual([1,1,1,2]);
+});
+test("Printed bill groups identical items with Rate Qty Amount while invoice stores original entries",()=>{
+ const h=harness();
+ for(let i=0;i<3;i++){
+  h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ }
+ h.key("Escape");h.key("5");
+ h.key("Enter");h.key("Enter");h.key("Enter");
+ expect(h.data.bills).toHaveLength(1);
+ expect(h.data.bills[0].items).toHaveLength(3);
+ expect(h.receipt()).toContain("<th>Item</th><th>Rate</th><th>Qty</th><th>Amount</th>");
+ expect(h.receipt()).toContain("<td>MINERAL WATER 500ML</td><td>₹15.00</td><td>3</td><td>₹45.00</td>");
+ expect((h.receipt().match(/<td>MINERAL WATER 500ML<\/td>/g)||[])).toHaveLength(1);
+ expect(h.receipt()).toContain("Subtotal <b>₹45.00</b>");
+ expect(h.printed()).toBe(1);
 });
