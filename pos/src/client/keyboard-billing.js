@@ -766,6 +766,23 @@ window.twBillingHandleEscape=function(){
 var oldDraw=draw;draw=function(){var result=oldDraw.apply(this,arguments);
 if(eligible()){reset();document.getElementById("content").innerHTML=screen();refocus();}else kb.context="";
 return result;};
+// Reopen a pending parcel from its floor card or P-number shortcut. The
+// keyboard billing workspace also opens when older floor code cannot render a
+// takeaway billing pane from activeOrderId alone.
+window.twOpenSavedParcelOrder=function(order){
+ if(tab!=="pos"||!order||order.status!=="open"||order.restaurantId!==selected)return false;
+ sectionId=order.sectionId;tableId="";activeOrderId=order.id;
+ cart=JSON.parse(JSON.stringify(order.cart||[]));
+ kb.context="";kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=0;
+ draw();
+ if(!eligible()){
+  var content=document.getElementById("content");
+  if(!content)return false;
+  content.innerHTML=screen();
+  refocus();
+ }
+ return current();
+};
 // Disable the legacy "Confirm changes / Complete bill" dialog inside keyboard billing.
  // Receipt generation is owned only by printAndComplete() from the itemized preview.
  var previousSaveBill=saveBill;
