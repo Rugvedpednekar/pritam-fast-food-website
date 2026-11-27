@@ -30,7 +30,13 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 (viewing?'VIEWING MODE — 0 TO ADD':'ADD ITEM — CODE OR NAME')+'</b></div>'+
 '<div class="kb-shortcuts">'+(viewing?'[Esc / -] Save & Tables &nbsp; [1] Cancel table &nbsp; [3] Shift table &nbsp; [5] Print bill &nbsp; [↑ ↓] Choose &nbsp; [Del] Remove &nbsp; [0] Add item':
 '[0] Add new item &nbsp; [Esc / -] Viewing mode &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill')+'</div>'+
-'<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
+(viewing&&kb.step==="list"?
+ '<div class="kb-touch-controls kb-touch-view" aria-label="Viewing Mode touch controls">'+
+ '<div class="kb-touch-row kb-touch-main">'+button('0 · Add Item','add')+button('Save & Tables','floor')+button('5 · Print Bill','preview')+'</div>'+
+ '<div class="kb-touch-row">'+button('1 · Cancel Table','touch-cancel-table')+button('3 · Shift Table','touch-shift')+'</div>'+
+ '<div class="kb-touch-row kb-touch-nav">'+button('↑ Previous','touch-up')+button('↓ Next','touch-down')+
+ button('Edit Selected','touch-edit')+button('Delete Item','touch-delete')+'</div></div>':'')+
+ '<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
 '<div class="kb-lines">'+(lines||'<p class="kb-empty">No items yet. Enter an item code.</p>')+'</div>'+
 '<div class="kb-totals"><div>Subtotal <b>'+money(p?.subtotal||0)+'</b></div><div>CGST + SGST <b>'+money((p?.cgst||0)+(p?.sgst||0))+
 '</b></div><div class="kb-grand">Total <b>'+money(p?.grand||0)+'</b></div></div></section>'+
@@ -40,11 +46,16 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<div class="kb-item"><small>Selected Item</small><strong id="kb-live-name">'+e(item?.name||"—")+'</strong><small id="kb-live-price">'+(item?money(item.price):"Enter code to select")+'</small></div>'+
 '<label for="kb-qty">Quantity</label><input id="kb-qty" inputmode="numeric" maxlength="3" autocomplete="off" value="'+(item?.qty||1)+'"'+(kb.step==="qty"?'':' readonly')+'>'+
 '<label for="kb-comment">Item comment (optional)</label><input id="kb-comment" maxlength="150" autocomplete="off" value="'+e(item?.comment||"")+'"'+(kb.step==="qty"?'':' readonly')+'>'+
-'<div class="kb-actions">'+button('0 · Add new','add')+button('Esc / - · View','view')+'</div>'+button('5 · Print Bill','preview')+
-'<p class="kb-help">No Tab navigation. Enter moves the keyboard focus automatically.</p></section></div>';
+'<div class="kb-editor-controls kb-actions">'+button('0 · Add new','add')+button('Esc / - · View','view')+'</div>'+
+ '<div class="kb-editor-print-control">'+button('5 · Print Bill','preview')+'</div>'+
+ '<div class="kb-touch-controls kb-touch-entry" aria-label="Item entry touch controls">'+
+ '<div class="kb-touch-row">'+button('Search Menu','touch-search')+
+ (kb.step==="qty"?button('Save Item','touch-save'):button('Next · Quantity','touch-lookup'))+'</div></div>'+
+ '<p class="kb-help kb-desktop-help">No Tab navigation. Enter moves the keyboard focus automatically.</p></section></div>';
 if(kb.step==="search"){
  body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Search Assistant</h3><p>↑ / ↓ to highlight · Enter to choose · Esc / − returns to this table</p>'+
  '<label for="kb-search">Search Code or Item Name</label><input id="kb-search" autocomplete="off" value="'+e(kb.search)+'">'+
+ '<div class="kb-touch-controls kb-touch-search">'+button('← Back to Item Code','search-back')+'</div>'+
  '<div class="kb-results" role="listbox" aria-label="Matching menu items">'+(matches().map(function(m,i){var active=i===kb.cursor;
 return '<button type="button" role="option" aria-selected="'+active+'" class="'+(active?'kb-on kb-current':'')+
  '" data-kba="choose" data-index="'+i+'"><span><b>'+e(m.name)+'</b><small>#'+e(m.code)+' · '+e(m.category||"")+'</small></span><strong>'+
@@ -94,7 +105,10 @@ if(kb.step==="preview"){
  '<div class="kb-pretotal"><span>Grand total</span><strong id="kb-preview-total">'+previewAmount()+'</strong></div>'+
  '<label for="kb-discount">Discount (₹; press / to switch to %)</label><div class="kb-discount-row"><span id="kb-unit">'+(kb.discountType==="percent"?"%":"₹")+
  '</span><input id="kb-discount" inputmode="decimal" value="'+e(kb.discount)+'" placeholder="0"></div>'+
+ '<div class="kb-touch-controls kb-touch-preview">'+button('Switch ₹ / %','touch-discount-kind')+
+ button('Next · Instruction','touch-discount-next')+'</div>'+
  '<label for="kb-instruction">Instruction on Bill (optional)</label><input id="kb-instruction" maxlength="300" autocomplete="off" value="'+e(kb.instruction)+'">'+
+ '<div class="kb-touch-controls kb-touch-preview">'+button('Next · Print','touch-instruction-next')+'</div>'+
  '<p>'+button('F10 · Customer GST','gst')+(kb.gstin?' <small>'+e(kb.gstin)+'</small>':'')+'</p>'+
  '<div class="kb-actions">'+button('Back · Esc','cancel')+'<button type="button" id="kb-print" data-kba="print">Print Bill · Enter</button></div>'+
  '<p class="kb-help">Printing automatically completes the order and frees the table. A blocked popup leaves the order open.</p></section></div>';
@@ -383,7 +397,42 @@ try{
 }catch(ex){if(!saved){data=JSON.parse(old);if(popup)try{popup.close();}catch(ignored){}}showToast(ex.message||"Print failed.");}
 finally{kb.busy=false;if(!saved){discountKind=oldDiscount[0];discountValue=oldDiscount[1];discountReason=oldDiscount[2];}}
 }
+function selectHighlightedLine(){
+ var line=cart[kb.selected];if(!line)return;
+ var item=menu().find(function(m){return m.id===line.id;})||line;
+ pick(item,kb.selected);
+}
+function touchKey(k,id){
+ var input=id?document.getElementById(id):null;
+ if(input&&typeof input.focus==="function")input.focus();
+ key({key:k,ctrlKey:false,metaKey:false,altKey:false,
+  preventDefault:function(){},stopImmediatePropagation:function(){}});
+}
 function action(name,el){
+if(name==="touch-search"){
+ kb.mode="add";kb.step="search";kb.search="";kb.cursor=0;paint();return;
+}
+if(name==="search-back")return closeSearchToTable();
+if(name==="touch-lookup")return lookup();
+if(name==="touch-save")return saveQty();
+if(name==="touch-cancel-table")return cancelTable();
+if(name==="touch-shift")return openShift();
+if(name==="touch-edit")return selectHighlightedLine();
+if(name==="touch-delete")return removeHighlighted();
+if(name==="touch-up"||name==="touch-down"){
+ if(!cart.length)return;
+ kb.selected=(kb.selected+(name==="touch-down"?1:-1)+cart.length)%cart.length;
+ highlightSelection("order");return;
+}
+if(name==="touch-discount-kind"){
+ kb.discountType=kb.discountType==="percent"?"amount":"percent";
+ var unit=document.getElementById("kb-unit");
+ if(unit)unit.textContent=kb.discountType==="percent"?"%":"₹";
+ var preview=document.getElementById("kb-preview-total");
+ if(preview)preview.innerHTML=previewAmount();return;
+}
+if(name==="touch-discount-next")return touchKey("Enter","kb-discount");
+if(name==="touch-instruction-next")return touchKey("Enter","kb-instruction");
 if(name==="add")return enterAdd();
 if(name==="view")return enterView();
 if(name==="floor")return returnToTables();
@@ -479,7 +528,7 @@ if(kb.mode==="view"){
   kb.selected=(kb.selected+(k==="ArrowDown"?1:-1)+cart.length)%cart.length;
   kb.step="list";highlightSelection("order");
  }return;}
- if(k==="Enter"){stop();var row=cart[kb.selected];if(row){var m=menu().find(function(x){return x.id===row.id;})||row;pick(m,kb.selected);}return;}
+ if(k==="Enter"){stop();return selectHighlightedLine();}
  if(k==="Delete"||k==="Backspace"){stop();return removeHighlighted();}
  if(/^[0-9a-z]$/i.test(k)){stop();if(!["0","1","3","5"].includes(k))showToast("Viewing Mode: use 0 to add, 1 to cancel, 3 to shift, or 5 to print.");}
  return;
@@ -516,6 +565,10 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-item{background:#0d252b;border-radius:8px;padding:13px;margin:15px 0;display:grid;gap:5px}",
 "#twkb .kb-item strong{font-size:17px}#twkb .kb-actions{display:flex;gap:9px;margin:17px 0}",
 "#twkb .kb-actions button{flex:1}#twkb .kb-help,#twkb .kb-empty{font-size:12px;color:#a4beb6;padding:10px}",
+"#twkb .kb-touch-controls{display:none}",
+"@media(min-width:761px){#twkb .kb-edit .kb-editor-controls,#twkb .kb-edit .kb-editor-print-control,#twkb .kb-edit .kb-desktop-help{display:none!important}}",
+"@media(max-width:760px){#twkb .kb-touch-controls{display:grid;gap:8px;margin:12px 0}#twkb .kb-touch-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#twkb .kb-touch-row button{min-height:46px;padding:10px 8px;font-size:12px;font-weight:800;border-radius:9px;white-space:normal}#twkb .kb-touch-main{grid-template-columns:repeat(3,minmax(0,1fr))}#twkb .kb-touch-nav{grid-template-columns:repeat(2,minmax(0,1fr))}#twkb .kb-touch-view{margin:8px 0 12px}#twkb .kb-touch-search,#twkb .kb-touch-preview{margin:8px 0}#twkb .kb-touch-row [data-kba=touch-delete],#twkb [data-kba=touch-cancel-table]{border-color:#b35b61;color:#ffd9d7}#twkb .kb-touch-row [data-kba=touch-save],#twkb .kb-touch-row [data-kba=touch-lookup],#twkb .kb-touch-row [data-kba=preview]{background:#126b50;border-color:#32b383}#twkb .kb-editor-print-control button{width:100%}#twkb .kb-editor-controls{display:grid;grid-template-columns:1fr 1fr}#twkb .kb-desktop-help{display:none}}",
+"@media(max-width:370px){#twkb .kb-touch-main{grid-template-columns:repeat(2,minmax(0,1fr))}}",
 "#twkb .kb-overlay{position:fixed;inset:0;z-index:9500;background:#0a171bdc;padding:5dvh 12px;overflow:auto;display:flex;justify-content:center;align-items:flex-start}",
 "#twkb .kb-dialog{background:#1b313a;border:1px solid #53747c;border-radius:13px;padding:22px;width:min(560px,100%);box-shadow:0 15px 50px #0009}",
 "#twkb .kb-dialog p{font-size:13px;color:#adcbc1}#twkb .kb-pretotal{display:flex;justify-content:space-between;font-size:18px;background:#0e252e;padding:15px;border-radius:8px}",
