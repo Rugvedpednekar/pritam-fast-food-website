@@ -62,7 +62,7 @@ function harness(popupAllowed=true){
   }:null
  };
  const outer=source.replace(/\}\)\(\);\s*$/,
-   "return {kb,screen,pick,paint,key,saveQty,openPreview,printAndComplete,enterView,enterAdd,lookup,"+
+   "return {kb,screen,pick,paint,key,action,saveQty,openPreview,printAndComplete,enterView,enterAdd,lookup,"+
    "getDraw:function(){return draw;},getCart:function(){return cart;},getActiveOrder:function(){return activeOrderId;},getTable:function(){return tableId;}};})();");
  if(outer===source)throw Error("Could not instrument keyboard billing source");
  const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill",
@@ -544,4 +544,55 @@ test("Cancel releases all duplicate open records at the same table but not a dif
  expect(h.data.orders.find((o:any)=>o.id==="other-table").status).toBe("open");
  expect(h.data.bills).toHaveLength(0);
  expect(h.backCalls()).toBe(1);
+});
+
+test("Desktop uses keyboard shortcuts without item-entry action buttons; phones retain them",()=>{
+ expect(source).toContain("@media(min-width:761px)");
+ expect(source).toContain("#twkb .kb-edit .kb-editor-controls");
+ expect(source).toContain("#twkb .kb-edit .kb-editor-print-control");
+ expect(source).toContain("display:none!important");
+ expect(source).toContain("@media(max-width:760px)");
+ expect(source).toContain("#twkb .kb-touch-controls{display:grid");
+ const h=harness();
+ const html=h.obj.screen();
+ expect(html).toContain("kb-editor-controls kb-actions");
+ expect(html).toContain("kb-editor-print-control");
+ expect(html).toContain('data-kba="touch-search"');
+ expect(html).toContain('data-kba="touch-lookup"');
+});
+test("Phone item buttons can search, select quantity, and save without a hardware keyboard",()=>{
+ const h=harness();
+ h.obj.action("touch-search",null);
+ expect(h.obj.kb.step).toBe("search");
+ h.obj.action("search-back",null);
+ expect(h.obj.kb.step).toBe("code");
+ h.set("kb-code","615");
+ h.obj.action("touch-lookup",null);
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.active()).toBe("kb-qty");
+ expect(h.obj.screen()).toContain('data-kba="touch-save"');
+ h.set("kb-qty","2");h.obj.action("touch-save",null);
+ expect(h.cart()).toHaveLength(1);
+ expect(h.cart()[0].qty).toBe(2);
+ expect(h.data.orders[0].cart[0].qty).toBe(2);
+});
+test("Phone Viewing Mode buttons select, edit and remove a single order line",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.set("kb-code","37");h.key("Enter");h.key("Enter");
+ h.obj.action("view",null);
+ const screen=h.obj.screen();
+ for(const key of ["touch-up","touch-down","touch-edit","touch-delete",
+   "touch-cancel-table","touch-shift"]){
+  expect(screen).toContain('data-kba="'+key+'"');
+ }
+ expect(screen).toContain('data-kba="floor"');
+ expect(screen).toContain('data-kba="preview"');
+ h.obj.action("touch-down",null);
+ expect(h.obj.kb.selected).toBe(1);
+ h.obj.action("touch-delete",null);
+ expect(h.cart().map((x:any)=>x.code)).toEqual(["615"]);
+ h.obj.action("touch-edit",null);
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.active()).toBe("kb-qty");
 });
