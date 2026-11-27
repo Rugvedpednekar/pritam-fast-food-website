@@ -502,3 +502,15 @@ test("Billing module no longer calls native browser confirmation dialogs",()=>{
  expect(source).toContain('data-kba="cancel-confirm"');
  expect(source).toContain('data-kba="shift-confirm"');
 });
+
+test("Numeric table names display as Table 21 in the in-app confirmation",()=>{
+ const h=harness();
+ h.data.tables.r1[0].name="21";
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");h.shortcut("1");
+ expect(h.obj.screen()).toContain("Cancel Table 21?");
+ expect(h.obj.screen()).not.toContain("Cancel 21?");
+ expect(h.confirmCalls()).toBe(0);
+ h.shortcut("Escape");
+ expect(h.obj.kb.step).toBe("list");
+});
