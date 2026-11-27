@@ -63,7 +63,33 @@
 // Capture the entire Viewing Mode keyboard path before legacy POS listeners.
 // Escape and "-" share the same state-aware action; arrows/shortcuts must not
 // be stolen by global table-navigation handlers.
+// The table-number shortcut is a separate focus context from bill editing.
+// Escape and minus clear only that input, never navigate away from the floor.
+function twClearFloorTableNumber(ev){
+ if(!["Escape","Esc","-","Subtract","NumpadSubtract"].includes(ev.key))return false;
+ if(ev.ctrlKey||ev.altKey||ev.metaKey||tab!=="pos"||document.getElementById("twkb"))return false;
+ if(document.querySelector("dialog[open],#cloudGate:not(.hidden)"))return false;
+ var input=ev.target;
+ if(!input||String(input.tagName).toUpperCase()!=="INPUT"||input.disabled||input.readOnly)return false;
+ var floor=typeof input.closest==="function"?
+   input.closest("#content .fl-root:not(.fl-billing)"):null;
+ if(!floor)return false;
+ var hint=(input.getAttribute("placeholder")||"")+" "+(input.getAttribute("aria-label")||"");
+ var byHint=/\\btable\\s*(?:number|no\\.?)/i.test(hint)||
+            /^\\s*1\\s*,\\s*2\\s*,\\s*3/i.test(hint);
+ var parent=input.parentElement;
+ var byLabel=!!(parent&&/\\btable\\s*(?:number|no\\.?)/i.test(parent.textContent||"")&&
+   parent.querySelectorAll&&parent.querySelectorAll("input").length===1);
+ if(!byHint&&!byLabel)return false;
+ ev.preventDefault();ev.stopImmediatePropagation();
+ input.value="";
+ // Synchronize any listener that maintains the shortcut's input state.
+ if(typeof input.dispatchEvent==="function")input.dispatchEvent(new Event("input",{bubbles:true}));
+ if(typeof input.focus==="function")input.focus({preventScroll:true});
+ return true;
+}
 function twEarlyBillingEscape(ev){
+ if(twClearFloorTableNumber(ev))return;
  if(!document.getElementById("twkb")||ev.ctrlKey||ev.altKey||ev.metaKey)return;
  if(document.querySelector("dialog[open],#cloudGate:not(.hidden)"))return;
  var escape=ev.key==="Escape"||ev.key==="Esc";
