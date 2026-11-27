@@ -659,3 +659,68 @@ test("Compact preview touch buttons follow instruction then discount then print"
  h.obj.action("touch-instruction-next",null);expect(h.active()).toBe("kb-discount");
  h.obj.action("touch-discount-next",null);expect(h.active()).toBe("kb-print");
 });
+
+
+test("Esc and minus on a new empty table go directly back to Tables, skipping Viewing Mode",()=>{
+ for(const key of ["Escape","-","Subtract","NumpadSubtract"]){
+  const h=harness();
+  expect(h.cart()).toHaveLength(0);
+  expect(h.currentTable()).toBe("t1");
+  h.key(key);
+  expect(h.backCalls()).toBe(1);
+  expect(h.currentTable()).toBe("");
+  expect(h.obj.kb.mode).toBe("add");
+  expect(h.obj.kb.step).toBe("code");
+  expect(h.data.orders).toHaveLength(0);
+  expect(h.data.bills).toHaveLength(0);
+  expect(h.backSnapshots).toEqual([{cartLength:0,tableId:"",activeOrderId:""}]);
+ }
+});
+test("Esc on quantity entry without saved lines closes empty table without creating an order",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");
+ expect(h.obj.kb.step).toBe("qty");
+ expect(h.cart()).toHaveLength(0);
+ h.key("Escape");
+ expect(h.backCalls()).toBe(1);
+ expect(h.currentTable()).toBe("");
+ expect(h.data.orders).toHaveLength(0);
+});
+test("Esc after deleting the final order item releases empty saved table and does not reopen it",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ expect(h.data.orders[0].status).toBe("open");
+ h.key("Escape"); // with an item, first Esc still enters Viewing Mode
+ expect(h.obj.kb.mode).toBe("view");
+ expect(h.backCalls()).toBe(0);
+ h.key("Delete");
+ expect(h.cart()).toHaveLength(0);
+ expect(h.data.orders[0].status).toBe("open");
+ h.key("Escape");
+ expect(h.data.orders[0].status).toBe("void");
+ expect(h.data.orders[0].voidReason).toBe("Empty table closed");
+ expect(h.data.audit.some((x:any)=>x.action==="empty_table_closed")).toBe(true);
+ expect(h.currentTable()).toBe("");
+ expect(h.data.orders.filter((x:any)=>x.tableId==="t1"&&x.status==="open")).toHaveLength(0);
+ expect(h.backCalls()).toBe(1);
+ expect(h.backSnapshots).toEqual([{cartLength:0,tableId:"",activeOrderId:""}]);
+});
+test("Closing an empty table never voids another table's existing order",()=>{
+ const h=harness();
+ h.data.orders.push({id:"other",restaurantId:"r1",status:"open",tableId:"t2",
+  sectionId:"s1",cart:[{id:"m37",name:"MASALA DOSA",code:"37",qty:2,price:9900}]});
+ h.key("-");
+ expect(h.backCalls()).toBe(1);
+ expect(h.data.orders.find((x:any)=>x.id==="other").status).toBe("open");
+ expect(h.data.bills).toHaveLength(0);
+});
+test("An unexpectedly nonempty saved order cannot be discarded by closing an empty editor",()=>{
+ const h=harness();
+ h.data.orders.push({id:"legacy",restaurantId:"r1",status:"open",tableId:"t1",
+  sectionId:"s1",cart:[{id:"m37",name:"MASALA DOSA",code:"37",qty:1,price:9900}]});
+ h.key("Escape");
+ expect(h.backCalls()).toBe(0);
+ expect(h.currentTable()).toBe("t1");
+ expect(h.data.orders.find((x:any)=>x.id==="legacy").status).toBe("open");
+ expect(h.toasts.at(-1)).toContain("saved order");
+});
