@@ -136,24 +136,62 @@ function previewCalculation(){
  }catch(ex){return {error:ex.message||"Could not calculate this bill"};}
  finally{discountKind=prior[0];discountValue=prior[1];discountReason=prior[2];}
 }
+// Only the receipt presentation is grouped. Keep original order and invoice
+// lines intact for KOT, discounts, tax calculations, editing, and audit history.
+function aggregateReceiptLines(lines){
+ var groups=[],lookup=new Map();
+ (lines||[]).forEach(function(line){
+  var price=Number(line.price),quantity=Number(line.qty);
+  if(!Number.isFinite(price)||!Number.isFinite(quantity)||quantity<=0)return;
+  var name=String(line.name||"").trim();
+  var identifier=String(line.id??line.code??name);
+  // Different prices, tax rates, instructions or inclusive pricing never merge.
+  var key=JSON.stringify([identifier,name,price,String(line.priceType||""),
+    line.cgstBP??null,line.sgstBP??null,String(line.comment||"")]);
+  var record=lookup.get(key);
+  if(!record){record={name:name,price:price,qty:0,amount:0,comment:line.comment||""};
+   lookup.set(key,record);groups.push(record);}
+  record.qty+=quantity;
+  record.amount+=price*quantity;
+ });
+ return groups;
+}
+function taxRateLabel(name,calc,lines){
+ var field=name.toLowerCase()+"BP";
+ var specified=(lines||[]).filter(function(line){return line.qty>0&&line[field]!==undefined&&line[field]!==null;})
+  .map(function(line){return Number(line[field]);}).filter(Number.isFinite);
+ var unique=Array.from(new Set(specified));
+ if(unique.length>1)return name; // Mixed tax rates must not be mislabelled as one rate.
+ var rate=unique.length===1?unique[0]/100:null; // basis points -> percent
+ if(rate===null&&calc&&Number(calc.taxable)>0){
+  rate=Number(calc[name.toLowerCase()]||0)/Number(calc.taxable)*100;
+ }
+ if(rate===null||!Number.isFinite(rate))return name;
+ return name+" ("+String(Number(rate.toFixed(2)))+"%)";
+}
 function previewReceipt(){
  var result=previewCalculation();
  if(result.error)return '<div class="kb-receipt-error kb-error">'+e(result.error)+'</div>';
- var p=result.value,section=selSection(),itemRows=(p.lines||[]).map(function(line){
-  return '<div class="kb-receipt-item"><div><b>'+e(line.name)+'</b>'+
-   '<small>'+line.qty+' × '+money(line.price)+' each</small></div>'+
-   '<strong>'+money(line.total)+'</strong></div>';
+ var p=result.value,section=selSection(),rows=aggregateReceiptLines(p.lines);
+ var itemRows=rows.map(function(row){
+  return '<div class="kb-receipt-item kb-receipt-columns">'+
+   '<span class="kb-receipt-name"><b>'+e(row.name)+'</b>'+
+   (row.comment?'<small>'+e(row.comment)+'</small>':'')+'</span>'+
+   '<span class="kb-receipt-rate">'+money(row.price)+'</span>'+
+   '<span class="kb-receipt-qty">'+row.qty+'</span>'+
+   '<strong class="kb-receipt-amount">'+money(row.amount)+'</strong></div>';
  }).join("");
  var summary='<div class="kb-receipt-summary">'+
   '<div><span>Subtotal</span><strong>'+money(p.subtotal)+'</strong></div>'+
   '<div><span>Discount</span><strong>−'+money(p.discount)+'</strong></div>'+
-  '<div><span>CGST</span><strong>'+money(p.cgst)+'</strong></div>'+
-  '<div><span>SGST</span><strong>'+money(p.sgst)+'</strong></div>'+
+  '<div><span>'+taxRateLabel("CGST",p,p.lines)+'</span><strong>'+money(p.cgst)+'</strong></div>'+
+  '<div><span>'+taxRateLabel("SGST",p,p.lines)+'</span><strong>'+money(p.sgst)+'</strong></div>'+
   (p.roundOff?'<div><span>Round off</span><strong>'+money(p.roundOff)+'</strong></div>':'')+
   '<div class="kb-receipt-grand"><span>Grand total</span><strong id="kb-preview-total">'+money(p.grand)+'</strong></div></div>';
  return '<div class="kb-preview-paper"><div class="kb-preview-paper-heading">'+
   '<strong>'+e(selectedName())+'</strong><span>'+e(section?.name||"")+' · '+e(tableDisplayName(detail()))+'</span></div>'+
-  '<div class="kb-preview-paper-body"><div class="kb-preview-paper-heading-row"><span>Item · Qty × Rate</span><span>Amount</span></div>'+
+  '<div class="kb-preview-paper-body"><div class="kb-preview-paper-heading-row kb-receipt-columns">'+
+  '<span>Item</span><span>Rate</span><span>Qty</span><span>Amount</span></div>'+
   (itemRows||'<p class="kb-empty">No items in order.</p>')+'</div>'+summary+'</div>';
 }
 function previewAmount(){
@@ -461,16 +499,18 @@ items:calc.lines.map(function(x,i){return Object.assign({},x,{comment:cart[i]?.c
 }
 function printable(b,win){
 var w=win||window.open("","_blank","width=440,height=700");if(!w)return false;
-var cfg=b.issuer||{},rows=(b.items||[]).map(function(x,i){
-return '<tr><td>'+Number(i+1)+'</td><td>'+e(x.name)+'</td><td>'+x.qty+'</td><td>'+money(x.price)+'</td><td>'+money(x.total)+'</td></tr>';
+var cfg=b.issuer||{},rows=aggregateReceiptLines(b.items).map(function(x){
+return '<tr><td>'+e(x.name)+(x.comment?'<small>'+e(x.comment)+'</small>':'')+
+ '</td><td>'+money(x.price)+'</td><td>'+x.qty+'</td><td>'+money(x.amount)+'</td></tr>';
 }).join("");
 var doc='<!doctype html><html><head><meta charset="utf-8"><title>Bill '+e(b.number)+'</title><style>@page{size:'+
 (cfg.receiptWidth==="58"?"58":"80")+'mm auto;margin:2mm}body{font:12px Arial;max-width:350px;margin:auto;color:#111}h3,p{text-align:center}table{width:100%;border-collapse:collapse;margin:12px 0}td,th{padding:5px 2px;border-bottom:1px dotted #aaa;text-align:right}td:nth-child(2),th:nth-child(2){text-align:left}.total{display:flex;justify-content:space-between;padding:5px 0}.grand{font-size:17px;border-top:1px solid #222;font-weight:800}</style></head><body>'+
 '<h3>'+e(cfg.legalName||selectedName())+'</h3><p>'+e(cfg.address||"")+'<br>Bill #'+e(b.number)+' · '+e(b.businessDate||b.day)+'<br>'+e(b.sectionName||"")+' '+e(b.tableName||"")+'</p>'+
 (b.customerGstin?'<p>Customer GSTIN: '+e(b.customerGstin)+'<br>'+e(b.customerGstName||"")+'</p>':"")+
-'<table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+'<table><thead><tr><th>Item</th><th>Rate</th><th>Qty</th><th>Amount</th></tr></thead><tbody>'+rows+'</tbody></table>'+
 '<div class="total">Subtotal <b>'+money(b.subtotal)+'</b></div><div class="total">Discount <b>− '+money(b.discount||0)+'</b></div>'+
-'<div class="total">CGST <b>'+money(b.cgst||0)+'</b></div><div class="total">SGST <b>'+money(b.sgst||0)+'</b></div>'+
+'<div class="total">'+taxRateLabel("CGST",b,b.items)+' <b>'+money(b.cgst||0)+'</b></div>'+
+'<div class="total">'+taxRateLabel("SGST",b,b.items)+' <b>'+money(b.sgst||0)+'</b></div>'+
 '<div class="total grand">TOTAL <b>'+money(b.total)+'</b></div>'+
 (b.billInstruction?'<p>Instruction on Bill: '+e(b.billInstruction)+'</p>':"")+
 '<p>'+e(cfg.footer||"Thank you!")+'</p><p><small>DEMO RECEIPT — NOT A VALID TAX INVOICE</small></p></body></html>';
@@ -700,11 +740,16 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-preview-paper-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding-bottom:11px;border-bottom:1px dashed #45626a;flex-wrap:wrap}",
 "#twkb .kb-preview-paper-heading strong{font-size:15px;color:#ecfff2}#twkb .kb-preview-paper-heading span{font-size:11px;color:#bbd5ce}",
 "#twkb .kb-preview-paper-body{max-height:185px;overflow-y:auto;padding:4px 0 8px;border-bottom:1px dashed #45626a}",
-"#twkb .kb-preview-paper-heading-row{display:flex;justify-content:space-between;font-size:11px;color:#a5c0b9;padding:6px 0;font-weight:750}",
-"#twkb .kb-receipt-item{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:9px 0;border-top:1px solid #29434b}",
-"#twkb .kb-receipt-item>div{min-width:0}#twkb .kb-receipt-item b{color:#e8faf1;display:block;font-size:13px;overflow-wrap:anywhere}",
-"#twkb .kb-receipt-item small{display:block;color:#a9c6bd;font-size:11px;margin-top:3px}",
-"#twkb .kb-receipt-item strong{white-space:nowrap;color:#ecfff6;font-size:13px}",
+"#twkb .kb-receipt-columns{display:grid!important;grid-template-columns:minmax(0,1fr) 83px 40px 92px;column-gap:8px;align-items:center}",
+"#twkb .kb-preview-paper-heading-row{font-size:11px;color:#a5c0b9;padding:7px 0;font-weight:750;text-align:right}",
+"#twkb .kb-preview-paper-heading-row span:first-child{text-align:left}",
+"#twkb .kb-receipt-item{gap:0;padding:9px 0;border-top:1px solid #29434b;font-size:12px;text-align:right}",
+"#twkb .kb-receipt-name{min-width:0;text-align:left}",
+"#twkb .kb-receipt-name b{color:#e8faf1;display:block;font-size:13px;overflow-wrap:anywhere}",
+"#twkb .kb-receipt-name small{display:block;color:#a9c6bd;font-size:11px;margin-top:3px}",
+"#twkb .kb-receipt-rate,#twkb .kb-receipt-qty,#twkb .kb-receipt-amount{white-space:nowrap;color:#ecfff6;text-align:right}",
+"#twkb .kb-receipt-amount{font-weight:800}",
+"@media(max-width:760px){#twkb .kb-receipt-columns{grid-template-columns:minmax(0,1fr) 65px 30px 75px;column-gap:5px}#twkb .kb-receipt-item{font-size:11px}#twkb .kb-receipt-name b{font-size:12px}#twkb .kb-preview-paper-heading-row{font-size:10px}}",
 "#twkb .kb-receipt-summary{display:grid;gap:7px;margin-top:10px}",
 "#twkb .kb-receipt-summary>div{display:flex;justify-content:space-between;align-items:center;gap:15px;color:#c3d7d1;font-size:12px}",
 "#twkb .kb-receipt-summary strong{color:#f1fff7}",
