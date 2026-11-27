@@ -116,7 +116,7 @@ function highlightSelection(kind){
   rows[i].setAttribute("aria-selected",String(active));
   if(active){
    // The visible selected line and actual keyboard focus should match.
-   if(kind==="order"&&typeof rows[i].focus==="function")rows[i].focus({preventScroll:true});
+   if((kind==="order"||kind==="shift")&&typeof rows[i].focus==="function")rows[i].focus({preventScroll:true});
    if(typeof rows[i].scrollIntoView==="function")rows[i].scrollIntoView({block:"nearest",inline:"nearest"});
   }
  }
@@ -481,7 +481,7 @@ if(t.id==="kb-instruction")kb.instruction=t.value;},true);
 window.addEventListener("keydown",key,true);
 // The early Escape guard in index.html calls this before older POS key handlers.
 // Main billing modes execute precisely the same action as the minus shortcut.
-window.twBillingIsViewing=function(){return kb.mode==="view"&&kb.step==="list";};
+window.twBillingIsViewing=function(){return kb.mode==="view"&&(kb.step==="list"||kb.step==="shift");};
 window.twBillingHandleShortcut=function(name){
  key({key:name,ctrlKey:false,metaKey:false,altKey:false,
   preventDefault:function(){},stopImmediatePropagation:function(){}});
