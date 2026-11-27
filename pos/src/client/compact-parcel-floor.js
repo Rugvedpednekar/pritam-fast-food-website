@@ -7,6 +7,8 @@ css.textContent=[
  // The old floor remains responsible for hit targets/order state.
  "#content .fl-root:not(.fl-billing) .fl-table-grid{display:grid!important;grid-template-columns:repeat(auto-fill,96px)!important;justify-content:start!important;align-items:start!important;gap:12px!important}",
  "#content .fl-root:not(.fl-billing) .fl-table-grid>button{box-sizing:border-box!important;width:96px!important;min-width:96px!important;max-width:96px!important;height:102px!important;min-height:102px!important;max-height:102px!important;padding:9px 7px!important;border-radius:10px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;line-height:1.1!important;text-align:center!important}",
+"#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-hidden{display:none!important}",
+"#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-number-card{font-size:0!important;color:transparent!important}",
 "#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-number-card>*:not(.tw-table-only-number){display:none!important}",
 "#content .fl-root:not(.fl-billing) .fl-table-grid>button.tw-table-number-card .tw-table-only-number{display:block!important;width:100%;color:#f1fff8!important;font-weight:850!important;font-size:32px!important;line-height:1!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}",
  "#content .fl-root:not(.fl-billing) .fl-table-grid>button :is(strong,b){font-size:26px!important;line-height:1.1!important}",
