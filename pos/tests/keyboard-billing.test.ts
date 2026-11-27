@@ -97,7 +97,7 @@ function harness(popupAllowed=true,opts:{parcel?:boolean}={}){
  function getText(id:string){return document.getElementById(id).textContent;}
  function draw(){obj.getDraw()();}
  draw();
- return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
+ return {obj,data,draw,set,key,window,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
   setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,backSnapshots,
   typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
   legacyConfirmCalls:()=>legacyConfirmCalls,
@@ -767,4 +767,25 @@ test("Empty parcel is not saved as an open order when Escape closes it",()=>{
  h.key("Escape");
  expect(h.backCalls()).toBe(1);
  expect(h.data.orders).toHaveLength(0);
+});
+
+test("Reopening a saved parcel restores its line items and subsequent changes update that same order",()=>{
+ const h=harness(true,{parcel:true});
+ const original={id:"saved-p1",restaurantId:"r1",sectionId:"parcel",tableId:"",
+  status:"open",label:"P-1",createdAt:"2026-11-28T09:00:00.000Z",
+  cart:[{id:"m615",code:"615",name:"MINERAL WATER 500ML",qty:3,price:1500}]};
+ h.data.orders.push(JSON.parse(JSON.stringify(original)));
+ expect(h.window.twOpenSavedParcelOrder(original)).toBe(true);
+ expect(h.obj.getActiveOrder()).toBe("saved-p1");
+ expect(h.cart()).toHaveLength(1);
+ expect(h.cart()[0].qty).toBe(3);
+ expect(h.obj.screen()).toContain("MINERAL WATER 500ML");
+ h.set("kb-code","37");h.key("Enter");h.key("Enter");
+ expect(h.data.orders).toHaveLength(1);
+ expect(h.data.orders[0].cart).toHaveLength(2);
+ expect(h.data.orders[0].status).toBe("open");
+ h.key("Escape");
+ expect(h.backCalls()).toBe(1);
+ expect(h.data.orders).toHaveLength(1);
+ expect(h.data.orders[0].cart[1].code).toBe("37");
 });
