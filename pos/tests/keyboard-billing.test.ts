@@ -862,3 +862,32 @@ test("Printed bill groups identical items with Rate Qty Amount while invoice sto
  expect(h.receipt()).toContain("Subtotal <b>₹45.00</b>");
  expect(h.printed()).toBe(1);
 });
+
+
+test("Order Details shows Item Code, Item Name, Rate, Qty and Amount in five compact columns",()=>{
+ const h=harness();
+ h.set("kb-code","37");h.key("Enter");
+ h.set("kb-qty","2");h.key("Enter");
+ const html=h.obj.screen();
+ const headings=html.match(/<div class="kb-table-head">([^]*?)<\/div>/)?.[1]||"";
+ expect(headings).toBe("<span>Item Code</span><span>Item Name</span><span>Rate</span><span>Qty</span><span>Amount</span>");
+ expect(html).not.toContain("KOT No");
+ expect(html).toContain('<span class="kb-line-code">37</span>');
+ expect(html).toContain('<span class="kb-line-name"><b>MASALA DOSA</b></span>');
+ expect(html).toContain('<span class="kb-line-rate">₹99.00</span>');
+ expect(html).toContain('<span class="kb-line-qty">2</span>');
+ expect(html).toContain('<strong class="kb-line-amount">₹198.00</strong>');
+ expect(h.cart()).toHaveLength(1);
+ expect(h.data.orders[0].cart[0].qty).toBe(2);
+});
+test("Order rows are approximately 48px high and preserve aligned columns on phone",()=>{
+ expect(source).toContain("min-height:48px");
+ expect(source).toContain("min-height:36px");
+ expect(source).toContain("grid-template-columns:65px minmax(135px,1fr) 83px 44px 108px");
+ expect(source).toContain("min-width:520px;overflow-x:visible");
+ expect(source).toContain("grid-template-columns:60px minmax(115px,1fr) 72px 35px 88px");
+ const h=harness();h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
+ expect(h.obj.kb.mode).toBe("view");
+ expect(h.obj.screen()).toContain('class="kb-line kb-on kb-current"');
+ h.key("Enter");expect(h.active()).toBe("kb-qty");
+});
