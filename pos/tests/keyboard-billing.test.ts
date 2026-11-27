@@ -317,7 +317,8 @@ test("Early Escape capture suppresses other handlers only inside keyboard billin
   twBillingHandleShortcut:(k:string)=>handlers.push("key:"+k),
   twBillingIsViewing:()=>false
  };
- const capture=new Function("document","window",script+"; return twEarlyBillingEscape;")(mockDoc,mockWin);
+ const floorClear=index.match(/function twClearFloorTableNumber\(ev\)\{[\s\S]*?\n\}/)?.[0];
+ const capture=new Function("document","window","tab",floorClear+"\n"+script+"; return twEarlyBillingEscape;")(mockDoc,mockWin,"pos");
  const event={key:"Escape",ctrlKey:false,altKey:false,metaKey:false,
   preventDefault:()=>prevented++,stopImmediatePropagation:()=>stopped++};
  capture(event);
@@ -447,7 +448,8 @@ test("Legacy handler capture routes Viewing Mode arrows, delete, 1, 3 and 5 befo
   twBillingHandleEscape:()=>calls.push("escape"),
   twBillingHandleShortcut:(key:string)=>calls.push(key)
  };
- const handler=new Function("document","window",src+";return twEarlyBillingEscape;")(doc,host);
+ const floorClear=index.match(/function twClearFloorTableNumber\(ev\)\{[\s\S]*?\n\}/)?.[0];
+ const handler=new Function("document","window","tab",floorClear+"\n"+src+";return twEarlyBillingEscape;")(doc,host,"pos");
  function press(key:string){
   let stopped=0;
   handler({key,ctrlKey:false,altKey:false,metaKey:false,preventDefault:()=>{},stopImmediatePropagation:()=>stopped++});
