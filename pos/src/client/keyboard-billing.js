@@ -306,7 +306,6 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-mode{background:#176a50;color:#fff;padding:9px 12px;border-radius:8px;font-size:12px}",
 "#twkb .kb-shortcuts{background:#19313b;padding:13px;margin:10px 0 15px;border-radius:8px;color:#c4dbd5;font-size:13px}",
 "#twkb .kb-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.85fr);gap:15px}",
-"#twkb .kb-grid.kb-view-only{grid-template-columns:minmax(0,1fr)!important}",
 "#twkb .kb-grid.kb-view-only .kb-edit{display:none!important}",
 "#twkb .kb-box{background:#162c34;border:1px solid #36545b;border-radius:12px;padding:17px;min-width:0}",
 "#twkb .kb-table-head,#twkb .kb-line{display:grid;grid-template-columns:minmax(0,1fr) 45px 108px;gap:8px;align-items:center;text-align:left}",
@@ -344,6 +343,13 @@ var fresh=document.getElementById("kb-search");fresh?.focus();try{fresh?.setSele
 if(t.id==="kb-discount"){kb.discount=t.value;document.getElementById("kb-preview-total").innerHTML=previewAmount();}
 if(t.id==="kb-instruction")kb.instruction=t.value;},true);
 window.addEventListener("keydown",key,true);
+// The early Escape guard in index.html calls this before older POS key handlers.
+// Main billing modes execute precisely the same action as the minus shortcut.
+window.twBillingHandleEscape=function(){
+ var equivalent=(kb.step==="preview"||kb.step==="gst")?"Escape":"-";
+ key({key:equivalent,ctrlKey:false,metaKey:false,altKey:false,
+  preventDefault:function(){},stopImmediatePropagation:function(){}});
+};
 var oldDraw=draw;draw=function(){var result=oldDraw.apply(this,arguments);
 if(eligible()){reset();document.getElementById("content").innerHTML=screen();refocus();}else kb.context="";
 return result;};
