@@ -20,7 +20,7 @@ function harness(popupAllowed=true){
   }
   return selectionNodes[which];
  }
- let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true;
+ let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true,legacyConfirmCalls=0;
  let fixtureApi:any=null;
  const backSnapshots:any[]=[];
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
@@ -63,14 +63,14 @@ function harness(popupAllowed=true){
  };
  const outer=source.replace(/\}\)\(\);\s*$/,
    "return {kb,screen,pick,paint,key,action,saveQty,openPreview,printAndComplete,enterView,enterAdd,lookup,"+
-   "getDraw:function(){return draw;},getCart:function(){return cart;},getActiveOrder:function(){return activeOrderId;},getTable:function(){return tableId;}};})();");
+   "getDraw:function(){return draw;},getSaveBill:function(){return saveBill;},getCart:function(){return cart;},getActiveOrder:function(){return activeOrderId;},getTable:function(){return tableId;}};})();");
  if(outer===source)throw Error("Could not instrument keyboard billing source");
- const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill",
+ const params=["document","window","tab","selected","sectionId","tableId","activeOrderId","cart","data","draw","printBill","saveBill",
   "sectionPrice","selSection","selectedName","money","e","showToast","calculatePreview","saveTheData","getOpenDay",
   "newInvoiceNumber","branchCfg","discountKind","discountValue","discountReason","cloudReady","cloudBusy","cloudPending",
   "cloudConflict","setTimeout","flBack"];
  const args:any[]=[document,window,"pos","r1","s1",tableId,activeOrderId,cart,data,
-  ()=>{content.innerHTML="<div class='fl-billing'></div>";},()=>{},
+  ()=>{content.innerHTML="<div class='fl-billing'></div>";},()=>{},()=>{legacyConfirmCalls++;},
   (m:any,id:string)=>m?.sectionPrices?.[id]??null,()=>data.sections.r1[0],
   ()=>"Pritam Fast Food",(n:number)=>"₹"+((n||0)/100).toFixed(2),
   (s:any)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"),
@@ -100,6 +100,7 @@ function harness(popupAllowed=true){
  return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
   setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,backSnapshots,
   typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
+  legacyConfirmCalls:()=>legacyConfirmCalls,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
 
@@ -157,12 +158,13 @@ test("Viewing mode edits existing quantities and requires 0 to add a new item",(
  h.key("0");expect(h.obj.kb.mode).toBe("add");
  expect(h.obj.kb.step).toBe("code");
 });
-test("Bill print steps Discount to Instruction to Print and frees table without confirmation",()=>{
+test("Bill print steps Instruction to Percent Discount to Print and frees table without confirmation",()=>{
  const h=harness();h.set("kb-code","615");h.key("Enter");h.key("Enter");
  h.key("Escape");h.key("5");expect(h.obj.kb.step).toBe("preview");
- expect(h.active()).toBe("kb-discount");
- h.key("Enter");expect(h.active()).toBe("kb-instruction");
- h.set("kb-instruction","Extra spoon");h.key("Enter");expect(h.active()).toBe("kb-print");
+ expect(h.obj.kb.discountType).toBe("percent");
+ expect(h.active()).toBe("kb-instruction");
+ h.set("kb-instruction","Extra spoon");h.key("Enter");expect(h.active()).toBe("kb-discount");
+ h.key("Enter");expect(h.active()).toBe("kb-print");
  h.key("Enter");
  expect(h.data.bills).toHaveLength(1);
  expect(h.data.bills[0].billInstruction).toBe("Extra spoon");
@@ -430,7 +432,7 @@ test("5 opens print preview directly from Viewing Mode",()=>{
  const h=harness();h.set("kb-code","615");h.key("Enter");h.key("Enter");
  h.key("Escape");h.shortcut("5");
  expect(h.obj.kb.step).toBe("preview");
- expect(h.active()).toBe("kb-discount");
+ expect(h.active()).toBe("kb-instruction");
  expect(h.data.bills).toHaveLength(0);
 });
 test("Legacy handler capture routes Viewing Mode arrows, delete, 1, 3 and 5 before other listeners",()=>{
@@ -597,4 +599,63 @@ test("Phone Viewing Mode buttons select, edit and remove a single order line",()
  h.obj.action("touch-edit",null);
  expect(h.obj.kb.step).toBe("qty");
  expect(h.active()).toBe("kb-qty");
+});
+
+test("Bill preview is itemized with rate, qty, separate CGST and SGST, discount and grand total",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.set("kb-qty","3");h.key("Enter");
+ h.key("Escape");h.key("5");
+ const html=h.obj.screen();
+ expect(html).toContain("kb-preview-paper");
+ expect(html).toContain("MINERAL WATER 500ML");
+ expect(html).toContain("3 × ₹15.00 each");
+ expect(html).toContain("₹45.00");
+ for(const label of ["Subtotal","Discount","CGST","SGST","Grand total"]){
+  expect(html).toContain(label);
+ }
+ expect(html.indexOf('id="kb-instruction"')).toBeLessThan(html.indexOf('id="kb-discount"'));
+ expect(html).toContain('id="kb-unit">%</span>');
+ expect(source).toContain("#twkb .kb-bill-preview-dialog .kb-discount-row{display:inline-flex;width:min(185px,100%)");
+});
+test("Escape or Back returns preview to Viewing Mode, so repeated 5 opens the same preview",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");
+ for(let i=0;i<4;i++){
+  h.shortcut("5");
+  expect(h.obj.kb.step).toBe("preview");
+  expect(h.obj.screen()).toContain("kb-preview-paper");
+  expect(h.active()).toBe("kb-instruction");
+  expect(h.obj.kb.discountType).toBe("percent");
+  expect(h.data.bills).toHaveLength(0);
+  if(i%2===0)h.escape();
+  else h.obj.action("cancel",null);
+  expect(h.obj.kb.step).toBe("list");
+  expect(h.obj.kb.mode).toBe("view");
+  expect(h.active()).toBe("kb-line-0");
+  expect(h.currentTable()).toBe("t1");
+ }
+});
+test("Legacy saveBill cannot display its confirmation in the new keyboard billing screen",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");
+ h.obj.getSaveBill()();
+ expect(h.obj.kb.step).toBe("preview");
+ expect(h.legacyConfirmCalls()).toBe(0);
+ h.obj.getSaveBill()();
+ expect(h.obj.kb.step).toBe("preview");
+ expect(h.legacyConfirmCalls()).toBe(0);
+ h.escape();
+ expect(h.obj.kb.step).toBe("list");
+});
+test("Compact preview touch buttons follow instruction then discount then print",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");h.key("5");
+ const preview=h.obj.screen();
+ expect(preview).toContain('data-kba="touch-instruction-next"');
+ expect(preview).toContain('data-kba="touch-discount-next"');
+ h.obj.action("touch-instruction-next",null);expect(h.active()).toBe("kb-discount");
+ h.obj.action("touch-discount-next",null);expect(h.active()).toBe("kb-print");
 });
