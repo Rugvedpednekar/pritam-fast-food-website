@@ -89,7 +89,7 @@ function harness(popupAllowed=true){
  function getText(id:string){return document.getElementById(id).textContent;}
  function draw(){obj.getDraw()();}
  draw();
- return {obj,data,draw,set,key,typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
+ return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
 
@@ -256,4 +256,63 @@ test("Editing a saved line temporarily reveals the right editor, then hides it a
  expect(h.obj.kb.step).toBe("preview");
  expect(h.obj.screen()).toContain('Bill Preview');
  expect(h.cart()[0].qty).toBe(6);
+});
+
+
+test("Hiding the right panel preserves the original left-column grid track",()=>{
+ expect(source).toContain("grid-template-columns:minmax(0,1.55fr) minmax(310px,.85fr)");
+ expect(source).toContain("#twkb .kb-grid.kb-view-only .kb-edit{display:none!important}");
+ expect(source).not.toContain("#twkb .kb-grid.kb-view-only{grid-template-columns:");
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("-");
+ expect(h.obj.screen()).toContain('kb-grid kb-view-only');
+ h.key("0");
+ expect(h.obj.screen()).not.toContain('kb-grid kb-view-only');
+});
+
+test("Physical Escape routes through exactly the same shortcut as minus",()=>{
+ for(const mode of ["entry","search","quantity","view"]){
+  function setup(){
+   const h=harness();
+   if(mode==="search"){h.key("m");}
+   if(mode==="quantity"){h.set("kb-code","615");h.key("Enter");}
+   if(mode==="view"){h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("-");}
+   return h;
+  }
+  const minus=setup(),esc=setup();
+  minus.key("-");
+  esc.escape();
+  expect(esc.obj.kb.step).toBe(minus.obj.kb.step);
+  expect(esc.obj.kb.mode).toBe(minus.obj.kb.mode);
+  expect(esc.obj.screen()).toBe(minus.obj.screen());
+  expect(esc.currentTable()).toBe(minus.currentTable());
+  expect(esc.cart()).toEqual(minus.cart());
+  expect(esc.active()).toBe(minus.active());
+ }
+});
+
+test("Early Escape capture suppresses other handlers only inside keyboard billing",()=>{
+ const index=readFileSync(new URL("../src/client/index.html",import.meta.url),"utf8");
+ const script=index.match(/function twEarlyBillingEscape\(ev\)\{[\s\S]*?\n\}/)?.[0];
+ expect(script).toBeTruthy();
+ const handlers:string[]=[];
+ let billing=true,dialog=false,prevented=0,stopped=0;
+ const mockDoc={
+  getElementById:(id:string)=>id==="twkb"&&billing?{}:null,
+  querySelector:()=>dialog?{}:null
+ };
+ const mockWin={twBillingHandleEscape:()=>handlers.push("minus-equivalent")};
+ const capture=new Function("document","window",script+"; return twEarlyBillingEscape;")(mockDoc,mockWin);
+ const event={key:"Escape",ctrlKey:false,altKey:false,metaKey:false,
+  preventDefault:()=>prevented++,stopImmediatePropagation:()=>stopped++};
+ capture(event);
+ expect(handlers).toEqual(["minus-equivalent"]);
+ expect(prevented).toBe(1);
+ expect(stopped).toBe(1);
+ billing=false;capture(event);
+ expect(handlers).toHaveLength(1);
+ dialog=true;billing=true;capture(event);
+ expect(handlers).toHaveLength(1);
+ expect(index.indexOf('window.addEventListener("keydown",twEarlyBillingEscape,true)')).toBeLessThan(index.indexOf('window.addEventListener("error"'));
 });
