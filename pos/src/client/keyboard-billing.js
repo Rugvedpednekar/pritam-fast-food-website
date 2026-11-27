@@ -323,17 +323,26 @@ function confirmCancelTable(){
  if(kb.step!=="cancel")return;
  var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
  var name=tableDisplayName(table?.name);
- var before=JSON.stringify(data);
- var order=(data.orders||[]).find(function(o){
-  return o.restaurantId===selected&&o.status==="open"&&(o.id===activeOrderId||o.tableId===tableId);
+ var before=JSON.stringify(data),cancelledAt=new Date().toISOString();
+ var cancelledOrders=(data.orders||[]).filter(function(o){
+  return o.restaurantId===selected&&o.status==="open"&&
+   (o.id===activeOrderId||(tableId&&o.tableId===tableId));
  });
- if(order){order.status="void";order.voidAt=new Date().toISOString();order.voidReason="Cancelled from viewing mode";}
- data.audit.push({action:"table_order_cancelled",restaurantId:selected,tableId:tableId,orderId:order?.id||"",at:new Date().toISOString()});
+ // Mark every open order for this table inactive, including duplicate/legacy open
+ // records, so the floor cannot show it occupied after a successful cancellation.
+ cancelledOrders.forEach(function(order){
+  order.status="void";order.voidAt=cancelledAt;
+  order.voidReason="Cancelled from viewing mode";
+ });
+ data.audit.push({action:"table_order_cancelled",restaurantId:selected,tableId:tableId,
+  orderId:activeOrderId||cancelledOrders[0]?.id||"",at:cancelledAt});
  if(!saveTheData(before)){showToast("Cancellation was not saved.");return;}
- // This action must release the table; never call preserve() after voiding it.
+ // Clear the active table/cart BEFORE calling flBack. The legacy handler can
+ // otherwise re-save the still-present cart as a fresh OPEN order and reoccupy it.
+ cart=[];tableId="";activeOrderId="";
  kb.context="";kb.step="code";kb.mode="add";kb.item=null;kb.edit=-1;
- if(typeof flBack==="function"){try{flBack();}catch(err){showToast(err.message);}}
- cart=[];tableId="";activeOrderId="";draw();showToast(name+" cancelled and released.");
+ if(typeof flBack==="function"){try{flBack();}catch(err){showToast("Table cancelled, but navigation failed: "+err.message);}}
+ draw();showToast(name+" cancelled and released.");
 }
 function removeHighlighted(){
  if(!cart.length||kb.selected<0||kb.selected>=cart.length)return;
