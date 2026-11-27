@@ -141,6 +141,11 @@ const keyboardBillingClient=await Bun.file(new URL("./client/keyboard-billing.js
 new Function(keyboardBillingClient);
 if(!html.includes(ownerBoot))throw Error("Keyboard billing insertion point missing");
 html=html.replace(ownerBoot,keyboardBillingClient+"\n"+ownerBoot);
+// Compact, occupied-only floor tiles and business-day parcel P-number shortcuts.
+const compactParcelFloor=await Bun.file(new URL("./client/compact-parcel-floor.js",import.meta.url)).text();
+new Function(compactParcelFloor);
+if(!html.includes(ownerBoot))throw Error("Compact parcel floor insertion point missing");
+html=html.replace(ownerBoot,compactParcelFloor+"\n"+ownerBoot);
 // Scope dark styles to the selected theme, including styles injected at runtime.
 html=html.replace("</head>",'<style id="tablewise-dark-theme">'+darkThemeCSS+'</style></head>');
 html=html.replace("/*__AI_CHAT_JS__*/",()=>aiLiveDataJS+"\n"+aiChatJS)
