@@ -3,7 +3,7 @@
 (function(){
 "use strict";
 var kb={mode:"add",step:"code",selected:0,edit:-1,item:null,search:"",cursor:0,shiftIndex:0,pendingShiftId:"",context:"",
- discount:"",discountType:"amount",instruction:"",gstin:"",gstName:"",busy:false};
+ discount:"",discountType:"percent",instruction:"",gstin:"",gstName:"",busy:false};
 function current(){return tab==="pos"&&!!document.getElementById("twkb");}
 function eligible(){return tab==="pos"&&!!document.querySelector("#content .fl-billing");}
 function menu(){return (data.menus[selected]||[]).filter(function(m){return m.active!==false&&m.available!==false&&sectionPrice(m,sectionId)!==null;});}
@@ -101,17 +101,22 @@ if(kb.step==="shift-confirm"){
  '<p class="kb-confirm-hint">Press Enter to apply prices, or Esc / − to return to available tables.</p></section></div>';
 }
 if(kb.step==="preview"){
- body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Bill Preview</h3><p>Enter → Discount → Instruction on Bill → Print</p>'+
- '<div class="kb-pretotal"><span>Grand total</span><strong id="kb-preview-total">'+previewAmount()+'</strong></div>'+
- '<label for="kb-discount">Discount (₹; press / to switch to %)</label><div class="kb-discount-row"><span id="kb-unit">'+(kb.discountType==="percent"?"%":"₹")+
- '</span><input id="kb-discount" inputmode="decimal" value="'+e(kb.discount)+'" placeholder="0"></div>'+
+ body+='<div class="kb-overlay kb-bill-preview-overlay"><section class="kb-dialog kb-bill-preview-dialog" role="dialog" aria-modal="true" aria-label="Bill Preview">'+
+ '<h3>Bill Preview</h3><p class="kb-preview-hint">Enter → Instruction on Bill → Discount → Print</p>'+
+ '<div id="kb-preview-receipt">'+previewReceipt()+'</div>'+
+ '<label for="kb-instruction">Instruction on Bill <small>(optional)</small></label>'+
+ '<input id="kb-instruction" maxlength="300" autocomplete="off" value="'+e(kb.instruction)+'" placeholder="Add a bill note, or press Enter to skip">'+
+ '<div class="kb-touch-controls kb-touch-preview">'+button('Next · Discount','touch-instruction-next')+'</div>'+
+ '<label for="kb-discount">Discount <small>(default % · press / to switch ₹ / %)</small></label>'+
+ '<div class="kb-discount-row"><span id="kb-unit">'+(kb.discountType==="percent"?"%":"₹")+
+ '</span><input id="kb-discount" type="text" inputmode="decimal" autocomplete="off" value="'+e(kb.discount)+'" placeholder="0"></div>'+
  '<div class="kb-touch-controls kb-touch-preview">'+button('Switch ₹ / %','touch-discount-kind')+
- button('Next · Instruction','touch-discount-next')+'</div>'+
- '<label for="kb-instruction">Instruction on Bill (optional)</label><input id="kb-instruction" maxlength="300" autocomplete="off" value="'+e(kb.instruction)+'">'+
- '<div class="kb-touch-controls kb-touch-preview">'+button('Next · Print','touch-instruction-next')+'</div>'+
- '<p>'+button('F10 · Customer GST','gst')+(kb.gstin?' <small>'+e(kb.gstin)+'</small>':'')+'</p>'+
- '<div class="kb-actions">'+button('Back · Esc','cancel')+'<button type="button" id="kb-print" data-kba="print">Print Bill · Enter</button></div>'+
- '<p class="kb-help">Printing automatically completes the order and frees the table. A blocked popup leaves the order open.</p></section></div>';
+ button('Next · Print','touch-discount-next')+'</div>'+
+ '<div class="kb-preview-footer"><div>'+button('F10 · Customer GST','gst')+
+ (kb.gstin?' <small>'+e(kb.gstin)+'</small>':'')+'</div>'+
+ '<div class="kb-actions">'+button('Back · Esc','cancel')+
+ '<button type="button" id="kb-print" data-kba="print">Print Bill · Enter</button></div></div>'+
+ '<p class="kb-help">Printing completes the order and releases the table. If a receipt window is blocked, this order stays open.</p></section></div>';
 }
 if(kb.step==="gst"){
  body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Customer GST details</h3>'+
@@ -121,12 +126,43 @@ if(kb.step==="gst"){
 }
 return body+'</div>';
 }
+function previewCalculation(){
+ var prior=[discountKind,discountValue,discountReason];
+ try{
+  discountKind=kb.discount.trim()?kb.discountType:"none";
+  discountValue=kb.discount.trim()?kb.discount:"";
+  discountReason=kb.discount.trim()?"Bill discount":"";
+  return {value:calculatePreview()};
+ }catch(ex){return {error:ex.message||"Could not calculate this bill"};}
+ finally{discountKind=prior[0];discountValue=prior[1];discountReason=prior[2];}
+}
+function previewReceipt(){
+ var result=previewCalculation();
+ if(result.error)return '<div class="kb-receipt-error kb-error">'+e(result.error)+'</div>';
+ var p=result.value,section=selSection(),itemRows=(p.lines||[]).map(function(line){
+  return '<div class="kb-receipt-item"><div><b>'+e(line.name)+'</b>'+
+   '<small>'+line.qty+' × '+money(line.price)+' each</small></div>'+
+   '<strong>'+money(line.total)+'</strong></div>';
+ }).join("");
+ var summary='<div class="kb-receipt-summary">'+
+  '<div><span>Subtotal</span><strong>'+money(p.subtotal)+'</strong></div>'+
+  '<div><span>Discount</span><strong>−'+money(p.discount)+'</strong></div>'+
+  '<div><span>CGST</span><strong>'+money(p.cgst)+'</strong></div>'+
+  '<div><span>SGST</span><strong>'+money(p.sgst)+'</strong></div>'+
+  (p.roundOff?'<div><span>Round off</span><strong>'+money(p.roundOff)+'</strong></div>':'')+
+  '<div class="kb-receipt-grand"><span>Grand total</span><strong id="kb-preview-total">'+money(p.grand)+'</strong></div></div>';
+ return '<div class="kb-preview-paper"><div class="kb-preview-paper-heading">'+
+  '<strong>'+e(selectedName())+'</strong><span>'+e(section?.name||"")+' · '+e(tableDisplayName(detail()))+'</span></div>'+
+  '<div class="kb-preview-paper-body"><div class="kb-preview-paper-heading-row"><span>Item · Qty × Rate</span><span>Amount</span></div>'+
+  (itemRows||'<p class="kb-empty">No items in order.</p>')+'</div>'+summary+'</div>';
+}
 function previewAmount(){
-var a=[discountKind,discountValue,discountReason];
-try{discountKind=kb.discount.trim()?kb.discountType:"none";discountValue=kb.discount.trim()?kb.discount:"";
-discountReason=kb.discount.trim()?"Bill discount":"";return money(calculatePreview().grand);}
-catch(ex){return '<small class="kb-error">'+e(ex.message)+'</small>';}
-finally{discountKind=a[0];discountValue=a[1];discountReason=a[2];}
+ var calc=previewCalculation();
+ return calc.error?'<small class="kb-error">'+e(calc.error)+'</small>':money(calc.value.grand);
+}
+function refreshPreviewReceipt(){
+ var el=document.getElementById("kb-preview-receipt");
+ if(el)el.innerHTML=previewReceipt();
 }
 function refocus(){
  // When the editor is hidden in Viewing Mode, keep focus on the selected order.
@@ -146,9 +182,9 @@ if(kb.step==="shift"){
  var target=choices[kb.shiftIndex];
  if(target&&typeof target.focus==="function"){target.focus({preventScroll:true});return;}
 }
-var id=kb.step==="qty"?"kb-qty":kb.step==="search"?"kb-search":kb.step==="preview"?"kb-discount":
+var id=kb.step==="qty"?"kb-qty":kb.step==="search"?"kb-search":kb.step==="preview"?"kb-instruction":
 kb.step==="gst"?"kb-gstin":"kb-code";
-var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="kb-qty"||id==="kb-discount")f.select();}
+var f=document.getElementById(id);if(f){f.focus({preventScroll:true});if(id==="kb-qty")f.select();}
 }
 // Keep a visible selection while keyboard focus remains on Item Code / Search.
 function highlightSelection(kind){
@@ -179,7 +215,7 @@ function reset(){
 var key=selected+"|"+sectionId+"|"+tableId+"|"+activeOrderId;
 if(key===kb.context)return;
 kb.context=key;kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;kb.selected=0;kb.shiftIndex=0;
-kb.discount="";kb.discountType="amount";kb.instruction="";kb.gstin="";kb.gstName="";
+kb.discount="";kb.discountType="percent";kb.instruction="";kb.gstin="";kb.gstName="";
 }
 function enterView(){kb.mode="view";kb.step="list";kb.item=null;kb.edit=-1;kb.selected=Math.min(kb.selected,Math.max(cart.length-1,0));paint();}
 function enterAdd(){kb.mode="add";kb.step="code";kb.item=null;kb.edit=-1;paint();}
@@ -252,7 +288,16 @@ function returnToTables(){
  draw();
  if(saved)showToast("Order saved. Table remains occupied until billed or cancelled.");
 }
-function openPreview(){if(!cart.length){showToast("Add at least one item to print.");return;}kb.step="preview";kb.discount="";kb.discountType="amount";paint();}
+function openPreview(){
+ if(!cart.length){showToast("Add at least one item to print.");return;}
+ // Every entry, including repeated '5', opens this same itemized preview.
+ kb.step="preview";kb.discount="";kb.discountType="percent";kb.instruction="";
+ paint();
+}
+function closePreview(){
+ kb.step=kb.mode==="view"?"list":"code";
+ paint();
+}
 function openShift(){
  if(!tableId||selSection()?.kind!=="dine-in"){showToast("Shifting is only available for dine-in tables.");return;}
  if(!shiftTargets().length){showToast("No empty compatible tables are available.");return;}
@@ -437,8 +482,7 @@ if(name==="touch-discount-kind"){
  kb.discountType=kb.discountType==="percent"?"amount":"percent";
  var unit=document.getElementById("kb-unit");
  if(unit)unit.textContent=kb.discountType==="percent"?"%":"₹";
- var preview=document.getElementById("kb-preview-total");
- if(preview)preview.innerHTML=previewAmount();return;
+ refreshPreviewReceipt();return;
 }
 if(name==="touch-discount-next")return touchKey("Enter","kb-discount");
 if(name==="touch-instruction-next")return touchKey("Enter","kb-instruction");
@@ -458,7 +502,7 @@ if(name==="shift-confirm"){
 if(name==="line"){kb.selected=Number(el.dataset.index)||0;kb.mode="view";kb.step="list";paint();return;}
 if(name==="choose"){var m=matches()[Number(el.dataset.index)||0];if(m){kb.search="";pick(m,-1);}return;}
 if(name==="preview")return openPreview();
-if(name==="cancel"){kb.step="code";paint();return;}
+if(name==="cancel")return closePreview();
 if(name==="print")return printAndComplete();
 if(name==="gst"){kb.step="gst";paint();return;}
 if(name==="gst-done"){kb.gstin=(document.getElementById("kb-gstin")?.value||"").trim().toUpperCase();
@@ -478,17 +522,29 @@ if(kb.step==="gst"){
  return action("gst-done");
 }
 if(kb.step==="preview"){
- if(k==="Escape"){stop();kb.step="code";paint();return;}
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();return closePreview();}
  if(k==="F10"){stop();return action("gst");}
- if(k==="/"&&id==="kb-discount"){stop();kb.discountType=kb.discountType==="percent"?"amount":"percent";document.getElementById("kb-unit").textContent=kb.discountType==="percent"?"%":"₹";return;}
- if(k!=="Enter")return;stop();
- if(id==="kb-discount"){
-  kb.discount=document.getElementById("kb-discount")?.value||"";
-  var label=previewAmount();if(label.includes("kb-error")){showToast("Enter a valid discount.");return;}
-  document.getElementById("kb-preview-total").innerHTML=label;return document.getElementById("kb-instruction")?.focus();
+ if(k==="/"&&id==="kb-discount"){
+  stop();kb.discountType=kb.discountType==="percent"?"amount":"percent";
+  document.getElementById("kb-unit").textContent=kb.discountType==="percent"?"%":"₹";
+  refreshPreviewReceipt();return;
  }
- if(id==="kb-instruction"){kb.instruction=document.getElementById("kb-instruction")?.value||"";return document.getElementById("kb-print")?.focus();}
- if(id==="kb-print"){kb.instruction=document.getElementById("kb-instruction")?.value||"";return printAndComplete();}
+ if(k!=="Enter")return;stop();
+ if(id==="kb-instruction"){
+  kb.instruction=document.getElementById("kb-instruction")?.value||"";
+  var discount=document.getElementById("kb-discount");
+  discount?.focus();discount?.select();return;
+ }
+ if(id==="kb-discount"){
+  kb.discount=document.getElementById("kb-discount")?.value.trim()||"";
+  var result=previewCalculation();
+  if(result.error){showToast(result.error);return;}
+  refreshPreviewReceipt();return document.getElementById("kb-print")?.focus();
+ }
+ if(id==="kb-print"){
+  kb.instruction=document.getElementById("kb-instruction")?.value||"";
+  return printAndComplete();
+ }
  return;
 }
 if(kb.step==="cancel"){
@@ -611,12 +667,12 @@ document.addEventListener("input",function(ev){var t=ev.target;if(!current())ret
 if(t.id==="kb-code"){previewCode();return;}
 if(t.id==="kb-search"){var at=t.selectionStart;kb.search=t.value;kb.cursor=0;paint();
 var fresh=document.getElementById("kb-search");fresh?.focus();try{fresh?.setSelectionRange(at,at);}catch(ex){}}
-if(t.id==="kb-discount"){kb.discount=t.value;document.getElementById("kb-preview-total").innerHTML=previewAmount();}
+if(t.id==="kb-discount"){kb.discount=t.value;refreshPreviewReceipt();}
 if(t.id==="kb-instruction")kb.instruction=t.value;},true);
 window.addEventListener("keydown",key,true);
 // The early Escape guard in index.html calls this before older POS key handlers.
 // Main billing modes execute precisely the same action as the minus shortcut.
-window.twBillingIsViewing=function(){return kb.mode==="view"&&["list","shift","cancel","shift-confirm"].includes(kb.step);};
+window.twBillingIsViewing=function(){return kb.mode==="view"&&["list","code","shift","cancel","shift-confirm"].includes(kb.step);};
 window.twBillingHandleShortcut=function(name){
  key({key:name,ctrlKey:false,metaKey:false,altKey:false,
   preventDefault:function(){},stopImmediatePropagation:function(){}});
@@ -627,6 +683,16 @@ window.twBillingHandleEscape=function(){
 var oldDraw=draw;draw=function(){var result=oldDraw.apply(this,arguments);
 if(eligible()){reset();document.getElementById("content").innerHTML=screen();refocus();}else kb.context="";
 return result;};
-var oldPrint=printBill;printBill=function(b){if(b&&(b.billInstruction||b.customerGstin)){return printable(b);}
-return oldPrint.apply(this,arguments);};
+// Disable the legacy "Confirm changes / Complete bill" dialog inside keyboard billing.
+ // Receipt generation is owned only by printAndComplete() from the itemized preview.
+ var previousSaveBill=saveBill;
+ saveBill=function(){
+  if(current()){
+   if(kb.step!=="preview")openPreview();
+   return;
+  }
+  return previousSaveBill.apply(this,arguments);
+ };
+ var oldPrint=printBill;printBill=function(b){if(b&&(b.billInstruction||b.customerGstin)){return printable(b);}
+ return oldPrint.apply(this,arguments);};
 })();
