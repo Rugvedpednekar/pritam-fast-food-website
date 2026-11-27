@@ -21,6 +21,8 @@ function harness(popupAllowed=true){
   return selectionNodes[which];
  }
  let activeId="",saved=0,printed=0,backCalls=0,confirmCalls=0,confirmAnswer=true;
+ let fixtureApi:any=null;
+ const backSnapshots:any[]=[];
  const content:any={innerHTML:"<div class='fl-billing'></div>"};
  const document:any={
   head:{appendChild:()=>{}},
@@ -80,9 +82,14 @@ function harness(popupAllowed=true){
   ()=>{saved++;return true;},
   ()=>({id:"day1",date:"2026-11-26"}),()=>String(data.bills.length+1),()=>({legalName:"Pritam Fast Food"}),
   state.discountKind,state.discountValue,state.discountReason,true,false,false,false,
-  (fn:()=>void)=>{fn();return 0;},()=>{backCalls++;}
+  (fn:()=>void)=>{fn();return 0;},()=>{
+  backCalls++;
+  backSnapshots.push(fixtureApi?{cartLength:fixtureApi.getCart().length,
+    tableId:fixtureApi.getTable(),activeOrderId:fixtureApi.getActiveOrder()}:null);
+ }
  ];
  const obj:any=new Function(...params,"return "+outer.replace(/^\s*\/\*[\s\S]*?\*\/\s*/,""))(...args);
+ fixtureApi=obj;
  function key(k:string){const ev:any={key:k,preventDefault:()=>{},stopImmediatePropagation:()=>{},
    ctrlKey:false,metaKey:false,altKey:false};obj.key(ev);}
  function set(id:string,value:string){document.getElementById(id).value=value;}
@@ -91,7 +98,7 @@ function harness(popupAllowed=true){
  function draw(){obj.getDraw()();}
  draw();
  return {obj,data,draw,set,key,escape:()=>window.twBillingHandleEscape(),shortcut:(k:string)=>window.twBillingHandleShortcut(k),
-  setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,
+  setConfirm:(v:boolean)=>confirmAnswer=v,confirmCalls:()=>confirmCalls,backCalls:()=>backCalls,backSnapshots,
   typeCode,getText,selects,toasts,selection:selectedRows,saved:()=>saved,printed:()=>printed,
     active:()=>activeId,cart:()=>obj.getCart(),currentTable:()=>obj.getTable()};
 }
@@ -513,4 +520,28 @@ test("Numeric table names display as Table 21 in the in-app confirmation",()=>{
  expect(h.confirmCalls()).toBe(0);
  h.shortcut("Escape");
  expect(h.obj.kb.step).toBe("list");
+});
+
+test("Cancel clears active cart before invoking legacy flBack to prevent reopening the order",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.key("Escape");h.shortcut("1");h.shortcut("Enter");
+ expect(h.backSnapshots).toEqual([{cartLength:0,tableId:"",activeOrderId:""}]);
+ expect(h.data.orders.filter((o:any)=>o.tableId==="t1"&&o.status==="open")).toHaveLength(0);
+ expect(h.currentTable()).toBe("");
+ expect(h.cart()).toHaveLength(0);
+});
+test("Cancel releases all duplicate open records at the same table but not a different table",()=>{
+ const h=harness();
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.data.orders.push(
+  {id:"legacy-open",restaurantId:"r1",tableId:"t1",sectionId:"s1",status:"open",cart:[{code:"615",qty:1}]},
+  {id:"other-table",restaurantId:"r1",tableId:"t2",sectionId:"s1",status:"open",cart:[{code:"37",qty:1}]}
+ );
+ h.key("Escape");h.shortcut("1");h.shortcut("Enter");
+ expect(h.data.orders.filter((o:any)=>o.tableId==="t1"&&o.status==="open")).toHaveLength(0);
+ expect(h.data.orders.filter((o:any)=>o.tableId==="t1").every((o:any)=>o.status==="void")).toBe(true);
+ expect(h.data.orders.find((o:any)=>o.id==="other-table").status).toBe("open");
+ expect(h.data.bills).toHaveLength(0);
+ expect(h.backCalls()).toBe(1);
 });
