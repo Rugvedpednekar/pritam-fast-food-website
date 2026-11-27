@@ -75,10 +75,10 @@ function twClearFloorTableNumber(ev){
    input.closest("#content .fl-root:not(.fl-billing)"):null;
  if(!floor)return false;
  var hint=(input.getAttribute("placeholder")||"")+" "+(input.getAttribute("aria-label")||"");
- var byHint=/\\btable\\s*(?:number|no\\.?)/i.test(hint)||
-            /^\\s*1\\s*,\\s*2\\s*,\\s*3/i.test(hint);
+ var byHint=/\btable\s*(?:number|no\.?)/i.test(hint)||
+            /^\s*1\s*,\s*2\s*,\s*3/i.test(hint);
  var parent=input.parentElement;
- var byLabel=!!(parent&&/\\btable\\s*(?:number|no\\.?)/i.test(parent.textContent||"")&&
+ var byLabel=!!(parent&&/\btable\s*(?:number|no\.?)/i.test(parent.textContent||"")&&
    parent.querySelectorAll&&parent.querySelectorAll("input").length===1);
  if(!byHint&&!byLabel)return false;
  ev.preventDefault();ev.stopImmediatePropagation();
