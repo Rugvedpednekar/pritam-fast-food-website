@@ -29,7 +29,7 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<div><small>'+e(selectedName())+' · '+e(section?.name||"")+'</small><h2>'+e(detail())+'</h2></div><b class="kb-mode">'+
 (viewing?'VIEWING MODE — 0 TO ADD':'ADD ITEM — CODE OR NAME')+'</b></div>'+
 '<div class="kb-shortcuts">'+(viewing?'[Esc / -] Save & Tables &nbsp; [1] Cancel table &nbsp; [3] Shift table &nbsp; [5] Print bill &nbsp; [↑ ↓] Choose &nbsp; [Del] Remove &nbsp; [0] Add item':
-'[0] Add new item &nbsp; [Esc / -] Viewing mode &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill')+'</div>'+
+'[0] Add new item &nbsp; [Esc / -] '+(cart.length?'Viewing mode':'Back to Tables')+' &nbsp; [↑ ↓] Choose &nbsp; [Enter] Select / Save &nbsp; [5] Print bill')+'</div>'+
 (viewing&&kb.step==="list"?
  '<div class="kb-touch-controls kb-touch-view" aria-label="Viewing Mode touch controls">'+
  '<div class="kb-touch-row kb-touch-main">'+button('0 · Add Item','add')+button('Save & Tables','floor')+button('5 · Print Bill','preview')+'</div>'+
@@ -46,7 +46,7 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
 '<div class="kb-item"><small>Selected Item</small><strong id="kb-live-name">'+e(item?.name||"—")+'</strong><small id="kb-live-price">'+(item?money(item.price):"Enter code to select")+'</small></div>'+
 '<label for="kb-qty">Quantity</label><input id="kb-qty" inputmode="numeric" maxlength="3" autocomplete="off" value="'+(item?.qty||1)+'"'+(kb.step==="qty"?'':' readonly')+'>'+
 '<label for="kb-comment">Item comment (optional)</label><input id="kb-comment" maxlength="150" autocomplete="off" value="'+e(item?.comment||"")+'"'+(kb.step==="qty"?'':' readonly')+'>'+
-'<div class="kb-editor-controls kb-actions">'+button('0 · Add new','add')+button('Esc / - · View','view')+'</div>'+
+'<div class="kb-editor-controls kb-actions">'+button('0 · Add new','add')+button(cart.length?'Esc / - · View':'Esc / - · Tables','view')+'</div>'+
  '<div class="kb-editor-print-control">'+button('5 · Print Bill','preview')+'</div>'+
  '<div class="kb-touch-controls kb-touch-entry" aria-label="Item entry touch controls">'+
  '<div class="kb-touch-row">'+button('Search Menu','touch-search')+
