@@ -23,8 +23,11 @@ function screen(){
 var viewing=kb.mode==="view",showEditor=!viewing||kb.step==="qty",item=kb.item,p=total(),section=selSection();
 var lines=cart.map(function(v,i){var active=viewing&&kb.selected===i;
 return '<button type="button" role="option" aria-selected="'+active+'" class="kb-line '+(active?'kb-on kb-current':'')+
-'" data-kba="line" data-index="'+i+'"><span><b>'+e(v.name)+'</b><small>#'+e(v.code)+(v.comment?' · '+e(v.comment):'')+
-'</small></span><span>'+v.qty+'</span><strong>'+money(v.price*v.qty)+'</strong></button>';}).join("");
+'" data-kba="line" data-index="'+i+'"><span class="kb-line-code">'+e(v.code)+'</span>'+
+'<span class="kb-line-name"><b>'+e(v.name)+'</b>'+(v.comment?'<small>'+e(v.comment)+'</small>':'')+'</span>'+
+'<span class="kb-line-rate">'+money(v.price)+'</span>'+
+'<span class="kb-line-qty">'+v.qty+'</span>'+
+'<strong class="kb-line-amount">'+money(v.price*v.qty)+'</strong></button>';}).join("");
 var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+button('← Tables','floor')+
 '<div><small>'+e(selectedName())+' · '+e(section?.name||"")+'</small><h2>'+e(detail())+'</h2></div><b class="kb-mode">'+
 (viewing?'VIEWING MODE — 0 TO ADD':'ADD ITEM — CODE OR NAME')+'</b></div>'+
@@ -36,8 +39,9 @@ var body='<div id="twkb" class="fl-root fl-billing"><div class="kb-head">'+butto
  '<div class="kb-touch-row">'+button('1 · Cancel Table','touch-cancel-table')+button('3 · Shift Table','touch-shift')+'</div>'+
  '<div class="kb-touch-row kb-touch-nav">'+button('↑ Previous','touch-up')+button('↓ Next','touch-down')+
  button('Edit Selected','touch-edit')+button('Delete Item','touch-delete')+'</div></div>':'')+
- '<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3><div class="kb-table-head"><span>Item</span><span>Qty</span><span>Amount</span></div>'+
-'<div class="kb-lines">'+(lines||'<p class="kb-empty">No items yet. Enter an item code.</p>')+'</div>'+
+ '<div class="kb-grid'+(showEditor?'':' kb-view-only')+'"><section class="kb-box"><h3>Order Details</h3>'+
+'<div class="kb-order-scroll"><div class="kb-table-head"><span>Item Code</span><span>Item Name</span><span>Rate</span><span>Qty</span><span>Amount</span></div>'+
+'<div class="kb-lines">'+(lines||'<p class="kb-empty">No items yet. Enter an item code.</p>')+'</div></div>'+
 '<div class="kb-totals"><div>Subtotal <b>'+money(p?.subtotal||0)+'</b></div><div>CGST + SGST <b>'+money((p?.cgst||0)+(p?.sgst||0))+
 '</b></div><div class="kb-grand">Total <b>'+money(p?.grand||0)+'</b></div></div></section>'+
 '<section class="kb-box kb-edit"><h3>'+((kb.step==="qty"&&kb.edit>=0)?'Edit Item':'Item Entry')+'</h3>'+
@@ -708,12 +712,15 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.85fr);gap:15px}",
 "#twkb .kb-grid.kb-view-only .kb-edit{display:none!important}",
 "#twkb .kb-box{background:#162c34;border:1px solid #36545b;border-radius:12px;padding:17px;min-width:0}",
-"#twkb .kb-table-head,#twkb .kb-line{display:grid;grid-template-columns:minmax(0,1fr) 45px 108px;gap:8px;align-items:center;text-align:left}",
+"#twkb .kb-order-scroll{min-width:0;overflow-x:auto}",
+"#twkb .kb-table-head,#twkb .kb-line{display:grid;grid-template-columns:70px minmax(120px,1fr) 82px 42px 105px;gap:9px;align-items:center;text-align:left}",
 "#twkb .kb-table-head{background:#0e2029;color:#a5c9bc;border-radius:8px;padding:10px 12px;font-size:12px}",
-"#twkb .kb-table-head span:last-child,#twkb .kb-line strong{text-align:right}",
-"#twkb .kb-lines{min-height:180px;max-height:55dvh;overflow:auto}",
+"#twkb .kb-table-head span:nth-child(n+3),#twkb .kb-line-rate,#twkb .kb-line-qty,#twkb .kb-line-amount{text-align:right;white-space:nowrap}",
+"#twkb .kb-line-code{font-weight:700;color:#9ddfc2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+"#twkb .kb-line-name{min-width:0;overflow-wrap:anywhere}",
+"#twkb .kb-lines{min-height:180px;max-height:55dvh;overflow-y:auto;overflow-x:hidden}",
 "#twkb .kb-line{width:100%;border:1px solid transparent;border-bottom-color:#38525c;color:#eef9f5;background:transparent;padding:12px;text-align:left;cursor:pointer}",
-"#twkb .kb-line small{display:block;font-size:11px;margin-top:3px}#twkb .kb-on{background:#19563e!important;border-color:#5bcc91!important}",
+"#twkb .kb-line-name small{display:block;font-size:11px;margin-top:3px}#twkb .kb-on{background:#19563e!important;border-color:#5bcc91!important}",
 "#twkb .kb-lines button.kb-current,#twkb .kb-results button.kb-current{background:#16714c!important;color:#ffffff!important;border:2px solid #a6ffc0!important;border-left:6px solid #c4ff80!important;box-shadow:0 0 0 2px #38b77f99,inset 0 0 0 1px #165a43!important;font-weight:800!important}",
 "#twkb .kb-lines button.kb-current :is(b,span,strong,small),#twkb .kb-results button.kb-current :is(b,span,strong,small){color:#ffffff!important}",
 "#twkb .kb-totals{border-top:1px solid #3f5961;padding-top:10px}#twkb .kb-totals div{display:flex;justify-content:space-between;margin:9px 0;font-size:13px}",
@@ -787,7 +794,7 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "@media(max-width:480px){#twkb .kb-confirm-dialog{padding:22px 18px}#twkb .kb-confirm-actions{flex-direction:column-reverse}}",
 "#twkb .kb-results small{display:block}#twkb .kb-discount-row{display:flex;gap:10px;align-items:center}#twkb .kb-discount-row span{min-width:30px;text-align:center;font-weight:bold;font-size:20px}",
 "#twkb .kb-error{color:#ffb9a2}",
-"@media(max-width:760px){#twkb .kb-grid{grid-template-columns:1fr}#twkb .kb-lines{max-height:32dvh}#twkb h2{font-size:21px}#twkb .kb-table-head,#twkb .kb-line{grid-template-columns:minmax(0,1fr) 34px 94px}}"
+"@media(max-width:760px){#twkb .kb-grid{grid-template-columns:1fr}#twkb .kb-lines{max-height:32dvh}#twkb h2{font-size:21px}#twkb .kb-table-head,#twkb .kb-line{min-width:530px;grid-template-columns:62px minmax(115px,1fr) 75px 38px 91px;gap:7px}}"
 ].join("");document.head.appendChild(css);
 document.addEventListener("click",function(ev){var el=ev.target?.closest?.("[data-kba]");
 if(!el||!current())return;ev.preventDefault();ev.stopImmediatePropagation();action(el.dataset.kba,el);},true);
