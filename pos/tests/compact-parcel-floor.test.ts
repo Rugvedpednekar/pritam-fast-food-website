@@ -63,9 +63,11 @@ function harness(){
    status:"open",label:"Parcel",createdAt:when,cart:[{id:"m1",name:"Item",qty:1,price:100}]});
  }
  function pendingButton(id:string){
+  let onClick:Function|null=null;
   const b:any={dataset:{id},textContent:"Parcel · 1 items",title:"",
    setAttribute:()=>{},getAttribute:()=>null,
-   click:()=>logs.clicks.push(id)};
+   addEventListener:(kind:string,handler:Function)=>{if(kind==="click")onClick=handler;},
+   click:()=>{logs.clicks.push(id);onClick?.({stopImmediatePropagation:()=>{}});}};
   parcelButtons.push(b);return b;
  }
  function key(k:string,target:any=input){
@@ -140,7 +142,8 @@ test("Typing P2 then Enter reopens only the matching pending parcel",()=>{
  h.input.value="p2";
  const entered=h.key("Enter");
  expect(entered.result).toBe(true);
- expect(h.logs.clicks).toEqual(["b"]);
+ expect(h.api.getSelection()).toMatchObject({activeOrderId:"b",sectionId:"parcel",tableId:""});
+ expect(h.logs.oldDraw).toBe(1);
  expect(h.input.value).toBe("");
  expect(h.logs.clicks).not.toContain("new");
 });
@@ -223,4 +226,23 @@ test("Legacy parcel orders without a matching section still remain visible by Pa
  h.api.renderFloor();
  expect(h.parcelButtons).toHaveLength(1);
  expect(h.parcelButtons[0].textContent).toBe("P-1");
+});
+
+test("Original legacy parcel cards also open through the same saved-order route",()=>{
+ const h=harness();h.add("existing","2026-11-28T09:00:00Z");
+ const card=h.pendingButton("existing");
+ h.api.ensureNumbers();h.api.renderFloor();
+ card.click();
+ expect(h.api.getSelection().activeOrderId).toBe("existing");
+ expect(h.api.getSelection().sectionId).toBe("parcel");
+ expect(h.logs.oldDraw).toBe(1);
+});
+test("The saved-order bridge is preferred over legacy floor rendering when present",()=>{
+ const h=harness();h.add("bridge","2026-11-28T09:00:00Z");
+ let got:any=null;
+ h.window.twOpenSavedParcelOrder=(order:any)=>{got=order;return true;};
+ h.api.ensureNumbers();h.api.renderFloor();
+ h.parcelButtons[0].click();
+ expect(got?.id).toBe("bridge");
+ expect(h.logs.oldDraw).toBe(0);
 });
