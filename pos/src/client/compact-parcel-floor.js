@@ -181,11 +181,15 @@ function renderFloor(){
   used.add(btn);
   btn.type="button";btn.dataset.fl="parcel-open";btn.dataset.id=id;
   btn.dataset.orderId=id;btn.dataset.twParcelOrderId=id;
-  if(!original)btn.addEventListener("click",function(ev){
-   // New cards are linked directly to the saved order; no temporary bill is created.
-   if(ev&&typeof ev.stopImmediatePropagation==="function")ev.stopImmediatePropagation();
-   openPendingParcel(id);
-  },true);
+  if(!btn.dataset.twParcelBound){
+   btn.dataset.twParcelBound="yes";
+   btn.addEventListener("click",function(ev){
+    // Handle original and generated cards identically, before old delegated
+    // listeners can overwrite the active parcel or create an unsaved draft.
+    if(ev&&typeof ev.stopImmediatePropagation==="function")ev.stopImmediatePropagation();
+    openPendingParcel(id);
+   },true);
+  }
   var token=tokens.get(id);
   btn.textContent=token?token.label:"Parcel";
   btn.title=(token?token.label:"Parcel")+" · "+(order.cart||[]).length+" item lines";
@@ -205,7 +209,10 @@ function renderFloor(){
 function openPendingParcel(orderId){
  var order=(data.orders||[]).find(function(o){return String(o.id)===String(orderId)&&o.status==="open"&&isTakeaway(o);});
  if(!order){showToast("This parcel is no longer pending.");return false;}
- // Restore the saved order in the same billing workspace used for dine-in tables.
+ // Use the keyboard billing module's saved-order entry point when available.
+ if(typeof window.twOpenSavedParcelOrder==="function"){
+  return !!window.twOpenSavedParcelOrder(order);
+ }
  sectionId=order.sectionId;tableId="";
  activeOrderId=order.id;cart=JSON.parse(JSON.stringify(order.cart||[]));
  draw();
@@ -230,7 +237,7 @@ function clickParcelButton(floor,orderId){
  });
  if(!match){renderFloor();match=Array.from(floor.querySelectorAll('.fl-parcels button[data-fl="parcel-open"]')).find(function(btn){return btn.dataset.twParcelOrderId===orderId;});}
  if(!match)return openPendingParcel(orderId);
- match.click();return true;
+ return openPendingParcel(orderId);
 }
 function newParcel(floor){
  var parcel=Array.from(floor.querySelectorAll("button")).find(function(el){
