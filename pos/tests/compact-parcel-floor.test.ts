@@ -109,6 +109,7 @@ test("P only fills the floor lookup field; Enter on P opens New Parcel",()=>{
  expect(h.input.value).toBe("P");
  expect(h.logs.focused).toBe(true);
  expect(h.logs.clicks).toHaveLength(0);
+ expect(h.logs.events).toHaveLength(0); // P alone must not trigger legacy input listeners.
  const entered=h.key("Enter");
  expect(entered).toEqual({result:true,prevented:1,stopped:1});
  expect(h.logs.clicks).toEqual(["new"]);
