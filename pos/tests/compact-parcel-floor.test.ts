@@ -24,7 +24,8 @@ function harness(){
  const newParcel:any={textContent:"+ New parcel",click:()=>logs.clicks.push("new")};
  const floor:any={
   querySelector:(q:string)=>q===".fl-parcels"?parcels:q===".fl-table-grid"?tables:null,
-  querySelectorAll:(q:string)=>q==="input"?[input]:q==="button"?[newParcel]:[]
+  querySelectorAll:(q:string)=>q==="input"?[input]:q==="button"?[newParcel]:
+   q==='.fl-parcels button[data-fl="parcel-open"]'?parcelButtons:[]
  };
  const doc:any={
   body:{tagName:"BODY"},
