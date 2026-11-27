@@ -64,7 +64,6 @@ test("Escape does not erase unrelated inputs, leave other screens, or interfere 
  for(const scenario of [
   {placeholder:"Search menu",label:"Search menu"},
   {tab:"menu"},
-  {billing:true},
   {dialog:true},
   {floor:false},
   {target:"TEXTAREA"}
@@ -74,6 +73,12 @@ test("Escape does not erase unrelated inputs, leave other screens, or interfere 
   expect(app.flags.prevent).toBe(0);
   expect(app.changes).toEqual([]);
  }
+ const billing=testPage({billing:true});
+ billing.press("Escape");
+ expect(billing.input.value).toBe("21");
+ // Existing billing handler owns Escape; this floor-only guard does not clear it.
+ expect(billing.flags.stop).toBe(1);
+ expect(billing.changes).toEqual([]);
 });
 test("Enter still uses the original table lookup action",()=>{
  const app=testPage();app.press("Enter");
