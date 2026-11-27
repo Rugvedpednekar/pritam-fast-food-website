@@ -341,16 +341,27 @@ test("Viewing Mode Escape or minus saves the order and returns to Tables without
   expect(h.data.bills).toHaveLength(0);
  }
 });
-test("1 cancels the entire table only after explicit confirmation",()=>{
+test("1 opens a styled confirmation, Esc keeps the table, and Enter cancels",()=>{
  const h=harness();
  h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
- h.setConfirm(false);h.shortcut("1");
- expect(h.confirmCalls()).toBe(1);
+ h.shortcut("1");
+ expect(h.obj.kb.step).toBe("cancel");
+ expect(h.obj.screen()).toContain('class="kb-overlay kb-confirm-overlay"');
+ expect(h.obj.screen()).toContain('role="alertdialog"');
+ expect(h.obj.screen()).toContain('Cancel Table 21?');
+ expect(h.obj.screen()).toContain('Cancel Entire Table · Enter');
+ expect(h.active()).toBe("kb-cancel-confirm");
+ expect(h.confirmCalls()).toBe(0);
  expect(h.data.orders[0].status).toBe("open");
+ h.shortcut("Escape");
+ expect(h.obj.kb.step).toBe("list");
  expect(h.currentTable()).toBe("t1");
  expect(h.backCalls()).toBe(0);
- h.setConfirm(true);h.shortcut("1");
- expect(h.confirmCalls()).toBe(2);
+ expect(h.data.orders[0].status).toBe("open");
+ h.shortcut("1");
+ expect(h.obj.kb.step).toBe("cancel");
+ h.shortcut("Enter");
+ expect(h.confirmCalls()).toBe(0);
  expect(h.data.orders[0].status).toBe("void");
  expect(h.data.bills).toHaveLength(0);
  expect(h.currentTable()).toBe("");
@@ -444,4 +455,50 @@ test("Legacy handler capture routes Viewing Mode arrows, delete, 1, 3 and 5 befo
  viewing=false;expect(press("ArrowDown")).toBe(0);
  dialog=true;viewing=true;expect(press("Delete")).toBe(0);
  shown=false;dialog=false;expect(press("Escape")).toBe(0);
+});
+
+test("Cancel dialog handles Escape and minus identically without a browser confirmation",()=>{
+ for(const exitKey of ["Escape","-","NumpadSubtract"]){
+  const h=harness();h.set("kb-code","615");h.key("Enter");h.key("Enter");h.key("Escape");
+  h.shortcut("1");expect(h.obj.kb.step).toBe("cancel");
+  h.shortcut(exitKey);
+  expect(h.obj.kb.step).toBe("list");
+  expect(h.currentTable()).toBe("t1");
+  expect(h.data.orders[0].status).toBe("open");
+  expect(h.confirmCalls()).toBe(0);
+  expect(h.active()).toBe("kb-line-0");
+ }
+});
+test("In-app shift price confirmation applies destination prices only on Enter",()=>{
+ const h=harness();
+ h.data.sections.r1.push({id:"s2",name:"AC",kind:"dine-in",active:true});
+ h.data.tables.r1.push({id:"t2",name:"Table 22",sectionId:"s2",active:true});
+ for(const item of h.data.menus.r1){item.sectionPrices.s2=item.sectionPrices.s1+2000;}
+ h.set("kb-code","615");h.key("Enter");h.key("Enter");
+ h.shortcut("Escape");h.shortcut("3");
+ expect(h.obj.kb.step).toBe("shift");
+ h.shortcut("Enter");
+ expect(h.obj.kb.step).toBe("shift-confirm");
+ expect(h.obj.screen()).toContain("Apply destination prices?");
+ expect(h.obj.screen()).toContain("Table 22");
+ expect(h.active()).toBe("kb-shift-confirm");
+ expect(h.confirmCalls()).toBe(0);
+ h.shortcut("-");
+ expect(h.obj.kb.step).toBe("shift");
+ expect(h.currentTable()).toBe("t1");
+ expect(h.data.orders.find((o:any)=>o.tableId==="t1")?.status).toBe("open");
+ h.shortcut("Enter");
+ expect(h.obj.kb.step).toBe("shift-confirm");
+ h.shortcut("Enter");
+ expect(h.currentTable()).toBe("t2");
+ expect(h.obj.kb.step).toBe("list");
+ expect(h.cart()[0].price).toBe(3500);
+ expect(h.data.orders.find((o:any)=>o.tableId==="t2")?.cart[0].price).toBe(3500);
+ expect(h.confirmCalls()).toBe(0);
+});
+test("Billing module no longer calls native browser confirmation dialogs",()=>{
+ expect(source).not.toMatch(/window\\.confirm\\s*\\(/);
+ expect(source).toContain("kb-confirm-dialog");
+ expect(source).toContain('data-kba="cancel-confirm"');
+ expect(source).toContain('data-kba="shift-confirm"');
 });
