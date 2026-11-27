@@ -2,7 +2,7 @@
 /* Onyx-style keyboard billing for Pritam Fast Food. The data model stays unchanged. */
 (function(){
 "use strict";
-var kb={mode:"add",step:"code",selected:0,edit:-1,item:null,search:"",cursor:0,shiftIndex:0,context:"",
+var kb={mode:"add",step:"code",selected:0,edit:-1,item:null,search:"",cursor:0,shiftIndex:0,pendingShiftId:"",context:"",
  discount:"",discountType:"amount",instruction:"",gstin:"",gstName:"",busy:false};
 function current(){return tab==="pos"&&!!document.getElementById("twkb");}
 function eligible(){return tab==="pos"&&!!document.querySelector("#content .fl-billing");}
@@ -58,6 +58,33 @@ if(kb.step==="shift"){
  }).join(""):'<p class="kb-empty">No empty compatible tables are available.</p>')+
  '</div><div class="kb-actions">'+button('Esc / - · Back','shift-back')+'</div></section></div>';
 }
+if(kb.step==="cancel"){
+ var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
+ var tableName=table?.name||"this order";
+ body+='<div class="kb-overlay kb-confirm-overlay"><section class="kb-dialog kb-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="kb-confirm-title" aria-describedby="kb-confirm-copy">'+
+ '<div class="kb-confirm-symbol" aria-hidden="true">!</div>'+
+ '<div class="kb-confirm-eyebrow">TABLE CANCELLATION</div>'+
+ '<h3 id="kb-confirm-title">Cancel '+e(tableName)+'?</h3>'+
+ '<p id="kb-confirm-copy">This will remove <strong>all '+cart.length+' item line'+(cart.length===1?"":"s")+
+ '</strong> from the current order and release the table. This action cannot be undone.</p>'+
+ '<div class="kb-confirm-detail"><span>Table</span><strong>'+e(tableName)+'</strong><span>Order value</span><strong>'+money(total()?.grand||0)+'</strong></div>'+
+ '<div class="kb-confirm-actions">'+button('Keep Table · Esc','cancel-back')+
+ '<button type="button" class="kb-danger-button" id="kb-cancel-confirm" data-kba="cancel-confirm">Cancel Entire Table · Enter</button></div>'+
+ '<p class="kb-confirm-hint">Press Enter to confirm, or Esc / − to keep the order.</p></section></div>';
+}
+if(kb.step==="shift-confirm"){
+ var destination=(data.tables[selected]||[]).find(function(t){return t.id===kb.pendingShiftId;});
+ var destinationSection=(data.sections[selected]||[]).find(function(section){return section.id===destination?.sectionId;});
+ body+='<div class="kb-overlay kb-confirm-overlay"><section class="kb-dialog kb-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="kb-confirm-title" aria-describedby="kb-confirm-copy">'+
+ '<div class="kb-confirm-symbol kb-confirm-symbol-info" aria-hidden="true">₹</div>'+
+ '<div class="kb-confirm-eyebrow">PRICE CHANGE</div>'+
+ '<h3 id="kb-confirm-title">Apply destination prices?</h3>'+
+ '<p id="kb-confirm-copy">Items have different prices in <strong>'+e(destinationSection?.name||"the destination section")+
+ '</strong>. Confirm shifting this order to <strong>'+e(destination?.name||"the selected table")+'</strong> with the destination prices.</p>'+
+ '<div class="kb-confirm-actions">'+button('Keep Current Prices · Esc','shift-confirm-back')+
+ '<button type="button" class="kb-primary-button" id="kb-shift-confirm" data-kba="shift-confirm">Shift & Apply Prices · Enter</button></div>'+
+ '<p class="kb-confirm-hint">Press Enter to apply prices, or Esc / − to return to available tables.</p></section></div>';
+}
 if(kb.step==="preview"){
  body+='<div class="kb-overlay"><section class="kb-dialog"><h3>Bill Preview</h3><p>Enter → Discount → Instruction on Bill → Print</p>'+
  '<div class="kb-pretotal"><span>Grand total</span><strong id="kb-preview-total">'+previewAmount()+'</strong></div>'+
@@ -91,6 +118,10 @@ function refocus(){
   var row=rows[kb.selected];
   if(row&&typeof row.focus==="function"){row.focus({preventScroll:true});return;}
  }
+if(kb.step==="cancel"||kb.step==="shift-confirm"){
+ var confirm=document.getElementById(kb.step==="cancel"?"kb-cancel-confirm":"kb-shift-confirm");
+ if(confirm&&typeof confirm.focus==="function"){confirm.focus({preventScroll:true});return;}
+}
 if(kb.step==="shift"){
  var choices=typeof document.querySelectorAll==="function"?
   document.querySelectorAll('#twkb .kb-shift-results button[data-kba="shift-to"]'):[];
@@ -227,7 +258,7 @@ function shiftTargets(){
   });
  });
 }
-function shiftTo(index){
+function shiftTo(index,approved){
  var target=shiftTargets()[index];if(!target){showToast("Selected table is no longer available.");kb.step="list";paint();return;}
  var oldData=JSON.stringify(data),oldCart=JSON.parse(JSON.stringify(cart)),oldTable=tableId,oldSection=sectionId,oldOrder=activeOrderId;
  try{
@@ -243,8 +274,9 @@ function shiftTo(index){
    if(!item||newPrice===null)throw Error("One of the items is unavailable at the destination.");
    return Object.assign({},line,{price:newPrice});
   });
-  if(changed&&priced.some(function(line,i){return line.price!==cart[i].price})&&
-    !window.confirm("Prices differ in "+targetSec.name+". Shift the order and apply the destination section prices?"))return;
+  if(changed&&priced.some(function(line,i){return line.price!==cart[i].price})&&!approved){
+   kb.pendingShiftId=target.id;kb.step="shift-confirm";paint();return;
+  }
   var order=(data.orders||[]).find(function(o){return o.id===activeOrderId&&o.status==="open";});
   if(!order&&cart.length){
    order={id:"o"+data.seq++,restaurantId:selected,status:"open",createdAt:new Date().toISOString(),cart:[]};
@@ -267,9 +299,12 @@ function shiftTo(index){
  }
 }
 function cancelTable(){
+ kb.step="cancel";paint();
+}
+function confirmCancelTable(){
+ if(kb.step!=="cancel")return;
  var table=(data.tables[selected]||[]).find(function(t){return t.id===tableId;});
  var name=table?.name||"this table";
- if(!window.confirm("Cancel the entire "+name+" order and remove all saved items?"))return;
  var before=JSON.stringify(data);
  var order=(data.orders||[]).find(function(o){
   return o.restaurantId===selected&&o.status==="open"&&(o.id===activeOrderId||o.tableId===tableId);
@@ -350,6 +385,14 @@ if(name==="view")return enterView();
 if(name==="floor")return returnToTables();
 if(name==="shift-to")return shiftTo(Number(el.dataset.index)||0);
 if(name==="shift-back"){kb.step="list";paint();return;}
+if(name==="cancel-back"){kb.step="list";paint();return;}
+if(name==="cancel-confirm")return confirmCancelTable();
+if(name==="shift-confirm-back"){kb.pendingShiftId="";kb.step="shift";paint();return;}
+if(name==="shift-confirm"){
+ var i=shiftTargets().findIndex(function(t){return t.id===kb.pendingShiftId;});
+ if(i<0){kb.step="shift";kb.pendingShiftId="";paint();showToast("The destination table is no longer available.");return;}
+ return shiftTo(i,true);
+}
 if(name==="line"){kb.selected=Number(el.dataset.index)||0;kb.mode="view";kb.step="list";paint();return;}
 if(name==="choose"){var m=matches()[Number(el.dataset.index)||0];if(m){kb.search="";pick(m,-1);}return;}
 if(name==="preview")return openPreview();
@@ -385,6 +428,16 @@ if(kb.step==="preview"){
  if(id==="kb-instruction"){kb.instruction=document.getElementById("kb-instruction")?.value||"";return document.getElementById("kb-print")?.focus();}
  if(id==="kb-print"){kb.instruction=document.getElementById("kb-instruction")?.value||"";return printAndComplete();}
  return;
+}
+if(kb.step==="cancel"){
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();kb.step="list";paint();return;}
+ if(k==="Enter"){stop();return confirmCancelTable();}
+ stop();return;
+}
+if(kb.step==="shift-confirm"){
+ if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();return action("shift-confirm-back");}
+ if(k==="Enter"){stop();return action("shift-confirm");}
+ stop();return;
 }
 if(kb.step==="shift"){
  if(k==="Escape"||k==="Esc"||k==="-"||k==="Subtract"||k==="NumpadSubtract"){stop();kb.step="list";paint();return;}
@@ -466,6 +519,22 @@ var css=document.createElement("style");css.id="twkb-style";css.textContent=[
 "#twkb .kb-results small{display:block}#twkb .kb-shift-results{max-height:55dvh;overflow:auto;margin-top:12px}",
 "#twkb .kb-shift-results button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid #36535d;background:#132f36;color:#f1fff6;margin:6px 0}",
 "#twkb .kb-shift-results button.kb-current{background:#16714c!important;border:2px solid #a6ffc0!important}",
+"#twkb .kb-confirm-overlay{align-items:center;padding:18px;background:rgba(5,18,23,.78);backdrop-filter:blur(5px)}",
+"#twkb .kb-confirm-dialog{width:min(100%,490px);padding:30px;border-radius:18px;background:linear-gradient(145deg,#1c343d,#10252d);border:1px solid #48616a;box-shadow:0 25px 85px rgba(0,0,0,.55)}",
+"#twkb .kb-confirm-dialog h3{font-size:24px;line-height:1.2;margin:8px 0 12px;color:#f5fbf8}",
+"#twkb .kb-confirm-dialog p{font-size:14px;line-height:1.6;color:#b6cfc8}",
+"#twkb .kb-confirm-symbol{display:grid;place-items:center;background:#452d30;border:1px solid #bd656c;color:#f1a2a8;width:44px;height:44px;border-radius:12px;font-size:25px;font-weight:900;margin-bottom:15px}",
+"#twkb .kb-confirm-symbol-info{background:#1a413c;border-color:#369b75;color:#adf3ce;font-size:19px}",
+"#twkb .kb-confirm-eyebrow{color:#e2aaac;letter-spacing:1.4px;font-size:10px;font-weight:850}",
+"#twkb .kb-confirm-detail{display:grid;grid-template-columns:auto 1fr;gap:9px 18px;border-top:1px solid #39535a;border-bottom:1px solid #39535a;margin-top:22px;padding:15px 0;font-size:13px;color:#bed3cd}",
+"#twkb .kb-confirm-detail strong{color:#f1fff6;text-align:right}",
+"#twkb .kb-confirm-actions{display:flex;gap:10px;margin-top:24px}",
+"#twkb .kb-confirm-actions button{flex:1;min-height:47px;border-radius:9px;font-size:12px;white-space:normal}",
+"#twkb .kb-confirm-actions .kb-danger-button{background:#ad3643;color:#fff;border:1px solid #c45461}",
+"#twkb .kb-confirm-actions .kb-danger-button:hover{background:#c2404f}",
+"#twkb .kb-confirm-actions .kb-primary-button{background:#127c5b;color:#fff;border:1px solid #38bb87}",
+"#twkb .kb-confirm-dialog .kb-confirm-hint{font-size:11px;color:#9eb9af;margin-top:14px;text-align:center}",
+"@media(max-width:480px){#twkb .kb-confirm-dialog{padding:22px 18px}#twkb .kb-confirm-actions{flex-direction:column-reverse}}",
 "#twkb .kb-results small{display:block}#twkb .kb-discount-row{display:flex;gap:10px;align-items:center}#twkb .kb-discount-row span{min-width:30px;text-align:center;font-weight:bold;font-size:20px}",
 "#twkb .kb-error{color:#ffb9a2}",
 "@media(max-width:760px){#twkb .kb-grid{grid-template-columns:1fr}#twkb .kb-lines{max-height:32dvh}#twkb h2{font-size:21px}#twkb .kb-table-head,#twkb .kb-line{grid-template-columns:minmax(0,1fr) 34px 94px}}"
@@ -481,7 +550,7 @@ if(t.id==="kb-instruction")kb.instruction=t.value;},true);
 window.addEventListener("keydown",key,true);
 // The early Escape guard in index.html calls this before older POS key handlers.
 // Main billing modes execute precisely the same action as the minus shortcut.
-window.twBillingIsViewing=function(){return kb.mode==="view"&&(kb.step==="list"||kb.step==="shift");};
+window.twBillingIsViewing=function(){return kb.mode==="view"&&["list","shift","cancel","shift-confirm"].includes(kb.step);};
 window.twBillingHandleShortcut=function(name){
  key({key:name,ctrlKey:false,metaKey:false,altKey:false,
   preventDefault:function(){},stopImmediatePropagation:function(){}});
